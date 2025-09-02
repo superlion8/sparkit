@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { ImageGenerator } from '@/components/ImageGenerator';
-import { ImageEditor } from '@/components/ImageEditor';
+import { ImageGenerator } from '../components/ImageGenerator';
+import { ImageEditor } from '../components/ImageEditor';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'generate' | 'edit'>('generate');
