@@ -27,18 +27,26 @@ export async function POST(request: NextRequest) {
     const base64Image = buffer.toString('base64');
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImages?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt: prompt,
-          reference_images: [{
-            image_bytes: base64Image
-          }],
-          number_of_images: 1
+          contents: [{
+            parts: [
+              {
+                text: prompt
+              },
+              {
+                inline_data: {
+                  mime_type: imageFile.type,
+                  data: base64Image
+                }
+              }
+            ]
+          }]
         }),
       }
     );
@@ -53,6 +61,18 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
+    
+    // Extract images from Gemini response format
+    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+      const images = data.candidates[0].content.parts
+        .filter((part: any) => part.inlineData && part.inlineData.mimeType.startsWith('image/'))
+        .map((part: any) => ({
+          bytesBase64Encoded: part.inlineData.data
+        }));
+      
+      return NextResponse.json({ generatedImages: images });
+    }
+    
     return NextResponse.json(data);
 
   } catch (error) {

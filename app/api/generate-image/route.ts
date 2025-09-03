@@ -20,15 +20,18 @@ export async function POST(request: NextRequest) {
     }
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImages?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt: prompt,
-          number_of_images: Math.min(Math.max(1, count), 3)
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }]
         }),
       }
     );
@@ -43,6 +46,18 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
+    
+    // Extract images from Gemini response format
+    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+      const images = data.candidates[0].content.parts
+        .filter((part: any) => part.inlineData && part.inlineData.mimeType.startsWith('image/'))
+        .map((part: any) => ({
+          bytesBase64Encoded: part.inlineData.data
+        }));
+      
+      return NextResponse.json({ generatedImages: images });
+    }
+    
     return NextResponse.json(data);
 
   } catch (error) {
