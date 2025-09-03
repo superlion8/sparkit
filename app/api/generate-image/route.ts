@@ -19,8 +19,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Try the text generation API first to test the key
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: prompt
+              text: `Create a detailed text description for generating this image: ${prompt}`
             }]
           }]
         }),
@@ -39,26 +40,31 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       const error = await response.text();
       console.error('Gemini API error:', error);
+      console.error('Response status:', response.status);
+      console.error('Response headers:', response.headers);
       return NextResponse.json(
-        { error: 'Failed to generate image' },
+        { error: `Failed to generate image: ${error}` },
         { status: response.status }
       );
     }
 
     const data = await response.json();
     
-    // Extract images from Gemini response format
-    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
-      const images = data.candidates[0].content.parts
-        .filter((part: any) => part.inlineData && part.inlineData.mimeType.startsWith('image/'))
-        .map((part: any) => ({
-          bytesBase64Encoded: part.inlineData.data
-        }));
-      
-      return NextResponse.json({ generatedImages: images });
-    }
-    
-    return NextResponse.json(data);
+    // For now, just return a placeholder to test API connectivity
+    return NextResponse.json({
+      message: 'API connected successfully',
+      textResponse: data.candidates?.[0]?.content?.parts?.[0]?.text || 'No text response',
+      generatedImages: [{
+        bytesBase64Encoded: 'data:image/svg+xml;base64,' + btoa(`
+          <svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
+            <rect width="400" height="400" fill="#f0f0f0"/>
+            <text x="200" y="200" text-anchor="middle" font-size="20" fill="#666">
+              Placeholder: ${prompt}
+            </text>
+          </svg>
+        `)
+      }]
+    });
 
   } catch (error) {
     console.error('Image generation error:', error);
