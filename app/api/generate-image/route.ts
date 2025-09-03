@@ -58,11 +58,14 @@ export async function POST(request: NextRequest) {
       </text>
     </svg>`;
     
+    // Use Buffer.from instead of btoa for server-side
+    const base64Content = Buffer.from(svgContent, 'utf8').toString('base64');
+    
     return NextResponse.json({
       message: 'API connected successfully',
       textResponse: data.candidates?.[0]?.content?.parts?.[0]?.text || 'No text response',
       generatedImages: [{
-        bytesBase64Encoded: btoa(svgContent)
+        bytesBase64Encoded: base64Content
       }]
     });
 
