@@ -51,18 +51,18 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
     
     // For now, just return a placeholder to test API connectivity
+    const svgContent = `<svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
+      <rect width="400" height="400" fill="#f0f0f0"/>
+      <text x="200" y="200" text-anchor="middle" font-size="20" fill="#666">
+        Placeholder: ${prompt}
+      </text>
+    </svg>`;
+    
     return NextResponse.json({
       message: 'API connected successfully',
       textResponse: data.candidates?.[0]?.content?.parts?.[0]?.text || 'No text response',
       generatedImages: [{
-        bytesBase64Encoded: 'data:image/svg+xml;base64,' + btoa(`
-          <svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
-            <rect width="400" height="400" fill="#f0f0f0"/>
-            <text x="200" y="200" text-anchor="middle" font-size="20" fill="#666">
-              Placeholder: ${prompt}
-            </text>
-          </svg>
-        `)
+        bytesBase64Encoded: btoa(svgContent)
       }]
     });
 

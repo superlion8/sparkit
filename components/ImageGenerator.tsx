@@ -37,7 +37,22 @@ export function ImageGenerator() {
       }
 
       if (data.generatedImages) {
-        setGeneratedImages(data.generatedImages.map((img: any) => `data:image/png;base64,${img.bytesBase64Encoded}`));
+        setGeneratedImages(data.generatedImages.map((img: any) => {
+          // Check if it's already a complete data URL
+          if (img.bytesBase64Encoded.startsWith('data:')) {
+            return img.bytesBase64Encoded;
+          }
+          // Check if it's SVG content (starts with '<svg' when decoded)
+          try {
+            const decoded = atob(img.bytesBase64Encoded);
+            if (decoded.trim().startsWith('<svg')) {
+              return `data:image/svg+xml;base64,${img.bytesBase64Encoded}`;
+            }
+          } catch (e) {
+            // If decoding fails, assume it's PNG
+          }
+          return `data:image/png;base64,${img.bytesBase64Encoded}`;
+        }));
       }
     } catch (error) {
       console.error('Generation error:', error);
