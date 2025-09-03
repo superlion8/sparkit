@@ -27,11 +27,8 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt,
-          number_of_images: Math.min(Math.max(1, count), 3),
-          aspect_ratio: '1:1',
-          safety_filter_level: 'block_some',
-          person_generation: 'allow_adult'
+          prompt: prompt,
+          number_of_images: Math.min(Math.max(1, count), 3)
         }),
       }
     );
