@@ -19,9 +19,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Try the image generation API
+    // Use the same image generation model as edit-image
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `Generate a realistic image: ${prompt}. Create a high-quality, detailed image based on this description.`
+              text: prompt
             }]
           }]
         }),
