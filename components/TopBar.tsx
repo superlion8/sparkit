@@ -64,13 +64,13 @@ export function TopBar({ currentTab, onSearch }: TopBarProps) {
         <div className="flex items-center gap-4 lg:gap-6">
           <div>
             <h1 
-              className="text-xl lg:text-2xl font-bold"
+              className="h1-text"
               style={{ color: 'var(--primary-text)' }}
             >
               {getTabTitle(currentTab)}
             </h1>
             <p 
-              className="text-sm hidden sm:block"
+              className="body-small hidden sm:block"
               style={{ color: 'var(--secondary-text)' }}
             >
               {getTabDescription(currentTab)}
@@ -97,7 +97,7 @@ export function TopBar({ currentTab, onSearch }: TopBarProps) {
                     ? "Search your images to edit..."
                     : "Search images, prompts, or collections..."
                 }
-                className="w-full pl-10 lg:pl-12 pr-4 py-2 lg:py-3 border rounded-xl lg:rounded-2xl transition-all duration-300 backdrop-blur-sm text-sm lg:text-base"
+                className="w-full pl-10 lg:pl-12 pr-4 py-2 lg:py-3 border rounded-xl lg:rounded-2xl transition-all duration-300 backdrop-blur-sm body-large"
                 style={{
                   backgroundColor: 'var(--base-bg)',
                   borderColor: 'var(--border-color)',
@@ -173,21 +173,22 @@ export function TopBar({ currentTab, onSearch }: TopBarProps) {
               color: 'var(--secondary-text)'
             }}
           >
-            <div 
-              className="w-6 h-6 lg:w-8 lg:h-8 rounded-full flex items-center justify-center"
-              style={{ background: 'var(--gradient-primary)' }}
-            >
-              <User className="w-3 h-3 lg:w-4 lg:h-4 text-white" />
+            <div className="w-6 h-6 lg:w-8 lg:h-8 rounded-full overflow-hidden flex items-center justify-center">
+              <img 
+                src="/sparkit-logo.png" 
+                alt="User Avatar" 
+                className="w-full h-full object-cover"
+              />
             </div>
             <div className="hidden lg:block">
               <p 
-                className="text-sm font-medium"
+                className="body-small font-medium"
                 style={{ color: 'var(--primary-text)' }}
               >
                 Free Plan
               </p>
               <p 
-                className="text-xs"
+                className="caption-text"
                 style={{ color: 'var(--secondary-text)' }}
               >
                 0/10 generations

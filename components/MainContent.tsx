@@ -52,13 +52,13 @@ function ExploreContent({ searchQuery }: { searchQuery: string }) {
     <div className="space-y-8">
       <div className="text-center">
         <h2 
-          className="text-3xl font-bold mb-4"
+          className="display-text mb-4"
           style={{ color: 'var(--primary-text)' }}
         >
           Discover Amazing Creations
         </h2>
         <p 
-          className="max-w-2xl mx-auto"
+          className="body-large max-w-2xl mx-auto"
           style={{ color: 'var(--secondary-text)' }}
         >
           Explore the latest AI-generated images from our community and get inspired for your next creation
@@ -84,7 +84,7 @@ function ExploreContent({ searchQuery }: { searchQuery: string }) {
                 }}
               >
                 <span 
-                  className="text-sm"
+                  className="body-small"
                   style={{ color: 'var(--secondary-text)' }}
                 >
                   Sample Image {index + 1}
@@ -97,7 +97,7 @@ function ExploreContent({ searchQuery }: { searchQuery: string }) {
                 style={{ backgroundColor: 'var(--surface-bg)' }}
               >
                 <span 
-                  className="text-sm"
+                  className="body-small"
                   style={{ color: 'var(--primary-text)' }}
                 >
                   View
