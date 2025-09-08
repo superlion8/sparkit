@@ -35,7 +35,10 @@ export function MainContent({ activeTab, searchQuery }: MainContentProps) {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div 
+      className="flex-1 overflow-y-auto"
+      style={{ backgroundColor: 'var(--base-bg)' }}
+    >
       <div className="p-6">
         {renderContent()}
       </div>
@@ -48,8 +51,16 @@ function ExploreContent({ searchQuery }: { searchQuery: string }) {
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-4">Discover Amazing Creations</h2>
-        <p className="text-gray-400 max-w-2xl mx-auto">
+        <h2 
+          className="text-3xl font-bold mb-4"
+          style={{ color: 'var(--primary-text)' }}
+        >
+          Discover Amazing Creations
+        </h2>
+        <p 
+          className="max-w-2xl mx-auto"
+          style={{ color: 'var(--secondary-text)' }}
+        >
           Explore the latest AI-generated images from our community and get inspired for your next creation
         </p>
       </div>
@@ -58,14 +69,39 @@ function ExploreContent({ searchQuery }: { searchQuery: string }) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {Array.from({ length: 12 }).map((_, index) => (
           <div key={index} className="group relative">
-            <div className="aspect-square bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-2xl overflow-hidden">
-              <div className="w-full h-full bg-gradient-to-br from-purple-600/30 to-blue-600/30 flex items-center justify-center">
-                <span className="text-white/50 text-sm">Sample Image {index + 1}</span>
+            <div 
+              className="aspect-square rounded-2xl overflow-hidden border"
+              style={{ 
+                backgroundColor: 'var(--surface-bg)',
+                borderColor: 'var(--border-color)'
+              }}
+            >
+              <div 
+                className="w-full h-full flex items-center justify-center"
+                style={{ 
+                  background: 'var(--gradient-primary)',
+                  opacity: 0.1
+                }}
+              >
+                <span 
+                  className="text-sm"
+                  style={{ color: 'var(--secondary-text)' }}
+                >
+                  Sample Image {index + 1}
+                </span>
               </div>
             </div>
             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
-              <button className="p-3 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-colors">
-                <span className="text-white text-sm">View</span>
+              <button 
+                className="p-3 rounded-full backdrop-blur-sm transition-colors"
+                style={{ backgroundColor: 'var(--surface-bg)' }}
+              >
+                <span 
+                  className="text-sm"
+                  style={{ color: 'var(--primary-text)' }}
+                >
+                  View
+                </span>
               </button>
             </div>
           </div>
