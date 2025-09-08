@@ -51,13 +51,30 @@ export function TopBar({ currentTab, onSearch }: TopBarProps) {
   };
 
   return (
-    <div className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-4 lg:px-6 py-4">
+    <div 
+      className="backdrop-blur-xl border-b px-4 lg:px-6 py-4"
+      style={{
+        backgroundColor: 'var(--surface-bg)',
+        borderColor: 'var(--border-color)',
+        opacity: 0.95
+      }}
+    >
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         {/* Left Section */}
         <div className="flex items-center gap-4 lg:gap-6">
           <div>
-            <h1 className="text-xl lg:text-2xl font-bold text-white">{getTabTitle(currentTab)}</h1>
-            <p className="text-sm text-gray-400 hidden sm:block">{getTabDescription(currentTab)}</p>
+            <h1 
+              className="text-xl lg:text-2xl font-bold"
+              style={{ color: 'var(--primary-text)' }}
+            >
+              {getTabTitle(currentTab)}
+            </h1>
+            <p 
+              className="text-sm hidden sm:block"
+              style={{ color: 'var(--secondary-text)' }}
+            >
+              {getTabDescription(currentTab)}
+            </p>
           </div>
         </div>
 
@@ -65,7 +82,10 @@ export function TopBar({ currentTab, onSearch }: TopBarProps) {
         <div className="flex-1 max-w-2xl lg:mx-8">
           <form onSubmit={handleSearch} className="relative">
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 lg:w-5 lg:h-5 text-gray-400" />
+              <Search 
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 lg:w-5 lg:h-5" 
+                style={{ color: 'var(--secondary-text)' }}
+              />
               <input
                 type="text"
                 value={searchQuery}
@@ -77,11 +97,17 @@ export function TopBar({ currentTab, onSearch }: TopBarProps) {
                     ? "Search your images to edit..."
                     : "Search images, prompts, or collections..."
                 }
-                className="w-full pl-10 lg:pl-12 pr-4 py-2 lg:py-3 bg-black/20 border border-white/10 rounded-xl lg:rounded-2xl text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base"
+                className="w-full pl-10 lg:pl-12 pr-4 py-2 lg:py-3 border rounded-xl lg:rounded-2xl transition-all duration-300 backdrop-blur-sm text-sm lg:text-base"
+                style={{
+                  backgroundColor: 'var(--base-bg)',
+                  borderColor: 'var(--border-color)',
+                  color: 'var(--primary-text)'
+                }}
               />
               <button
                 type="submit"
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1.5 lg:p-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-all duration-300"
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1.5 lg:p-2 rounded-lg transition-all duration-300"
+                style={{ background: 'var(--gradient-primary)' }}
               >
                 <Search className="w-3 h-3 lg:w-4 lg:h-4 text-white" />
               </button>
@@ -92,37 +118,80 @@ export function TopBar({ currentTab, onSearch }: TopBarProps) {
         {/* Right Section - Actions */}
         <div className="flex items-center gap-2 lg:gap-3">
           {/* Filter Button */}
-          <button className="p-2 lg:p-3 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
-            <Filter className="w-4 h-4 lg:w-5 lg:h-5 text-gray-400" />
+          <button 
+            className="p-2 lg:p-3 rounded-xl hover:bg-white/20 transition-colors"
+            style={{ 
+              backgroundColor: 'var(--surface-bg)',
+              color: 'var(--secondary-text)'
+            }}
+          >
+            <Filter className="w-4 h-4 lg:w-5 lg:h-5" />
           </button>
 
           {/* Settings Button */}
-          <button className="p-2 lg:p-3 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
-            <Settings className="w-4 h-4 lg:w-5 lg:h-5 text-gray-400" />
+          <button 
+            className="p-2 lg:p-3 rounded-xl hover:bg-white/20 transition-colors"
+            style={{ 
+              backgroundColor: 'var(--surface-bg)',
+              color: 'var(--secondary-text)'
+            }}
+          >
+            <Settings className="w-4 h-4 lg:w-5 lg:h-5" />
           </button>
 
           {/* Notifications */}
-          <button className="p-2 lg:p-3 rounded-xl bg-white/10 hover:bg-white/20 transition-colors relative">
-            <Bell className="w-4 h-4 lg:w-5 lg:h-5 text-gray-400" />
-            <span className="absolute -top-1 -right-1 w-2 h-2 lg:w-3 lg:h-3 bg-red-500 rounded-full"></span>
+          <button 
+            className="p-2 lg:p-3 rounded-xl hover:bg-white/20 transition-colors relative"
+            style={{ 
+              backgroundColor: 'var(--surface-bg)',
+              color: 'var(--secondary-text)'
+            }}
+          >
+            <Bell className="w-4 h-4 lg:w-5 lg:h-5" />
+            <span 
+              className="absolute -top-1 -right-1 w-2 h-2 lg:w-3 lg:h-3 rounded-full"
+              style={{ backgroundColor: 'var(--error-color)' }}
+            ></span>
           </button>
 
           {/* Quick Actions */}
           {currentTab === 'generate' && (
-            <button className="hidden sm:flex items-center gap-2 px-3 lg:px-4 py-2 lg:py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl font-semibold transition-all duration-300 text-sm lg:text-base">
+            <button 
+              className="hidden sm:flex items-center gap-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl font-semibold transition-all duration-300 text-sm lg:text-base"
+              style={{ background: 'var(--gradient-primary)' }}
+            >
               <Zap className="w-3 h-3 lg:w-4 lg:h-4" />
               <span className="hidden lg:inline">Quick Generate</span>
             </button>
           )}
 
           {/* User Profile */}
-          <div className="flex items-center gap-2 lg:gap-3 p-1.5 lg:p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
-            <div className="w-6 h-6 lg:w-8 lg:h-8 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">
+          <div 
+            className="flex items-center gap-2 lg:gap-3 p-1.5 lg:p-2 rounded-xl hover:bg-white/20 transition-colors cursor-pointer"
+            style={{ 
+              backgroundColor: 'var(--surface-bg)',
+              color: 'var(--secondary-text)'
+            }}
+          >
+            <div 
+              className="w-6 h-6 lg:w-8 lg:h-8 rounded-full flex items-center justify-center"
+              style={{ background: 'var(--gradient-primary)' }}
+            >
               <User className="w-3 h-3 lg:w-4 lg:h-4 text-white" />
             </div>
             <div className="hidden lg:block">
-              <p className="text-sm font-medium text-white">Free Plan</p>
-              <p className="text-xs text-gray-400">0/10 generations</p>
+              <p 
+                className="text-sm font-medium"
+                style={{ color: 'var(--primary-text)' }}
+              >
+                Free Plan
+              </p>
+              <p 
+                className="text-xs"
+                style={{ color: 'var(--secondary-text)' }}
+              >
+                0/10 generations
+              </p>
             </div>
           </div>
         </div>

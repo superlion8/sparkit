@@ -52,15 +52,25 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
       onClick={onClick}
       className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 group ${
         isActive
-          ? 'bg-gradient-to-r from-purple-600/20 to-blue-600/20 text-white border border-purple-500/30'
+          ? 'bg-gradient-to-r from-purple-600/20 to-pink-600/20 text-white border border-purple-500/30'
           : 'text-gray-400 hover:text-white hover:bg-white/5'
       }`}
+      style={{
+        color: isActive ? 'var(--primary-text)' : 'var(--secondary-text)',
+        backgroundColor: isActive ? 'rgba(124, 58, 237, 0.1)' : 'transparent',
+        borderColor: isActive ? 'rgba(124, 58, 237, 0.3)' : 'transparent'
+      }}
     >
-      <div className={`p-1 rounded-md transition-colors ${
-        isActive 
-          ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white' 
-          : 'bg-white/10 group-hover:bg-white/20'
-      }`}>
+      <div 
+        className={`p-1 rounded-md transition-colors ${
+          isActive 
+            ? 'text-white' 
+            : 'group-hover:bg-white/20'
+        }`}
+        style={{
+          background: isActive ? 'var(--gradient-primary)' : 'rgba(255, 255, 255, 0.1)'
+        }}
+      >
         <tab.icon className="w-3.5 h-3.5" />
       </div>
       {!isCollapsed && (
@@ -68,40 +78,71 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-medium truncate">{tab.label}</span>
             {tab.isNew && (
-              <span className="px-1.5 py-0.5 text-xs font-semibold bg-red-500 text-white rounded-full flex-shrink-0">
+              <span 
+                className="px-1.5 py-0.5 text-xs font-semibold text-white rounded-full flex-shrink-0"
+                style={{ backgroundColor: 'var(--accent-color)' }}
+              >
                 New!
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-500 truncate">{tab.description}</p>
+          <p 
+            className="text-xs truncate"
+            style={{ color: 'var(--secondary-text)' }}
+          >
+            {tab.description}
+          </p>
         </div>
       )}
     </button>
   );
 
   return (
-    <div className={`${isDarkMode ? 'bg-black/40' : 'bg-white/40'} backdrop-blur-xl border-r ${isDarkMode ? 'border-white/10' : 'border-gray-200'} transition-all duration-300 ${
-      isCollapsed ? 'w-14' : 'w-64'
-    } h-screen flex flex-col fixed lg:relative z-50 lg:z-auto`}>
+    <div 
+      className="backdrop-blur-xl border-r transition-all duration-300 h-screen flex flex-col fixed lg:relative z-50 lg:z-auto"
+      style={{
+        width: isCollapsed ? '3.5rem' : '16rem',
+        backgroundColor: 'var(--surface-bg)',
+        borderColor: 'var(--border-color)',
+        opacity: 0.95
+      }}
+    >
       {/* Header */}
-      <div className="p-3 border-b border-white/10">
+      <div 
+        className="p-3 border-b"
+        style={{ borderColor: 'var(--border-color)' }}
+      >
         <div className="flex items-center justify-between">
           {!isCollapsed && (
             <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600">
+              <div 
+                className="p-1.5 rounded-lg"
+                style={{ background: 'var(--gradient-primary)' }}
+              >
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-white">Sparkit</h1>
-                <p className="text-xs text-gray-400">AI Studio</p>
+                <h1 
+                  className="text-lg font-bold"
+                  style={{ color: 'var(--primary-text)' }}
+                >
+                  Sparkit
+                </h1>
+                <p 
+                  className="text-xs"
+                  style={{ color: 'var(--secondary-text)' }}
+                >
+                  AI Studio
+                </p>
               </div>
             </div>
           )}
           <button
             onClick={onToggleCollapse}
             className="p-1.5 rounded-md hover:bg-white/10 transition-colors"
+            style={{ color: 'var(--secondary-text)' }}
           >
-            {isCollapsed ? <Menu className="w-4 h-4 text-gray-400" /> : <X className="w-4 h-4 text-gray-400" />}
+            {isCollapsed ? <Menu className="w-4 h-4" /> : <X className="w-4 h-4" />}
           </button>
         </div>
       </div>
@@ -120,7 +161,10 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
         </div>
 
         {/* Account Section */}
-        <div className="pt-3 border-t border-white/10">
+        <div 
+          className="pt-3 border-t"
+          style={{ borderColor: 'var(--border-color)' }}
+        >
           <div className="space-y-1">
             {accountTabs.map((tab) => (
               <TabItem
@@ -135,13 +179,20 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
       </div>
 
       {/* Bottom Section */}
-      <div className="p-3 border-t border-white/10 space-y-1">
+      <div 
+        className="p-3 border-t space-y-1"
+        style={{ borderColor: 'var(--border-color)' }}
+      >
         {/* Theme Toggle */}
         <button
           onClick={() => onThemeChange(!isDarkMode)}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-all duration-200"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition-all duration-200"
+          style={{ color: 'var(--secondary-text)' }}
         >
-          <div className="p-1 rounded-md bg-white/10">
+          <div 
+            className="p-1 rounded-md"
+            style={{ backgroundColor: 'var(--surface-bg)' }}
+          >
             {isDarkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
           </div>
           {!isCollapsed && (
@@ -152,17 +203,38 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
         </button>
 
         {/* User Account */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-all duration-200 cursor-pointer">
-          <div className="p-1 rounded-md bg-gradient-to-r from-purple-600 to-blue-600">
+        <div 
+          className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition-all duration-200 cursor-pointer"
+          style={{ color: 'var(--secondary-text)' }}
+        >
+          <div 
+            className="p-1 rounded-md"
+            style={{ background: 'var(--gradient-primary)' }}
+          >
             <User className="w-3.5 h-3.5 text-white" />
           </div>
           {!isCollapsed && (
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium truncate">My Account</span>
-                <span className="text-xs">•••</span>
+                <span 
+                  className="text-sm font-medium truncate"
+                  style={{ color: 'var(--primary-text)' }}
+                >
+                  My Account
+                </span>
+                <span 
+                  className="text-xs"
+                  style={{ color: 'var(--secondary-text)' }}
+                >
+                  •••
+                </span>
               </div>
-              <p className="text-xs text-gray-500 truncate">Free Plan</p>
+              <p 
+                className="text-xs truncate"
+                style={{ color: 'var(--secondary-text)' }}
+              >
+                Free Plan
+              </p>
             </div>
           )}
         </div>
