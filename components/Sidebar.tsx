@@ -15,7 +15,7 @@ import {
   Menu,
   X,
   Plus,
-  Grid3X3,
+  Grid,
   MessageSquare,
   CheckSquare,
   CreditCard
@@ -36,8 +36,8 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse 
     { id: 'generate', label: 'Create', icon: Sparkles, description: 'Generate images' },
     { id: 'edit', label: 'Edit', icon: Wand2, description: 'Edit images' },
     { id: 'gallery', label: 'Gallery', icon: ImageIcon, description: 'My creations' },
-    { id: 'moodboards', label: 'Moodboards', icon: Grid3X3, description: 'Collections', isNew: true },
-    { id: 'organize', label: 'Organize', icon: Grid3X3, description: 'Manage files' },
+    { id: 'moodboards', label: 'Moodboards', icon: Grid, description: 'Collections', isNew: true },
+    { id: 'organize', label: 'Organize', icon: Grid, description: 'Manage files' },
     { id: 'chat', label: 'Chat', icon: MessageSquare, description: 'AI Assistant' },
     { id: 'tasks', label: 'Tasks', icon: CheckSquare, description: 'Job queue' },
   ];
