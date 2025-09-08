@@ -113,34 +113,18 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
         style={{ borderColor: 'var(--border-color)' }}
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex-shrink-0">
-              <img 
-                src="/sparkit-logo.png" 
-                alt="Sparkit Logo" 
-                className="w-8 h-8 object-contain"
-              />
-            </div>
-            {!isCollapsed && (
-              <div>
-                <h1 
-                  className="text-lg font-bold"
-                  style={{ color: 'var(--primary-text)' }}
-                >
-                  Sparkit
-                </h1>
-                <p 
-                  className="text-xs"
-                  style={{ color: 'var(--secondary-text)' }}
-                >
-                  AI Studio
-                </p>
-              </div>
-            )}
+          <div className="flex items-center justify-center flex-1">
+            <img 
+              src="/sparkit-logo.png" 
+              alt="Sparkit Logo" 
+              className={`object-contain transition-all duration-300 ${
+                isCollapsed ? 'w-10 h-10' : 'w-16 h-16'
+              }`}
+            />
           </div>
           <button
             onClick={onToggleCollapse}
-            className="p-1.5 rounded-md hover:bg-white/10 transition-colors"
+            className="p-1.5 rounded-md hover:bg-white/10 transition-colors flex-shrink-0"
             style={{ color: 'var(--secondary-text)' }}
           >
             {isCollapsed ? <Menu className="w-4 h-4" /> : <X className="w-4 h-4" />}
