@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Download, Sparkles } from 'lucide-react';
+import { Loader2, Download, Sparkles, Wand2, ImageIcon, Copy, Check } from 'lucide-react';
 import Image from 'next/image';
 
 export function ImageGenerator() {
@@ -10,6 +10,7 @@ export function ImageGenerator() {
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [error, setError] = useState('');
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -65,92 +66,187 @@ export function ImageGenerator() {
   const handleDownload = (imageUrl: string, index: number) => {
     const link = document.createElement('a');
     link.href = imageUrl;
-    link.download = `generated-image-${index + 1}.png`;
+    link.download = `sparkit-generated-${index + 1}.png`;
     link.click();
   };
 
+  const handleCopyPrompt = () => {
+    navigator.clipboard.writeText(prompt);
+  };
+
+  const handleCopyImage = async (imageUrl: string, index: number) => {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy image:', error);
+    }
+  };
+
   return (
-    <div>
-      <h2 className="text-2xl font-semibold mb-6 text-gray-800 flex items-center gap-2">
-        <Sparkles className="w-6 h-6 text-purple-600" />
-        Generate Image
-      </h2>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="text-center">
+        <div className="inline-flex items-center gap-3 mb-4">
+          <div className="p-2 rounded-xl bg-gradient-to-r from-purple-600/20 to-blue-600/20">
+            <Sparkles className="w-6 h-6 text-purple-400" />
+          </div>
+          <h2 className="text-3xl font-bold text-white">
+            Generate Images
+          </h2>
+        </div>
+        <p className="text-gray-400 max-w-2xl mx-auto">
+          Describe your vision and let AI bring it to life with stunning visuals
+        </p>
+      </div>
 
       <div className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Prompt
+        {/* Prompt Input */}
+        <div className="space-y-3">
+          <label className="block text-sm font-semibold text-gray-300">
+            Describe your image
           </label>
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe the image you want to generate..."
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-            rows={3}
-          />
+          <div className="relative">
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="A majestic mountain landscape at sunset with aurora borealis dancing in the sky..."
+              className="w-full p-4 bg-black/20 border border-white/10 rounded-2xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 resize-none text-white placeholder-gray-400 backdrop-blur-sm transition-all duration-300"
+              rows={4}
+            />
+            {prompt && (
+              <button
+                onClick={handleCopyPrompt}
+                className="absolute top-3 right-3 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                title="Copy prompt"
+              >
+                <Copy className="w-4 h-4 text-gray-400" />
+              </button>
+            )}
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Number of Images (1-3)
+        {/* Image Count Selector */}
+        <div className="space-y-3">
+          <label className="block text-sm font-semibold text-gray-300">
+            Number of images
           </label>
-          <select
-            value={count}
-            onChange={(e) => setCount(parseInt(e.target.value))}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          >
-            <option value={1}>1 image</option>
-            <option value={2}>2 images</option>
-            <option value={3}>3 images</option>
-          </select>
+          <div className="flex gap-2">
+            {[1, 2, 3].map((num) => (
+              <button
+                key={num}
+                onClick={() => setCount(num)}
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                  count === num
+                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
+                    : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                }`}
+              >
+                {num} {num === 1 ? 'image' : 'images'}
+              </button>
+            ))}
+          </div>
         </div>
 
+        {/* Error Message */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {error}
+          <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+              {error}
+            </div>
           </div>
         )}
 
+        {/* Generate Button */}
         <button
           onClick={handleGenerate}
           disabled={loading || !prompt.trim()}
-          className="w-full bg-purple-600 text-white py-3 px-6 rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white py-4 px-8 rounded-2xl font-semibold transition-all duration-300 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
         >
           {loading ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              Generating...
+              <span>Generating your masterpiece...</span>
             </>
           ) : (
             <>
-              <Sparkles className="w-5 h-5" />
-              Generate Image
+              <Wand2 className="w-5 h-5" />
+              <span>Generate Images</span>
             </>
           )}
         </button>
 
+        {/* Generated Images */}
         {generatedImages.length > 0 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-800">Generated Images:</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="space-y-6">
+            <div className="text-center">
+              <h3 className="text-xl font-semibold text-white mb-2">Your Generated Images</h3>
+              <p className="text-gray-400">Click to download or copy to clipboard</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {generatedImages.map((imageUrl, index) => (
-                <div key={index} className="relative group">
-                  <Image
-                    src={imageUrl}
-                    alt={`Generated image ${index + 1}`}
-                    width={400}
-                    height={400}
-                    className="w-full h-auto rounded-lg shadow-md"
-                  />
-                  <button
-                    onClick={() => handleDownload(imageUrl, index)}
-                    className="absolute top-2 right-2 bg-white bg-opacity-90 hover:bg-opacity-100 p-2 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Download className="w-4 h-4 text-gray-700" />
-                  </button>
+                <div key={index} className="group relative">
+                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500/10 to-blue-500/10 p-1">
+                    <div className="relative rounded-xl overflow-hidden">
+                      <Image
+                        src={imageUrl}
+                        alt={`Generated image ${index + 1}`}
+                        width={400}
+                        height={400}
+                        className="w-full h-auto rounded-xl transition-transform duration-300 group-hover:scale-105"
+                      />
+                      
+                      {/* Overlay with actions */}
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
+                        <button
+                          onClick={() => handleDownload(imageUrl, index)}
+                          className="p-3 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-colors"
+                          title="Download image"
+                        >
+                          <Download className="w-5 h-5 text-white" />
+                        </button>
+                        <button
+                          onClick={() => handleCopyImage(imageUrl, index)}
+                          className="p-3 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-colors"
+                          title="Copy to clipboard"
+                        >
+                          {copiedIndex === index ? (
+                            <Check className="w-5 h-5 text-green-400" />
+                          ) : (
+                            <Copy className="w-5 h-5 text-white" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Image info */}
+                  <div className="mt-3 text-center">
+                    <p className="text-sm text-gray-400">
+                      Image {index + 1} of {generatedImages.length}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Empty state when no images */}
+        {!loading && generatedImages.length === 0 && (
+          <div className="text-center py-12">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-purple-500/20 to-blue-500/20 mb-4">
+              <ImageIcon className="w-10 h-10 text-purple-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-300 mb-2">Ready to create?</h3>
+            <p className="text-gray-500">Enter a detailed prompt above to generate your first image</p>
           </div>
         )}
       </div>

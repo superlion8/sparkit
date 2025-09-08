@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Loader2, Upload, Download, Edit } from 'lucide-react';
+import { Loader2, Upload, Download, Edit, Wand2, ImageIcon, Copy, Check, X } from 'lucide-react';
 import Image from 'next/image';
 
 export function ImageEditor() {
@@ -11,6 +11,8 @@ export function ImageEditor() {
   const [loading, setLoading] = useState(false);
   const [editedImage, setEditedImage] = useState<string>('');
   const [error, setError] = useState('');
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [copiedImage, setCopiedImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,48 +82,104 @@ export function ImageEditor() {
   const handleDownload = (imageUrl: string) => {
     const link = document.createElement('a');
     link.href = imageUrl;
-    link.download = 'edited-image.png';
+    link.download = 'sparkit-edited.png';
     link.click();
   };
 
+  const handleCopyPrompt = () => {
+    navigator.clipboard.writeText(prompt);
+    setCopiedPrompt(true);
+    setTimeout(() => setCopiedPrompt(false), 2000);
+  };
+
+  const handleCopyImage = async (imageUrl: string) => {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+      setCopiedImage(true);
+      setTimeout(() => setCopiedImage(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy image:', error);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setPreviewUrl('');
+    setEditedImage('');
+    setError('');
+  };
+
   return (
-    <div>
-      <h2 className="text-2xl font-semibold mb-6 text-gray-800 flex items-center gap-2">
-        <Edit className="w-6 h-6 text-purple-600" />
-        Edit Image
-      </h2>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="text-center">
+        <div className="inline-flex items-center gap-3 mb-4">
+          <div className="p-2 rounded-xl bg-gradient-to-r from-blue-600/20 to-purple-600/20">
+            <Wand2 className="w-6 h-6 text-blue-400" />
+          </div>
+          <h2 className="text-3xl font-bold text-white">
+            Edit Images
+          </h2>
+        </div>
+        <p className="text-gray-400 max-w-2xl mx-auto">
+          Upload an image and describe how you want to transform it with AI
+        </p>
+      </div>
 
       <div className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Upload Image
+        {/* Image Upload Area */}
+        <div className="space-y-3">
+          <label className="block text-sm font-semibold text-gray-300">
+            Upload your image
           </label>
           <div
             onClick={() => fileInputRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
-            className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-purple-400 transition-colors"
+            className={`relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-300 ${
+              previewUrl
+                ? 'border-purple-500/50 bg-purple-500/5'
+                : 'border-white/20 hover:border-purple-500/50 hover:bg-white/5'
+            }`}
           >
             {previewUrl ? (
               <div className="space-y-4">
-                <Image
-                  src={previewUrl}
-                  alt="Preview"
-                  width={300}
-                  height={300}
-                  className="mx-auto rounded-lg shadow-md max-w-full h-auto"
-                />
-                <p className="text-sm text-gray-600">Click to change image</p>
+                <div className="relative inline-block">
+                  <Image
+                    src={previewUrl}
+                    alt="Preview"
+                    width={300}
+                    height={300}
+                    className="mx-auto rounded-xl shadow-lg max-w-full h-auto"
+                  />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveImage();
+                    }}
+                    className="absolute -top-2 -right-2 p-2 rounded-full bg-red-500/80 hover:bg-red-500 text-white transition-colors"
+                    title="Remove image"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="text-sm text-gray-400">Click to change image</p>
               </div>
             ) : (
               <div className="space-y-4">
-                <Upload className="w-12 h-12 text-gray-400 mx-auto" />
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-purple-500/20 to-blue-500/20">
+                  <Upload className="w-8 h-8 text-purple-400" />
+                </div>
                 <div>
-                  <p className="text-lg font-medium text-gray-700">
+                  <p className="text-lg font-semibold text-white mb-2">
                     Drop an image here or click to upload
                   </p>
-                  <p className="text-sm text-gray-500">
-                    Supports PNG, JPG, JPEG
+                  <p className="text-sm text-gray-400">
+                    Supports PNG, JPG, JPEG, WebP (Max 10MB)
                   </p>
                 </div>
               </div>
@@ -136,61 +194,118 @@ export function ImageEditor() {
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Edit Prompt
+        {/* Edit Prompt */}
+        <div className="space-y-3">
+          <label className="block text-sm font-semibold text-gray-300">
+            Describe your edits
           </label>
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe how you want to edit the image..."
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-            rows={3}
-          />
+          <div className="relative">
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Add a sunset sky, change the background to a forest, make it more colorful..."
+              className="w-full p-4 bg-black/20 border border-white/10 rounded-2xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 resize-none text-white placeholder-gray-400 backdrop-blur-sm transition-all duration-300"
+              rows={4}
+            />
+            {prompt && (
+              <button
+                onClick={handleCopyPrompt}
+                className="absolute top-3 right-3 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                title="Copy prompt"
+              >
+                {copiedPrompt ? (
+                  <Check className="w-4 h-4 text-green-400" />
+                ) : (
+                  <Copy className="w-4 h-4 text-gray-400" />
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
+        {/* Error Message */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {error}
+          <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+              {error}
+            </div>
           </div>
         )}
 
+        {/* Edit Button */}
         <button
           onClick={handleEdit}
           disabled={loading || !selectedImage || !prompt.trim()}
-          className="w-full bg-purple-600 text-white py-3 px-6 rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white py-4 px-8 rounded-2xl font-semibold transition-all duration-300 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
         >
           {loading ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              Editing...
+              <span>Transforming your image...</span>
             </>
           ) : (
             <>
               <Edit className="w-5 h-5" />
-              Edit Image
+              <span>Edit Image</span>
             </>
           )}
         </button>
 
+        {/* Edited Image Result */}
         {editedImage && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-800">Edited Image:</h3>
-            <div className="relative group">
-              <Image
-                src={editedImage}
-                alt="Edited image"
-                width={400}
-                height={400}
-                className="w-full h-auto rounded-lg shadow-md max-w-md mx-auto"
-              />
-              <button
-                onClick={() => handleDownload(editedImage)}
-                className="absolute top-2 right-2 bg-white bg-opacity-90 hover:bg-opacity-100 p-2 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <Download className="w-4 h-4 text-gray-700" />
-              </button>
+          <div className="space-y-6">
+            <div className="text-center">
+              <h3 className="text-xl font-semibold text-white mb-2">Your Edited Image</h3>
+              <p className="text-gray-400">Click to download or copy to clipboard</p>
             </div>
+            
+            <div className="relative group max-w-2xl mx-auto">
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 p-1">
+                <div className="relative rounded-xl overflow-hidden">
+                  <Image
+                    src={editedImage}
+                    alt="Edited image"
+                    width={600}
+                    height={600}
+                    className="w-full h-auto rounded-xl transition-transform duration-300 group-hover:scale-105"
+                  />
+                  
+                  {/* Overlay with actions */}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
+                    <button
+                      onClick={() => handleDownload(editedImage)}
+                      className="p-3 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-colors"
+                      title="Download image"
+                    >
+                      <Download className="w-5 h-5 text-white" />
+                    </button>
+                    <button
+                      onClick={() => handleCopyImage(editedImage)}
+                      className="p-3 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-colors"
+                      title="Copy to clipboard"
+                    >
+                      {copiedImage ? (
+                        <Check className="w-5 h-5 text-green-400" />
+                      ) : (
+                        <Copy className="w-5 h-5 text-white" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Empty state when no image uploaded */}
+        {!selectedImage && !loading && (
+          <div className="text-center py-12">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 mb-4">
+              <ImageIcon className="w-10 h-10 text-blue-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-300 mb-2">Ready to edit?</h3>
+            <p className="text-gray-500">Upload an image above to start editing with AI</p>
           </div>
         )}
       </div>
