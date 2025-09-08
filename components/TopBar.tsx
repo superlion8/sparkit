@@ -173,11 +173,12 @@ export function TopBar({ currentTab, onSearch }: TopBarProps) {
               color: 'var(--secondary-text)'
             }}
           >
-            <div 
-              className="w-6 h-6 lg:w-8 lg:h-8 rounded-full flex items-center justify-center"
-              style={{ background: 'var(--gradient-primary)' }}
-            >
-              <User className="w-3 h-3 lg:w-4 lg:h-4 text-white" />
+            <div className="w-6 h-6 lg:w-8 lg:h-8 rounded-full overflow-hidden flex items-center justify-center">
+              <img 
+                src="/sparkit-logo.png" 
+                alt="User Avatar" 
+                className="w-full h-full object-cover"
+              />
             </div>
             <div className="hidden lg:block">
               <p 

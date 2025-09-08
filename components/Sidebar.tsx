@@ -113,14 +113,15 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
         style={{ borderColor: 'var(--border-color)' }}
       >
         <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <div className="flex items-center gap-2">
-              <div 
-                className="p-1.5 rounded-lg"
-                style={{ background: 'var(--gradient-primary)' }}
-              >
-                <Sparkles className="w-4 h-4 text-white" />
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
+              <img 
+                src="/sparkit-logo.png" 
+                alt="Sparkit Logo" 
+                className="w-8 h-8 object-contain"
+              />
+            </div>
+            {!isCollapsed && (
               <div>
                 <h1 
                   className="text-lg font-bold"
@@ -135,8 +136,8 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
                   AI Studio
                 </p>
               </div>
-            </div>
-          )}
+            )}
+          </div>
           <button
             onClick={onToggleCollapse}
             className="p-1.5 rounded-md hover:bg-white/10 transition-colors"
