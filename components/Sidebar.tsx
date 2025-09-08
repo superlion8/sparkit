@@ -76,10 +76,10 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
       {!isCollapsed && (
         <div className="flex-1 text-left min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-medium truncate">{tab.label}</span>
+            <span className="body-small font-medium truncate">{tab.label}</span>
             {tab.isNew && (
               <span 
-                className="px-1.5 py-0.5 text-xs font-semibold text-white rounded-full flex-shrink-0"
+                className="px-1.5 py-0.5 caption-text text-white rounded-full flex-shrink-0"
                 style={{ backgroundColor: 'var(--accent-color)' }}
               >
                 New!
@@ -87,7 +87,7 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
             )}
           </div>
           <p 
-            className="text-xs truncate"
+            className="caption-text truncate"
             style={{ color: 'var(--secondary-text)' }}
           >
             {tab.description}
@@ -113,14 +113,30 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
         style={{ borderColor: 'var(--border-color)' }}
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center justify-center flex-1">
-            <img 
-              src="/sparkit-logo.png" 
-              alt="Sparkit Logo" 
-              className={`object-contain transition-all duration-300 ${
-                isCollapsed ? 'w-10 h-10' : 'w-16 h-16'
-              }`}
-            />
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
+              <img 
+                src="/sparkit-logo.png" 
+                alt="Sparkit Logo" 
+                className="w-10 h-10 object-contain"
+              />
+            </div>
+            {!isCollapsed && (
+              <div>
+                <h1 
+                  className="h2-text"
+                  style={{ color: 'var(--primary-text)' }}
+                >
+                  Sparkit
+                </h1>
+                <p 
+                  className="body-small"
+                  style={{ color: 'var(--secondary-text)' }}
+                >
+                  AI Studio
+                </p>
+              </div>
+            )}
           </div>
           <button
             onClick={onToggleCollapse}
@@ -181,7 +197,7 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
             {isDarkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
           </div>
           {!isCollapsed && (
-            <span className="text-sm font-medium">
+            <span className="body-small font-medium">
               {isDarkMode ? 'Light Mode' : 'Dark Mode'}
             </span>
           )}
@@ -202,20 +218,20 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
                 <span 
-                  className="text-sm font-medium truncate"
+                  className="body-small font-medium truncate"
                   style={{ color: 'var(--primary-text)' }}
                 >
                   My Account
                 </span>
                 <span 
-                  className="text-xs"
+                  className="caption-text"
                   style={{ color: 'var(--secondary-text)' }}
                 >
                   •••
                 </span>
               </div>
               <p 
-                className="text-xs truncate"
+                className="caption-text truncate"
                 style={{ color: 'var(--secondary-text)' }}
               >
                 Free Plan
