@@ -9,6 +9,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('explore');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -20,6 +21,11 @@ export default function Home() {
 
   const handleToggleSidebar = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed);
+  };
+
+  const handleThemeChange = (isDark: boolean) => {
+    setIsDarkMode(isDark);
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
   };
 
   return (
@@ -37,6 +43,8 @@ export default function Home() {
         onTabChange={handleTabChange}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={handleToggleSidebar}
+        isDarkMode={isDarkMode}
+        onThemeChange={handleThemeChange}
       />
 
       {/* Main Content Area */}

@@ -21,12 +21,8 @@ export function MainContent({ activeTab, searchQuery }: MainContentProps) {
         return <GalleryContent searchQuery={searchQuery} />;
       case 'moodboards':
         return <MoodboardsContent />;
-      case 'organize':
-        return <OrganizeContent />;
       case 'chat':
         return <ChatContent />;
-      case 'tasks':
-        return <TasksContent />;
       case 'subscribe':
         return <SubscribeContent />;
       case 'help':
@@ -137,24 +133,6 @@ function MoodboardsContent() {
   );
 }
 
-// Organize Content Component
-function OrganizeContent() {
-  return (
-    <div className="space-y-8">
-      <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-4">Organize</h2>
-        <p className="text-gray-400 max-w-2xl mx-auto">
-          Manage your files, folders, and collections
-        </p>
-      </div>
-
-      <div className="bg-black/20 rounded-2xl p-6">
-        <p className="text-gray-400 text-center">File management interface coming soon...</p>
-      </div>
-    </div>
-  );
-}
-
 // Chat Content Component
 function ChatContent() {
   return (
@@ -168,24 +146,6 @@ function ChatContent() {
 
       <div className="bg-black/20 rounded-2xl p-6">
         <p className="text-gray-400 text-center">AI chat interface coming soon...</p>
-      </div>
-    </div>
-  );
-}
-
-// Tasks Content Component
-function TasksContent() {
-  return (
-    <div className="space-y-8">
-      <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-4">Task Queue</h2>
-        <p className="text-gray-400 max-w-2xl mx-auto">
-          View and manage your image generation tasks
-        </p>
-      </div>
-
-      <div className="bg-black/20 rounded-2xl p-6">
-        <p className="text-gray-400 text-center">No tasks in queue</p>
       </div>
     </div>
   );
