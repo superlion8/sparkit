@@ -584,13 +584,35 @@ function ImageContent() {
       }
 
       const data = await response.json();
-      const images = (data.generatedImages || []).map((img: any) => {
+      console.log('API Response:', data); // 调试信息
+      
+      const images = (data.generatedImages || []).map((img: any, index: number) => {
+        console.log(`Image ${index}:`, img); // 调试信息
         if (img.bytesBase64Encoded) {
-          return `data:image/svg+xml;base64,${img.bytesBase64Encoded}`;
+          const dataUrl = `data:image/svg+xml;base64,${img.bytesBase64Encoded}`;
+          console.log(`Data URL ${index}:`, dataUrl.substring(0, 100) + '...'); // 调试信息
+          return dataUrl;
         }
         return img;
       });
-      setGeneratedImages(images);
+      console.log('Final images array:', images); // 调试信息
+      
+      // 如果没有图片，添加一个测试图片
+      if (images.length === 0) {
+        const testImage = 'data:image/svg+xml;base64,' + btoa(`
+          <svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
+            <rect width="400" height="400" fill="#7C3AED"/>
+            <circle cx="200" cy="150" r="60" fill="white" opacity="0.3"/>
+            <rect x="140" y="220" width="120" height="80" rx="10" fill="white" opacity="0.3"/>
+            <text x="200" y="340" text-anchor="middle" font-size="16" fill="white" font-family="Arial, sans-serif">
+              Test: ${prompt}
+            </text>
+          </svg>
+        `);
+        setGeneratedImages([testImage]);
+      } else {
+        setGeneratedImages(images);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
