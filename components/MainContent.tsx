@@ -537,7 +537,7 @@ function UpdatesContent() {
 // Image Content Component (Combined Generate & Edit)
 function ImageContent() {
   const [activeMode, setActiveMode] = useState<'generate' | 'edit'>('generate');
-  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-exp');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash-image-preview');
   const [imageCount, setImageCount] = useState(1);
   const [prompt, setPrompt] = useState('');
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
@@ -546,7 +546,7 @@ function ImageContent() {
   const [error, setError] = useState('');
 
   const models = [
-    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash', description: 'Latest model, fastest generation' },
+    { id: 'gemini-2.5-flash-image-preview', name: 'Gemini 2.5 Flash Image', description: 'Latest image generation model' },
     { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'High quality, balanced speed' },
     { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Fast generation, good quality' }
   ];
@@ -584,7 +584,13 @@ function ImageContent() {
       }
 
       const data = await response.json();
-      setGeneratedImages(data.images || []);
+      const images = (data.generatedImages || []).map((img: any) => {
+        if (img.bytesBase64Encoded) {
+          return `data:image/svg+xml;base64,${img.bytesBase64Encoded}`;
+        }
+        return img;
+      });
+      setGeneratedImages(images);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -614,7 +620,13 @@ function ImageContent() {
       }
 
       const data = await response.json();
-      setGeneratedImages(data.images || []);
+      const images = (data.generatedImages || []).map((img: any) => {
+        if (img.bytesBase64Encoded) {
+          return `data:image/svg+xml;base64,${img.bytesBase64Encoded}`;
+        }
+        return img;
+      });
+      setGeneratedImages(images);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
