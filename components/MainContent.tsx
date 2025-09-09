@@ -446,7 +446,7 @@ function UpdatesContent() {
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-4">What's New</h2>
+        <h2 className="text-3xl font-bold text-white mb-4">What&apos;s New</h2>
         <p className="text-gray-400 max-w-2xl mx-auto">
           Stay updated with the latest features and improvements
         </p>
