@@ -100,7 +100,10 @@ export function ImageGenerator() {
             Generate Images
           </h2>
         </div>
-        <p className="text-secondary-text max-w-2xl mx-auto">
+        <p 
+          className="body-large max-w-2xl mx-auto"
+          style={{ color: 'var(--secondary-text)' }}
+        >
           Describe your vision and let AI bring it to life with stunning visuals
         </p>
       </div>
@@ -108,7 +111,10 @@ export function ImageGenerator() {
       <div className="space-y-6">
         {/* Prompt Input */}
         <div className="space-y-3">
-          <label className="block text-sm font-semibold text-primary-text">
+          <label 
+            className="block text-sm font-semibold"
+            style={{ color: 'var(--primary-text)' }}
+          >
             Describe your image
           </label>
           <div className="relative">
@@ -116,11 +122,12 @@ export function ImageGenerator() {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="A majestic mountain landscape at sunset with aurora borealis dancing in the sky..."
-              className="w-full p-4 rounded-2xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 resize-none text-primary-text placeholder-secondary-text backdrop-blur-sm transition-all duration-300"
+              className="w-full p-4 rounded-2xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 resize-none backdrop-blur-sm transition-all duration-300"
               style={{
                 backgroundColor: 'var(--input-bg)',
                 borderColor: 'var(--border-color)',
-                border: '1px solid'
+                border: '1px solid',
+                color: 'var(--primary-text)'
               }}
               rows={4}
             />
@@ -130,7 +137,10 @@ export function ImageGenerator() {
                 className="absolute top-3 right-3 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
                 title="Copy prompt"
               >
-                <Copy className="w-4 h-4 text-secondary-text" />
+                <Copy 
+                  className="w-4 h-4" 
+                  style={{ color: 'var(--secondary-text)' }}
+                />
               </button>
             )}
           </div>
@@ -138,7 +148,10 @@ export function ImageGenerator() {
 
         {/* Image Count Selector */}
         <div className="space-y-3">
-          <label className="block text-sm font-semibold text-primary-text">
+          <label 
+            className="block text-sm font-semibold"
+            style={{ color: 'var(--primary-text)' }}
+          >
             Number of images
           </label>
           <div className="flex gap-2">
@@ -151,6 +164,9 @@ export function ImageGenerator() {
                     ? 'btn-primary'
                     : 'btn-secondary'
                 }`}
+                style={{
+                  color: count === num ? 'white' : 'var(--secondary-text)'
+                }}
               >
                 {num} {num === 1 ? 'image' : 'images'}
               </button>
@@ -195,7 +211,12 @@ export function ImageGenerator() {
           >
             <div className="text-center">
               <h3 className="text-xl font-semibold mb-2" style={{ color: 'var(--primary-text)' }}>Your Generated Images</h3>
-              <p className="text-secondary-text">Click to download or copy to clipboard</p>
+              <p 
+                className="body-small"
+                style={{ color: 'var(--secondary-text)' }}
+              >
+                Click to download or copy to clipboard
+              </p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -237,7 +258,10 @@ export function ImageGenerator() {
                   
                   {/* Image info */}
                   <div className="mt-3 text-center">
-                    <p className="text-sm text-secondary-text">
+                    <p 
+                      className="text-sm"
+                      style={{ color: 'var(--secondary-text)' }}
+                    >
                       Image {index + 1} of {generatedImages.length}
                     </p>
                   </div>
@@ -253,8 +277,18 @@ export function ImageGenerator() {
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-purple-500/20 to-blue-500/20 mb-4">
               <ImageIcon className="w-10 h-10 text-purple-400" />
             </div>
-            <h3 className="text-lg font-semibold text-primary-text mb-2">Ready to create?</h3>
-            <p className="text-disabled-text">Enter a detailed prompt above to generate your first image</p>
+            <h3 
+              className="text-lg font-semibold mb-2"
+              style={{ color: 'var(--primary-text)' }}
+            >
+              Ready to create?
+            </h3>
+            <p 
+              className="body-small"
+              style={{ color: 'var(--disabled-text)' }}
+            >
+              Enter a detailed prompt above to generate your first image
+            </p>
           </div>
         )}
       </div>
