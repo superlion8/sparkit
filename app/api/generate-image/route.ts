@@ -19,9 +19,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use the same image generation model as edit-image
+    // Use Gemini 2.0 Flash for image generation
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -30,9 +30,15 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: prompt
+              text: `Generate a high-quality image: ${prompt}. Make it photorealistic and detailed.`
             }]
-          }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 8192,
+          }
         }),
       }
     );

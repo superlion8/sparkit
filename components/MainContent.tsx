@@ -586,58 +586,27 @@ function ImageContent() {
       const data = await response.json();
       console.log('API Response:', data); // 调试信息
       
-      // 生成更逼真的测试图片
-      const testImage = 'data:image/svg+xml;base64,' + btoa(`
-        <svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
-              <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
-            </linearGradient>
-            <linearGradient id="dog" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color:#f093fb;stop-opacity:1" />
-              <stop offset="100%" style="stop-color:#f5576c;stop-opacity:1" />
-            </linearGradient>
-          </defs>
-          <rect width="512" height="512" fill="url(#bg)"/>
-          
-          <!-- 可爱小狗的简化图形 -->
-          <!-- 狗头 -->
-          <circle cx="256" cy="180" r="80" fill="url(#dog)" opacity="0.9"/>
-          <!-- 狗耳朵 -->
-          <ellipse cx="200" cy="140" rx="25" ry="40" fill="url(#dog)" opacity="0.8" transform="rotate(-30 200 140)"/>
-          <ellipse cx="312" cy="140" rx="25" ry="40" fill="url(#dog)" opacity="0.8" transform="rotate(30 312 140)"/>
-          <!-- 狗眼睛 -->
-          <circle cx="240" cy="170" r="8" fill="white"/>
-          <circle cx="272" cy="170" r="8" fill="white"/>
-          <circle cx="240" cy="170" r="4" fill="black"/>
-          <circle cx="272" cy="170" r="4" fill="black"/>
-          <!-- 狗鼻子 -->
-          <ellipse cx="256" cy="190" rx="6" ry="4" fill="black"/>
-          <!-- 狗嘴巴 -->
-          <path d="M 240 200 Q 256 210 272 200" stroke="black" stroke-width="2" fill="none"/>
-          <!-- 狗身体 -->
-          <ellipse cx="256" cy="320" rx="60" ry="80" fill="url(#dog)" opacity="0.9"/>
-          <!-- 狗腿 -->
-          <ellipse cx="220" cy="380" rx="15" ry="40" fill="url(#dog)" opacity="0.8"/>
-          <ellipse cx="292" cy="380" rx="15" ry="40" fill="url(#dog)" opacity="0.8"/>
-          <!-- 狗尾巴 -->
-          <ellipse cx="200" cy="300" rx="8" ry="60" fill="url(#dog)" opacity="0.8" transform="rotate(-45 200 300)"/>
-          
-          <!-- 装饰性元素 -->
-          <circle cx="100" cy="100" r="3" fill="white" opacity="0.6"/>
-          <circle cx="400" cy="150" r="2" fill="white" opacity="0.4"/>
-          <circle cx="450" cy="300" r="4" fill="white" opacity="0.5"/>
-          <circle cx="80" cy="350" r="2" fill="white" opacity="0.3"/>
-          
-          <text x="256" y="480" text-anchor="middle" font-size="18" fill="white" font-family="Arial, sans-serif" font-weight="bold">
-            AI Generated: ${prompt}
-          </text>
-        </svg>
-      `);
-      
-      console.log('Setting test image:', testImage.substring(0, 100) + '...');
-      setGeneratedImages([testImage]);
+      // 处理真实的API响应
+      if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+        const images = data.candidates[0].content.parts
+          .filter((part: any) => part.inlineData && part.inlineData.mimeType.startsWith('image/'))
+          .map((part: any) => {
+            const mimeType = part.inlineData.mimeType;
+            const base64Data = part.inlineData.data;
+            return `data:${mimeType};base64,${base64Data}`;
+          });
+        
+        if (images.length > 0) {
+          console.log('Found real images:', images.length);
+          setGeneratedImages(images);
+        } else {
+          console.log('No images found in response');
+          setError('No images were generated. Please try a different prompt.');
+        }
+      } else {
+        console.log('Unexpected response format:', data);
+        setError('Unexpected response from API. Please try again.');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
