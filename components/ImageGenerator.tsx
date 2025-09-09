@@ -96,7 +96,10 @@ export function ImageGenerator() {
           <div className="p-2 rounded-xl bg-gradient-to-r from-purple-600/20 to-blue-600/20">
             <Sparkles className="w-6 h-6 text-purple-400" />
           </div>
-          <h2 className="text-3xl font-bold text-white">
+          <h2 
+            className="text-3xl font-bold"
+            style={{ color: 'var(--primary-text)' }}
+          >
             Generate Images
           </h2>
         </div>
@@ -239,7 +242,10 @@ export function ImageGenerator() {
                           className="p-3 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-colors"
                           title="Download image"
                         >
-                          <Download className="w-5 h-5 text-white" />
+                          <Download 
+                            className="w-5 h-5" 
+                            style={{ color: 'white' }}
+                          />
                         </button>
                         <button
                           onClick={() => handleCopyImage(imageUrl, index)}
@@ -249,7 +255,10 @@ export function ImageGenerator() {
                           {copiedIndex === index ? (
                             <Check className="w-5 h-5 text-green-400" />
                           ) : (
-                            <Copy className="w-5 h-5 text-white" />
+                            <Copy 
+                              className="w-5 h-5" 
+                              style={{ color: 'white' }}
+                            />
                           )}
                         </button>
                       </div>

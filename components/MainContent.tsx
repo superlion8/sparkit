@@ -117,8 +117,16 @@ function GalleryContent({ searchQuery }: { searchQuery: string }) {
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-4">Your Gallery</h2>
-        <p className="text-gray-400 max-w-2xl mx-auto">
+        <h2 
+          className="text-3xl font-bold mb-4"
+          style={{ color: 'var(--primary-text)' }}
+        >
+          Your Gallery
+        </h2>
+        <p 
+          className="body-large max-w-2xl mx-auto"
+          style={{ color: 'var(--secondary-text)' }}
+        >
           All your AI-generated and edited images in one place
         </p>
       </div>
@@ -129,12 +137,22 @@ function GalleryContent({ searchQuery }: { searchQuery: string }) {
           <div key={index} className="group relative">
             <div className="aspect-square bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-2xl overflow-hidden">
               <div className="w-full h-full bg-gradient-to-br from-purple-600/30 to-blue-600/30 flex items-center justify-center">
-                <span className="text-white/50 text-sm">Your Image {index + 1}</span>
+                <span 
+                  className="text-sm"
+                  style={{ color: 'var(--secondary-text)', opacity: 0.7 }}
+                >
+                  Your Image {index + 1}
+                </span>
               </div>
             </div>
             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
               <button className="p-3 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-colors">
-                <span className="text-white text-sm">Edit</span>
+                <span 
+                  className="text-sm"
+                  style={{ color: 'var(--primary-text)' }}
+                >
+                  Edit
+                </span>
               </button>
             </div>
           </div>
@@ -149,8 +167,16 @@ function MoodboardsContent() {
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-4">Moodboards</h2>
-        <p className="text-gray-400 max-w-2xl mx-auto">
+        <h2 
+          className="text-3xl font-bold mb-4"
+          style={{ color: 'var(--primary-text)' }}
+        >
+          Moodboards
+        </h2>
+        <p 
+          className="body-large max-w-2xl mx-auto"
+          style={{ color: 'var(--secondary-text)' }}
+        >
           Organize your inspiration and create collections of related images
         </p>
       </div>
@@ -160,7 +186,12 @@ function MoodboardsContent() {
           <div key={index} className="group relative">
             <div className="aspect-video bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-2xl overflow-hidden">
               <div className="w-full h-full bg-gradient-to-br from-purple-600/30 to-blue-600/30 flex items-center justify-center">
-                <span className="text-white/50 text-sm">Moodboard {index + 1}</span>
+                <span 
+                  className="text-sm"
+                  style={{ color: 'var(--secondary-text)', opacity: 0.7 }}
+                >
+                  Moodboard {index + 1}
+                </span>
               </div>
             </div>
           </div>
@@ -175,14 +206,27 @@ function ChatContent() {
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-4">AI Assistant</h2>
-        <p className="text-gray-400 max-w-2xl mx-auto">
+        <h2 
+          className="text-3xl font-bold mb-4"
+          style={{ color: 'var(--primary-text)' }}
+        >
+          AI Assistant
+        </h2>
+        <p 
+          className="body-large max-w-2xl mx-auto"
+          style={{ color: 'var(--secondary-text)' }}
+        >
           Chat with our AI assistant for help with prompts, techniques, and creative guidance
         </p>
       </div>
 
       <div className="bg-black/20 rounded-2xl p-6">
-        <p className="text-gray-400 text-center">AI chat interface coming soon...</p>
+        <p 
+          className="body-large text-center"
+          style={{ color: 'var(--secondary-text)' }}
+        >
+          AI chat interface coming soon...
+        </p>
       </div>
     </div>
   );
@@ -447,8 +491,16 @@ function UpdatesContent() {
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-4">What&apos;s New</h2>
-        <p className="text-gray-400 max-w-2xl mx-auto">
+        <h2 
+          className="text-3xl font-bold mb-4"
+          style={{ color: 'var(--primary-text)' }}
+        >
+          What&apos;s New
+        </h2>
+        <p 
+          className="body-large max-w-2xl mx-auto"
+          style={{ color: 'var(--secondary-text)' }}
+        >
           Stay updated with the latest features and improvements
         </p>
       </div>
@@ -461,10 +513,20 @@ function UpdatesContent() {
         ].map((update, index) => (
           <div key={index} className="bg-black/20 rounded-2xl p-6 border border-white/10">
             <div className="flex items-center gap-3 mb-2">
-              <h3 className="text-lg font-semibold text-white">{update.title}</h3>
+              <h3 
+                className="text-lg font-semibold"
+                style={{ color: 'var(--primary-text)' }}
+              >
+                {update.title}
+              </h3>
               <span className="px-2 py-1 bg-purple-500/20 text-purple-400 text-xs rounded-full">{update.date}</span>
             </div>
-            <p className="text-gray-400">{update.description}</p>
+            <p 
+              className="body-small"
+              style={{ color: 'var(--secondary-text)' }}
+            >
+              {update.description}
+            </p>
           </div>
         ))}
       </div>
@@ -485,9 +547,12 @@ function ImageContent() {
             onClick={() => setActiveMode('generate')}
             className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
               activeMode === 'generate'
-                ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
-                : 'text-gray-300 hover:text-white hover:bg-white/10'
+                ? 'bg-gradient-to-r from-purple-600 to-blue-600 shadow-lg'
+                : 'hover:bg-white/10'
             }`}
+            style={{
+              color: activeMode === 'generate' ? 'white' : 'var(--secondary-text)'
+            }}
           >
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4" />
@@ -498,9 +563,12 @@ function ImageContent() {
             onClick={() => setActiveMode('edit')}
             className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
               activeMode === 'edit'
-                ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
-                : 'text-gray-300 hover:text-white hover:bg-white/10'
+                ? 'bg-gradient-to-r from-purple-600 to-blue-600 shadow-lg'
+                : 'hover:bg-white/10'
             }`}
+            style={{
+              color: activeMode === 'edit' ? 'white' : 'var(--secondary-text)'
+            }}
           >
             <div className="flex items-center gap-2">
               <Wand2 className="w-4 h-4" />
