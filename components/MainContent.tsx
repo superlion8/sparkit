@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ImageGenerator } from './ImageGenerator';
 import { ImageEditor } from './ImageEditor';
-import { Sparkles, Wand2 } from 'lucide-react';
+import { Sparkles, Wand2, X } from 'lucide-react';
 
 interface MainContentProps {
   activeTab: string;
@@ -37,7 +37,7 @@ export function MainContent({ activeTab, searchQuery }: MainContentProps) {
       className="flex-1 overflow-y-auto"
       style={{ backgroundColor: 'var(--base-bg)' }}
     >
-      <div className="p-6 space-y-6">
+      <div className="p-6 h-full">
         {renderContent()}
       </div>
     </div>
@@ -537,49 +537,474 @@ function UpdatesContent() {
 // Image Content Component (Combined Generate & Edit)
 function ImageContent() {
   const [activeMode, setActiveMode] = useState<'generate' | 'edit'>('generate');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-exp');
+  const [imageCount, setImageCount] = useState(1);
+  const [prompt, setPrompt] = useState('');
+  const [generatedImages, setGeneratedImages] = useState<string[]>([]);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const models = [
+    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash', description: 'Latest model, fastest generation' },
+    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'High quality, balanced speed' },
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Fast generation, good quality' }
+  ];
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setUploadedImage(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!prompt.trim()) return;
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt: prompt.trim(), 
+          count: imageCount,
+          model: selectedModel 
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate images');
+      }
+
+      const data = await response.json();
+      setGeneratedImages(data.images || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = async () => {
+    if (!prompt.trim() || !uploadedImage) return;
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      const response = await fetch('/api/edit-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt: prompt.trim(),
+          image: uploadedImage,
+          model: selectedModel 
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to edit image');
+      }
+
+      const data = await response.json();
+      setGeneratedImages(data.images || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="space-y-8">
-      {/* Mode Toggle */}
-      <div className="flex justify-center">
-        <div className="bg-black/20 rounded-2xl p-1 border border-white/10">
-          <button
-            onClick={() => setActiveMode('generate')}
-            className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
-              activeMode === 'generate'
-                ? 'bg-gradient-to-r from-purple-600 to-blue-600 shadow-lg'
-                : 'hover:bg-white/10'
-            }`}
-            style={{
-              color: activeMode === 'generate' ? 'white' : 'var(--secondary-text)'
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              Generate
+    <div className="h-full flex flex-col lg:flex-row gap-6">
+      {/* Left Panel - Controls */}
+      <div className="w-full lg:w-80 flex-shrink-0">
+        <div 
+          className="h-full p-6 rounded-2xl space-y-6"
+          style={{ backgroundColor: 'var(--surface-bg)' }}
+        >
+          {/* Mode Selection */}
+          <div className="space-y-3">
+            <h3 
+              className="h3-text"
+              style={{ color: 'var(--primary-text)' }}
+            >
+              Mode
+            </h3>
+            <div className="space-y-2">
+              <button
+                onClick={() => setActiveMode('generate')}
+                className={`w-full p-4 rounded-xl border-2 transition-all duration-300 ${
+                  activeMode === 'generate'
+                    ? 'border-purple-500 bg-purple-500/10'
+                    : 'border-gray-200 hover:border-purple-300'
+                }`}
+                style={{
+                  borderColor: activeMode === 'generate' ? 'var(--primary-color)' : 'var(--border-color)',
+                  backgroundColor: activeMode === 'generate' ? 'rgba(124, 58, 237, 0.1)' : 'transparent'
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="p-2 rounded-lg"
+                    style={{ 
+                      backgroundColor: activeMode === 'generate' ? 'var(--primary-color)' : 'var(--border-color)'
+                    }}
+                  >
+                    <Sparkles className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <div 
+                      className="font-semibold"
+                      style={{ color: 'var(--primary-text)' }}
+                    >
+                      Text to Image
+                    </div>
+                    <div 
+                      className="text-sm"
+                      style={{ color: 'var(--secondary-text)' }}
+                    >
+                      Generate images from text prompts
+                    </div>
+                  </div>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setActiveMode('edit')}
+                className={`w-full p-4 rounded-xl border-2 transition-all duration-300 ${
+                  activeMode === 'edit'
+                    ? 'border-purple-500 bg-purple-500/10'
+                    : 'border-gray-200 hover:border-purple-300'
+                }`}
+                style={{
+                  borderColor: activeMode === 'edit' ? 'var(--primary-color)' : 'var(--border-color)',
+                  backgroundColor: activeMode === 'edit' ? 'rgba(124, 58, 237, 0.1)' : 'transparent'
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="p-2 rounded-lg"
+                    style={{ 
+                      backgroundColor: activeMode === 'edit' ? 'var(--primary-color)' : 'var(--border-color)'
+                    }}
+                  >
+                    <Wand2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <div 
+                      className="font-semibold"
+                      style={{ color: 'var(--primary-text)' }}
+                    >
+                      Image Edit
+                    </div>
+                    <div 
+                      className="text-sm"
+                      style={{ color: 'var(--secondary-text)' }}
+                    >
+                      Edit and enhance existing images
+                    </div>
+                  </div>
+                </div>
+              </button>
             </div>
-          </button>
-          <button
-            onClick={() => setActiveMode('edit')}
-            className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
-              activeMode === 'edit'
-                ? 'bg-gradient-to-r from-purple-600 to-blue-600 shadow-lg'
-                : 'hover:bg-white/10'
-            }`}
-            style={{
-              color: activeMode === 'edit' ? 'white' : 'var(--secondary-text)'
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <Wand2 className="w-4 h-4" />
-              Edit
+          </div>
+
+          {/* Model Selection */}
+          <div className="space-y-3">
+            <h3 
+              className="h3-text"
+              style={{ color: 'var(--primary-text)' }}
+            >
+              Model
+            </h3>
+            <div className="space-y-2">
+              {models.map((model) => (
+                <button
+                  key={model.id}
+                  onClick={() => setSelectedModel(model.id)}
+                  className={`w-full p-3 rounded-lg border transition-all duration-300 ${
+                    selectedModel === model.id
+                      ? 'border-purple-500 bg-purple-500/10'
+                      : 'border-gray-200 hover:border-purple-300'
+                  }`}
+                  style={{
+                    borderColor: selectedModel === model.id ? 'var(--primary-color)' : 'var(--border-color)',
+                    backgroundColor: selectedModel === model.id ? 'rgba(124, 58, 237, 0.1)' : 'transparent'
+                  }}
+                >
+                  <div className="text-left">
+                    <div 
+                      className="font-medium"
+                      style={{ color: 'var(--primary-text)' }}
+                    >
+                      {model.name}
+                    </div>
+                    <div 
+                      className="text-sm"
+                      style={{ color: 'var(--secondary-text)' }}
+                    >
+                      {model.description}
+                    </div>
+                  </div>
+                </button>
+              ))}
             </div>
+          </div>
+
+          {/* Image Count */}
+          <div className="space-y-3">
+            <h3 
+              className="h3-text"
+              style={{ color: 'var(--primary-text)' }}
+            >
+              Number of Images
+            </h3>
+            <div className="grid grid-cols-3 gap-2">
+              {[1, 2, 3].map((num) => (
+                <button
+                  key={num}
+                  onClick={() => setImageCount(num)}
+                  className={`p-3 rounded-lg border transition-all duration-300 ${
+                    imageCount === num
+                      ? 'border-purple-500 bg-purple-500/10'
+                      : 'border-gray-200 hover:border-purple-300'
+                  }`}
+                  style={{
+                    borderColor: imageCount === num ? 'var(--primary-color)' : 'var(--border-color)',
+                    backgroundColor: imageCount === num ? 'rgba(124, 58, 237, 0.1)' : 'transparent'
+                  }}
+                >
+                  <div 
+                    className="font-semibold"
+                    style={{ color: 'var(--primary-text)' }}
+                  >
+                    {num}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Image Upload (Edit Mode) */}
+          {activeMode === 'edit' && (
+            <div className="space-y-3">
+              <h3 
+                className="h3-text"
+                style={{ color: 'var(--primary-text)' }}
+              >
+                Upload Image
+              </h3>
+              <div className="space-y-3">
+                {uploadedImage ? (
+                  <div className="relative">
+                    <img
+                      src={uploadedImage}
+                      alt="Uploaded image"
+                      className="w-full h-32 object-cover rounded-xl border"
+                      style={{ borderColor: 'var(--border-color)' }}
+                    />
+                    <button
+                      onClick={() => setUploadedImage(null)}
+                      className="absolute top-2 right-2 p-1 rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="block">
+                    <div 
+                      className="w-full h-32 border-2 border-dashed rounded-xl flex items-center justify-center cursor-pointer hover:border-purple-300 transition-colors"
+                      style={{ 
+                        borderColor: 'var(--border-color)',
+                        backgroundColor: 'var(--input-bg)'
+                      }}
+                    >
+                      <div className="text-center">
+                        <div className="w-8 h-8 mx-auto mb-2">
+                          <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                        </div>
+                        <p 
+                          className="text-sm"
+                          style={{ color: 'var(--secondary-text)' }}
+                        >
+                          Click to upload image
+                        </p>
+                      </div>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Prompt Input */}
+          <div className="space-y-3">
+            <h3 
+              className="h3-text"
+              style={{ color: 'var(--primary-text)' }}
+            >
+              {activeMode === 'generate' ? 'Prompt' : 'Edit Instructions'}
+            </h3>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={
+                activeMode === 'generate' 
+                  ? "Describe the image you want to create..."
+                  : "Describe how you want to edit the image..."
+              }
+              className="w-full p-4 rounded-xl border resize-none"
+              style={{
+                backgroundColor: 'var(--input-bg)',
+                borderColor: 'var(--border-color)',
+                color: 'var(--primary-text)'
+              }}
+              rows={4}
+            />
+          </div>
+
+          {/* Action Button */}
+          <button
+            onClick={activeMode === 'generate' ? handleGenerate : handleEdit}
+            disabled={loading || !prompt.trim() || (activeMode === 'edit' && !uploadedImage)}
+            className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed py-4 px-6 rounded-xl font-semibold flex items-center justify-center gap-3"
+          >
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                {activeMode === 'generate' ? 'Generating...' : 'Editing...'}
+              </>
+            ) : (
+              <>
+                {activeMode === 'generate' ? <Sparkles className="w-5 h-5" /> : <Wand2 className="w-5 h-5" />}
+                {activeMode === 'generate' ? 'Generate Images' : 'Edit Image'}
+              </>
+            )}
           </button>
+
+          {/* Error Message */}
+          {error && (
+            <div 
+              className="p-4 rounded-xl border"
+              style={{ 
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                borderColor: 'var(--error-color)',
+                color: 'var(--error-color)'
+              }}
+            >
+              {error}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Content based on active mode */}
-      {activeMode === 'generate' ? <ImageGenerator /> : <ImageEditor />}
+      {/* Right Panel - Preview */}
+      <div className="flex-1 min-h-0">
+        <div 
+          className="h-full p-6 rounded-2xl"
+          style={{ backgroundColor: 'var(--surface-bg)' }}
+        >
+          <div className="h-full flex flex-col">
+            <h3 
+              className="h3-text mb-4"
+              style={{ color: 'var(--primary-text)' }}
+            >
+              Preview
+            </h3>
+            
+            {generatedImages.length > 0 ? (
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto">
+                {generatedImages.map((imageUrl, index) => (
+                  <div key={index} className="group relative">
+                    <div className="aspect-square rounded-xl overflow-hidden border" style={{ borderColor: 'var(--border-color)' }}>
+                      <img
+                        src={imageUrl}
+                        alt={`Generated image ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
+                      <button className="p-3 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-colors">
+                        <span className="text-white text-sm">Download</span>
+                      </button>
+                      <button className="p-3 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-colors">
+                        <span className="text-white text-sm">Copy</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : activeMode === 'edit' && uploadedImage ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="w-32 h-32 rounded-xl overflow-hidden border mb-4 mx-auto" style={{ borderColor: 'var(--border-color)' }}>
+                    <img
+                      src={uploadedImage}
+                      alt="Uploaded image"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <h4 
+                    className="text-lg font-semibold mb-2"
+                    style={{ color: 'var(--primary-text)' }}
+                  >
+                    Image Ready for Editing
+                  </h4>
+                  <p 
+                    className="body-small"
+                    style={{ color: 'var(--secondary-text)' }}
+                  >
+                    Enter edit instructions and click edit to see the result
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-r from-purple-500/20 to-blue-500/20 flex items-center justify-center mb-4 mx-auto">
+                    {activeMode === 'generate' ? (
+                      <Sparkles className="w-10 h-10 text-purple-400" />
+                    ) : (
+                      <Wand2 className="w-10 h-10 text-purple-400" />
+                    )}
+                  </div>
+                  <h4 
+                    className="text-lg font-semibold mb-2"
+                    style={{ color: 'var(--primary-text)' }}
+                  >
+                    {activeMode === 'generate' ? 'Ready to create?' : 'Upload an image to edit'}
+                  </h4>
+                  <p 
+                    className="body-small"
+                    style={{ color: 'var(--secondary-text)' }}
+                  >
+                    {activeMode === 'generate' 
+                      ? 'Enter a prompt and click generate to see your images here'
+                      : 'Upload an image and describe how you want to edit it'
+                    }
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
