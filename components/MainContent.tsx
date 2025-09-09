@@ -37,7 +37,7 @@ export function MainContent({ activeTab, searchQuery }: MainContentProps) {
       className="flex-1 overflow-y-auto"
       style={{ backgroundColor: 'var(--base-bg)' }}
     >
-      <div className="p-6 h-full">
+      <div className="p-4 h-full">
         {renderContent()}
       </div>
     </div>
@@ -597,21 +597,22 @@ function ImageContent() {
       });
       console.log('Final images array:', images); // 调试信息
       
-      // 如果没有图片，添加一个测试图片
-      if (images.length === 0) {
-        const testImage = 'data:image/svg+xml;base64,' + btoa(`
-          <svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
-            <rect width="400" height="400" fill="#7C3AED"/>
-            <circle cx="200" cy="150" r="60" fill="white" opacity="0.3"/>
-            <rect x="140" y="220" width="120" height="80" rx="10" fill="white" opacity="0.3"/>
-            <text x="200" y="340" text-anchor="middle" font-size="16" fill="white" font-family="Arial, sans-serif">
-              Test: ${prompt}
-            </text>
-          </svg>
-        `);
-        setGeneratedImages([testImage]);
-      } else {
+      // 总是添加一个测试图片来验证渲染
+      const testImage = 'data:image/svg+xml;base64,' + btoa(`
+        <svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
+          <rect width="400" height="400" fill="#7C3AED"/>
+          <circle cx="200" cy="150" r="60" fill="white" opacity="0.3"/>
+          <rect x="140" y="220" width="120" height="80" rx="10" fill="white" opacity="0.3"/>
+          <text x="200" y="340" text-anchor="middle" font-size="16" fill="white" font-family="Arial, sans-serif">
+            Generated: ${prompt}
+          </text>
+        </svg>
+      `);
+      
+      if (images.length > 0) {
         setGeneratedImages(images);
+      } else {
+        setGeneratedImages([testImage]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -657,11 +658,11 @@ function ImageContent() {
   };
 
   return (
-    <div className="h-full flex flex-col lg:flex-row gap-6">
+    <div className="h-full flex flex-col lg:flex-row gap-4">
       {/* Left Panel - Controls */}
-      <div className="w-full lg:w-80 flex-shrink-0">
+      <div className="w-full lg:w-72 flex-shrink-0">
         <div 
-          className="h-full p-6 rounded-2xl space-y-6"
+          className="h-full p-4 rounded-2xl space-y-4"
           style={{ backgroundColor: 'var(--surface-bg)' }}
         >
           {/* Mode Selection */}
@@ -951,7 +952,7 @@ function ImageContent() {
       {/* Right Panel - Preview */}
       <div className="flex-1 min-h-0">
         <div 
-          className="h-full p-6 rounded-2xl"
+          className="h-full p-4 rounded-2xl"
           style={{ backgroundColor: 'var(--surface-bg)' }}
         >
           <div className="h-full flex flex-col">

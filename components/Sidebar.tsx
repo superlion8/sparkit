@@ -98,12 +98,12 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
   return (
     <div 
       className="backdrop-blur-xl border-r transition-all duration-300 h-screen flex flex-col fixed lg:relative z-50 lg:z-auto"
-      style={{
-        width: isCollapsed ? '3.5rem' : '16rem',
-        backgroundColor: 'var(--sidebar-bg)',
-        borderColor: 'var(--border-color)',
-        opacity: 0.95
-      }}
+              style={{
+                width: isCollapsed ? '3rem' : '14rem',
+                backgroundColor: 'var(--sidebar-bg)',
+                borderColor: 'var(--border-color)',
+                opacity: 0.95
+              }}
     >
       {/* Header */}
       <div 
