@@ -116,7 +116,12 @@ export function ImageGenerator() {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="A majestic mountain landscape at sunset with aurora borealis dancing in the sky..."
-              className="w-full p-4 bg-black/20 border border-white/10 rounded-2xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 resize-none text-primary-text placeholder-secondary-text backdrop-blur-sm transition-all duration-300"
+              className="w-full p-4 rounded-2xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 resize-none text-primary-text placeholder-secondary-text backdrop-blur-sm transition-all duration-300"
+              style={{
+                backgroundColor: 'var(--input-bg)',
+                borderColor: 'var(--border-color)',
+                border: '1px solid'
+              }}
               rows={4}
             />
             {prompt && (
@@ -143,8 +148,8 @@ export function ImageGenerator() {
                 onClick={() => setCount(num)}
                 className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
                   count === num
-                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
-                    : 'bg-white/10 text-primary-text hover:bg-white/20'
+                    ? 'btn-primary'
+                    : 'btn-secondary'
                 }`}
               >
                 {num} {num === 1 ? 'image' : 'images'}
@@ -155,9 +160,9 @@ export function ImageGenerator() {
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl backdrop-blur-sm">
+          <div className="status-error px-4 py-3 rounded-xl backdrop-blur-sm border" style={{ borderColor: 'var(--error-color)' }}>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--error-color)' }}></div>
               {error}
             </div>
           </div>
@@ -167,7 +172,7 @@ export function ImageGenerator() {
         <button
           onClick={handleGenerate}
           disabled={loading || !prompt.trim()}
-          className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white py-4 px-8 rounded-2xl font-semibold transition-all duration-300 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
+          className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed py-4 px-8 rounded-2xl font-semibold flex items-center justify-center gap-3 disabled:transform-none"
         >
           {loading ? (
             <>
@@ -184,9 +189,12 @@ export function ImageGenerator() {
 
         {/* Generated Images */}
         {generatedImages.length > 0 && (
-          <div className="space-y-6">
+          <div 
+            className="space-y-6 p-6 rounded-2xl"
+            style={{ backgroundColor: 'var(--result-bg)' }}
+          >
             <div className="text-center">
-              <h3 className="text-xl font-semibold text-white mb-2">Your Generated Images</h3>
+              <h3 className="text-xl font-semibold mb-2" style={{ color: 'var(--primary-text)' }}>Your Generated Images</h3>
               <p className="text-secondary-text">Click to download or copy to clipboard</p>
             </div>
             

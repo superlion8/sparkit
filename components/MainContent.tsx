@@ -37,7 +37,7 @@ export function MainContent({ activeTab, searchQuery }: MainContentProps) {
       className="flex-1 overflow-y-auto"
       style={{ backgroundColor: 'var(--base-bg)' }}
     >
-      <div className="p-6">
+      <div className="p-6 space-y-6">
         {renderContent()}
       </div>
     </div>
@@ -47,7 +47,10 @@ export function MainContent({ activeTab, searchQuery }: MainContentProps) {
 // Explore Content Component
 function ExploreContent({ searchQuery }: { searchQuery: string }) {
   return (
-    <div className="space-y-8">
+    <div 
+      className="space-y-8 p-8 rounded-2xl"
+      style={{ backgroundColor: 'var(--surface-bg)' }}
+    >
       <div className="text-center">
         <h2 
           className="display-text mb-4"
@@ -70,7 +73,7 @@ function ExploreContent({ searchQuery }: { searchQuery: string }) {
             <div 
               className="aspect-square rounded-2xl overflow-hidden border"
               style={{ 
-                backgroundColor: 'var(--surface-bg)',
+                backgroundColor: 'var(--card-bg)',
                 borderColor: 'var(--border-color)'
               }}
             >
@@ -539,7 +542,7 @@ function AssetsContent({ searchQuery }: { searchQuery: string }) {
             <div 
               className="aspect-square rounded-2xl overflow-hidden border"
               style={{ 
-                backgroundColor: 'var(--surface-bg)',
+                backgroundColor: 'var(--card-bg)',
                 borderColor: 'var(--border-color)'
               }}
             >
