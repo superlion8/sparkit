@@ -34,10 +34,8 @@ export function Sidebar({ activeTab, onTabChange, isCollapsed, onToggleCollapse,
 
   const mainTabs = [
     { id: 'explore', label: 'Explore', icon: Home, description: 'Browse creations' },
-    { id: 'generate', label: 'Create', icon: Sparkles, description: 'Generate images' },
-    { id: 'edit', label: 'Edit', icon: Wand2, description: 'Edit images' },
-    { id: 'gallery', label: 'Gallery', icon: ImageIcon, description: 'My creations' },
-    { id: 'moodboards', label: 'Moodboards', icon: Grid, description: 'Collections', isNew: true },
+    { id: 'assets', label: 'Assets', icon: ImageIcon, description: 'My creations' },
+    { id: 'image', label: 'Image', icon: Sparkles, description: 'Generate & Edit images' },
     { id: 'chat', label: 'Chat', icon: MessageSquare, description: 'AI Assistant' },
   ];
 

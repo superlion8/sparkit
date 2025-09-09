@@ -19,13 +19,9 @@ export function TopBar({ currentTab, onSearch }: TopBarProps) {
   const getTabTitle = (tab: string) => {
     const titles: { [key: string]: string } = {
       explore: 'Explore',
-      generate: 'Create',
-      edit: 'Edit',
-      gallery: 'Gallery',
-      moodboards: 'Moodboards',
-      organize: 'Organize',
+      assets: 'Assets',
+      image: 'Image',
       chat: 'Chat',
-      tasks: 'Tasks',
       subscribe: 'Subscribe',
       help: 'Help',
       updates: 'Updates'
@@ -36,13 +32,9 @@ export function TopBar({ currentTab, onSearch }: TopBarProps) {
   const getTabDescription = (tab: string) => {
     const descriptions: { [key: string]: string } = {
       explore: 'Discover amazing AI-generated images',
-      generate: 'Create stunning images with AI',
-      edit: 'Transform your images with AI editing',
-      gallery: 'Your personal collection',
-      moodboards: 'Organize your inspiration',
-      organize: 'Manage your files and folders',
+      assets: 'Your personal collection',
+      image: 'Generate and edit images with AI',
       chat: 'Chat with AI assistant',
-      tasks: 'View your generation queue',
       subscribe: 'Upgrade your plan',
       help: 'Get help and support',
       updates: 'Latest updates and features'
@@ -91,10 +83,10 @@ export function TopBar({ currentTab, onSearch }: TopBarProps) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={
-                  currentTab === 'generate' 
-                    ? "Describe the image you want to create..." 
-                    : currentTab === 'edit'
-                    ? "Search your images to edit..."
+                  currentTab === 'image' 
+                    ? "Describe the image you want to create or search to edit..." 
+                    : currentTab === 'assets'
+                    ? "Search your assets..."
                     : "Search images, prompts, or collections..."
                 }
                 className="w-full pl-10 lg:pl-12 pr-4 py-2 lg:py-3 border rounded-xl lg:rounded-2xl transition-all duration-300 backdrop-blur-sm body-large"
@@ -155,7 +147,7 @@ export function TopBar({ currentTab, onSearch }: TopBarProps) {
           </button>
 
           {/* Quick Actions */}
-          {currentTab === 'generate' && (
+          {currentTab === 'image' && (
             <button 
               className="hidden sm:flex items-center gap-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl font-semibold transition-all duration-300 text-sm lg:text-base"
               style={{ background: 'var(--gradient-primary)' }}

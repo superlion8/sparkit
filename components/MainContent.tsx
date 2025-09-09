@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { ImageGenerator } from './ImageGenerator';
 import { ImageEditor } from './ImageEditor';
+import { Sparkles, Wand2 } from 'lucide-react';
 
 interface MainContentProps {
   activeTab: string;
@@ -11,16 +13,12 @@ interface MainContentProps {
 export function MainContent({ activeTab, searchQuery }: MainContentProps) {
   const renderContent = () => {
     switch (activeTab) {
-      case 'generate':
-        return <ImageGenerator />;
-      case 'edit':
-        return <ImageEditor />;
+      case 'image':
+        return <ImageContent />;
       case 'explore':
         return <ExploreContent searchQuery={searchQuery} />;
-      case 'gallery':
-        return <GalleryContent searchQuery={searchQuery} />;
-      case 'moodboards':
-        return <MoodboardsContent />;
+      case 'assets':
+        return <AssetsContent searchQuery={searchQuery} />;
       case 'chat':
         return <ChatContent />;
       case 'subscribe':
@@ -464,6 +462,115 @@ function UpdatesContent() {
               <span className="px-2 py-1 bg-purple-500/20 text-purple-400 text-xs rounded-full">{update.date}</span>
             </div>
             <p className="text-gray-400">{update.description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Image Content Component (Combined Generate & Edit)
+function ImageContent() {
+  const [activeMode, setActiveMode] = useState<'generate' | 'edit'>('generate');
+
+  return (
+    <div className="space-y-8">
+      {/* Mode Toggle */}
+      <div className="flex justify-center">
+        <div className="bg-black/20 rounded-2xl p-1 border border-white/10">
+          <button
+            onClick={() => setActiveMode('generate')}
+            className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+              activeMode === 'generate'
+                ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
+                : 'text-gray-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              Generate
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveMode('edit')}
+            className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+              activeMode === 'edit'
+                ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
+                : 'text-gray-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Wand2 className="w-4 h-4" />
+              Edit
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Content based on active mode */}
+      {activeMode === 'generate' ? <ImageGenerator /> : <ImageEditor />}
+    </div>
+  );
+}
+
+// Assets Content Component (Renamed from Gallery)
+function AssetsContent({ searchQuery }: { searchQuery: string }) {
+  return (
+    <div className="space-y-8">
+      <div className="text-center">
+        <h2 
+          className="display-text mb-4"
+          style={{ color: 'var(--primary-text)' }}
+        >
+          My Assets
+        </h2>
+        <p 
+          className="body-large max-w-2xl mx-auto"
+          style={{ color: 'var(--secondary-text)' }}
+        >
+          Your personal collection of generated and edited images
+        </p>
+      </div>
+
+      {/* Assets Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {Array.from({ length: 8 }).map((_, index) => (
+          <div key={index} className="group relative">
+            <div 
+              className="aspect-square rounded-2xl overflow-hidden border"
+              style={{ 
+                backgroundColor: 'var(--surface-bg)',
+                borderColor: 'var(--border-color)'
+              }}
+            >
+              <div 
+                className="w-full h-full flex items-center justify-center"
+                style={{ 
+                  background: 'var(--gradient-primary)',
+                  opacity: 0.1
+                }}
+              >
+                <span 
+                  className="body-small"
+                  style={{ color: 'var(--secondary-text)' }}
+                >
+                  Asset {index + 1}
+                </span>
+              </div>
+            </div>
+            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
+              <button 
+                className="p-3 rounded-full backdrop-blur-sm transition-colors"
+                style={{ backgroundColor: 'var(--surface-bg)' }}
+              >
+                <span 
+                  className="body-small"
+                  style={{ color: 'var(--primary-text)' }}
+                >
+                  View
+                </span>
+              </button>
+            </div>
           </div>
         ))}
       </div>
