@@ -649,13 +649,36 @@ function ImageContent() {
       }
 
       const data = await response.json();
-      const images = (data.generatedImages || []).map((img: any) => {
-        if (img.bytesBase64Encoded) {
-          return `data:image/svg+xml;base64,${img.bytesBase64Encoded}`;
+      console.log('Edit API Response:', data);
+      
+      // Check for API errors first
+      if (data.error) {
+        console.error('API Error:', data.error);
+        setError(`API Error: ${data.error.message || data.error}`);
+        return;
+      }
+      
+      // Process real API response (same as generate)
+      if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+        const images = data.candidates[0].content.parts
+          .filter((part: any) => part.inlineData && part.inlineData.mimeType.startsWith('image/'))
+          .map((part: any) => {
+            const mimeType = part.inlineData.mimeType;
+            const base64Data = part.inlineData.data;
+            return `data:${mimeType};base64,${base64Data}`;
+          });
+        
+        if (images.length > 0) {
+          console.log('Found edited images:', images.length);
+          setGeneratedImages(images);
+        } else {
+          console.log('No edited images found in response');
+          setError('No edited images were generated. Please try a different prompt.');
         }
-        return img;
-      });
-      setGeneratedImages(images);
+      } else {
+        console.log('Unexpected edit response format:', data);
+        setError('Unexpected response from edit API. Please try again.');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
