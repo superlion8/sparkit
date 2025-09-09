@@ -585,6 +585,14 @@ function ImageContent() {
 
       const data = await response.json();
       console.log('API Response:', data); // 调试信息
+      console.log('Response status:', response.status);
+      
+      // 检查API错误
+      if (data.error) {
+        console.error('API Error:', data.error);
+        setError(`API Error: ${data.error.message || data.error}`);
+        return;
+      }
       
       // 处理真实的API响应
       if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
@@ -601,10 +609,15 @@ function ImageContent() {
           setGeneratedImages(images);
         } else {
           console.log('No images found in response');
+          console.log('Available parts:', data.candidates[0].content.parts);
           setError('No images were generated. Please try a different prompt.');
         }
       } else {
         console.log('Unexpected response format:', data);
+        console.log('Available keys:', Object.keys(data));
+        if (data.candidates) {
+          console.log('Candidates structure:', data.candidates);
+        }
         setError('Unexpected response from API. Please try again.');
       }
     } catch (err) {
