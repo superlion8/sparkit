@@ -189,36 +189,151 @@ function ChatContent() {
 
 // Subscribe Content Component
 function SubscribeContent() {
+  const plans = [
+    {
+      name: 'Free',
+      description: 'Perfect for getting started',
+      price: '$0',
+      period: '/month',
+      features: ['10 generations/month', 'Basic editing tools', 'Community support'],
+      bgColor: '#F5F5F7',
+      textColor: '#222',
+      borderColor: '#E0E0E0',
+      buttonColor: '#6B7280',
+      buttonText: 'Current Plan',
+      isCurrent: true
+    },
+    {
+      name: 'Pro',
+      description: 'Perfect for creators',
+      price: '$19',
+      period: '/month',
+      features: ['100 generations/month', 'Advanced editing tools', 'Priority support', 'HD exports'],
+      bgColor: '#FFF5E5',
+      textColor: '#FF6A3D',
+      borderColor: '#FFD4A3',
+      buttonColor: '#FF6A3D',
+      buttonText: 'Upgrade to Pro',
+      isCurrent: false,
+      isPopular: true
+    },
+    {
+      name: 'Enterprise',
+      description: 'Perfect for teams',
+      price: '$99',
+      period: '/month',
+      features: ['Unlimited generations', 'All editing tools', '24/7 support', 'API access', 'Custom models'],
+      bgColor: '#F3E8FF',
+      textColor: '#7C3AED',
+      borderColor: '#C4B5FD',
+      buttonColor: '#7C3AED',
+      buttonText: 'Contact Sales',
+      isCurrent: false
+    }
+  ];
+
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-4">Upgrade Your Plan</h2>
-        <p className="text-gray-400 max-w-2xl mx-auto">
+        <h2 
+          className="display-text mb-4"
+          style={{ color: 'var(--primary-text)' }}
+        >
+          Upgrade Your Plan
+        </h2>
+        <p 
+          className="body-large max-w-2xl mx-auto"
+          style={{ color: 'var(--secondary-text)' }}
+        >
           Unlock more features and higher limits with our premium plans
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {['Free', 'Pro', 'Enterprise'].map((plan, index) => (
-          <div key={plan} className="bg-black/20 rounded-2xl p-6 border border-white/10">
-            <h3 className="text-xl font-bold text-white mb-2">{plan}</h3>
-            <p className="text-gray-400 mb-4">Perfect for {plan.toLowerCase()} users</p>
-            <div className="space-y-2 mb-6">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                <span className="text-sm text-gray-300">Feature 1</span>
+        {plans.map((plan, index) => (
+          <div 
+            key={plan.name}
+            className={`rounded-2xl p-6 border-2 transition-all duration-300 hover:shadow-lg hover:scale-105 ${
+              plan.isPopular ? 'ring-2 ring-orange-400 ring-opacity-50' : ''
+            }`}
+            style={{
+              backgroundColor: plan.bgColor,
+              borderColor: plan.borderColor
+            }}
+          >
+            {plan.isPopular && (
+              <div className="text-center mb-4">
+                <span 
+                  className="px-3 py-1 rounded-full text-sm font-medium"
+                  style={{ 
+                    backgroundColor: '#FF6A3D', 
+                    color: 'white' 
+                  }}
+                >
+                  Most Popular
+                </span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                <span className="text-sm text-gray-300">Feature 2</span>
+            )}
+            
+            <div className="text-center mb-6">
+              <h3 
+                className="h2-text mb-2"
+                style={{ color: plan.textColor }}
+              >
+                {plan.name}
+              </h3>
+              <p 
+                className="body-small mb-4"
+                style={{ color: 'var(--secondary-text)' }}
+              >
+                {plan.description}
+              </p>
+              <div className="flex items-baseline justify-center">
+                <span 
+                  className="text-4xl font-bold"
+                  style={{ color: plan.textColor }}
+                >
+                  {plan.price}
+                </span>
+                <span 
+                  className="body-small ml-1"
+                  style={{ color: 'var(--secondary-text)' }}
+                >
+                  {plan.period}
+                </span>
               </div>
             </div>
-            <button className={`w-full py-3 rounded-xl font-semibold transition-all duration-300 ${
-              index === 1 
-                ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700'
-                : 'bg-white/10 text-gray-300 hover:bg-white/20'
-            }`}>
-              {index === 0 ? 'Current Plan' : 'Upgrade'}
+
+            <div className="space-y-3 mb-6">
+              {plan.features.map((feature, featureIndex) => (
+                <div key={featureIndex} className="flex items-center gap-3">
+                  <div 
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: plan.textColor }}
+                  ></div>
+                  <span 
+                    className="body-small"
+                    style={{ color: 'var(--secondary-text)' }}
+                  >
+                    {feature}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <button 
+              className={`w-full py-3 rounded-xl font-semibold transition-all duration-300 hover:shadow-md ${
+                plan.isCurrent 
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'hover:scale-105'
+              }`}
+              style={{
+                backgroundColor: plan.isCurrent ? '#E5E7EB' : plan.buttonColor,
+                color: plan.isCurrent ? '#6B7280' : 'white'
+              }}
+              disabled={plan.isCurrent}
+            >
+              {plan.buttonText}
             </button>
           </div>
         ))}
@@ -229,20 +344,96 @@ function SubscribeContent() {
 
 // Help Content Component
 function HelpContent() {
+  const helpTopics = [
+    {
+      title: 'Getting Started',
+      description: 'Learn how to use this feature effectively',
+      icon: '⚡',
+      bgColor: '#FFF5E5',
+      textColor: '#FF6A3D',
+      hoverBg: 'linear-gradient(135deg, #FFF5E5 0%, #FFE5CC 100%)',
+      borderColor: '#FFD4A3'
+    },
+    {
+      title: 'Image Generation',
+      description: 'Learn how to use this feature effectively',
+      icon: '🎨',
+      bgColor: '#F3E8FF',
+      textColor: '#7C3AED',
+      hoverBg: 'linear-gradient(135deg, #F3E8FF 0%, #E9D5FF 100%)',
+      borderColor: '#C4B5FD'
+    },
+    {
+      title: 'Image Editing',
+      description: 'Learn how to use this feature effectively',
+      icon: '✨',
+      bgColor: '#E6F9F5',
+      textColor: '#10B981',
+      hoverBg: 'linear-gradient(135deg, #E6F9F5 0%, #D1FAE5 100%)',
+      borderColor: '#A7F3D0'
+    },
+    {
+      title: 'Account Settings',
+      description: 'Learn how to use this feature effectively',
+      icon: '⚙️',
+      bgColor: '#E6F0FF',
+      textColor: '#2563EB',
+      hoverBg: 'linear-gradient(135deg, #E6F0FF 0%, #DBEAFE 100%)',
+      borderColor: '#93C5FD'
+    }
+  ];
+
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-4">Help & Support</h2>
-        <p className="text-gray-400 max-w-2xl mx-auto">
+        <h2 
+          className="display-text mb-4"
+          style={{ color: 'var(--primary-text)' }}
+        >
+          Help & Support
+        </h2>
+        <p 
+          className="body-large max-w-2xl mx-auto"
+          style={{ color: 'var(--secondary-text)' }}
+        >
           Find answers to common questions and get help with using Sparkit
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {['Getting Started', 'Image Generation', 'Image Editing', 'Account Settings'].map((topic, index) => (
-          <div key={topic} className="bg-black/20 rounded-2xl p-6 border border-white/10 hover:border-purple-500/30 transition-colors cursor-pointer">
-            <h3 className="text-lg font-semibold text-white mb-2">{topic}</h3>
-            <p className="text-gray-400 text-sm">Learn how to use this feature effectively</p>
+        {helpTopics.map((topic, index) => (
+          <div 
+            key={topic.title}
+            className="rounded-2xl p-6 border-2 transition-all duration-300 cursor-pointer hover:shadow-lg hover:scale-105"
+            style={{
+              backgroundColor: topic.bgColor,
+              borderColor: topic.borderColor,
+              background: topic.bgColor
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = topic.hoverBg;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = topic.bgColor;
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">{topic.icon}</span>
+              <div className="flex-1">
+                <h3 
+                  className="h3-text mb-2"
+                  style={{ color: topic.textColor }}
+                >
+                  {topic.title}
+                </h3>
+                <p 
+                  className="body-small"
+                  style={{ color: 'var(--secondary-text)' }}
+                >
+                  {topic.description}
+                </p>
+              </div>
+            </div>
           </div>
         ))}
       </div>
