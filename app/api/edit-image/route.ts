@@ -20,8 +20,64 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract base64 data from data URL
-    const base64Data = image.split(',')[1];
-    const mimeType = image.split(',')[0].split(':')[1].split(';')[0];
+    let base64Data, mimeType;
+    
+    try {
+      if (image.startsWith('data:')) {
+        const [header, data] = image.split(',');
+        base64Data = data;
+        mimeType = header.split(':')[1].split(';')[0];
+      } else {
+        // If it's already base64 without data URL prefix
+        base64Data = image;
+        mimeType = 'image/jpeg'; // Default mime type
+      }
+      
+      console.log('Image processing:', {
+        hasDataPrefix: image.startsWith('data:'),
+        mimeType,
+        dataLength: base64Data?.length
+      });
+      
+      if (!base64Data) {
+        throw new Error('Invalid image data format');
+      }
+    } catch (error) {
+      console.error('Image parsing error:', error);
+      return NextResponse.json(
+        { error: 'Invalid image data format' },
+        { status: 400 }
+      );
+    }
+
+    const requestBody = {
+      contents: [{
+        parts: [
+          {
+            text: `Edit this image: ${prompt}. Make the changes as requested.`
+          },
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: base64Data
+            }
+          }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 8192,
+      }
+    };
+
+    console.log('Sending request to Gemini API:', {
+      prompt: prompt.substring(0, 100) + '...',
+      mimeType,
+      dataSize: base64Data.length,
+      hasInlineData: !!requestBody.contents[0].parts[1].inlineData
+    });
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`,
@@ -30,27 +86,7 @@ export async function POST(request: NextRequest) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              {
-                text: `Edit this image: ${prompt}. Make the changes as requested.`
-              },
-              {
-                inlineData: {
-                  mimeType: mimeType,
-                  data: base64Data
-                }
-              }
-            ]
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 8192,
-          }
-        }),
+        body: JSON.stringify(requestBody),
       }
     );
 
