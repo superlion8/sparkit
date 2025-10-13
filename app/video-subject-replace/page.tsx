@@ -79,12 +79,12 @@ export default function VideoSubjectReplacePage() {
       const data = await response.json();
       console.log("✅ 响应数据:", data);
       
-      if (data.videoUrl) {
-        setGeneratedVideo(data.videoUrl);
-        setTaskId(data.taskId || "");
-        console.log("✅ 视频处理完成");
+      if (data.taskId && data.pollingRequired) {
+        setTaskId(data.taskId);
+        console.log("✅ 任务创建成功，开始轮询状态...");
+        await pollTaskStatus(data.taskId);
       } else {
-        setError("API 返回成功但没有视频数据");
+        setError("API 返回成功但没有任务ID");
         setErrorDetails(data);
       }
     } catch (err: any) {
@@ -93,9 +93,66 @@ export default function VideoSubjectReplacePage() {
         setErrorDetails({ message: err.message, stack: err.stack });
       }
       setError(err.message || "处理失败，请重试");
-    } finally {
       setLoading(false);
     }
+  };
+
+  // 轮询任务状态
+  const pollTaskStatus = async (taskId: string) => {
+    const maxAttempts = 240; // 20 分钟，每 5 秒一次
+    let attempts = 0;
+
+    const poll = async () => {
+      try {
+        const response = await fetch("/api/generate/runninghub/status", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ taskId }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Status check failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log(`轮询 ${attempts + 1}/${maxAttempts}:`, data);
+
+        if (data.completed) {
+          if (data.status === "SUCCESS" && data.videoUrl) {
+            setGeneratedVideo(data.videoUrl);
+            console.log("✅ 视频处理完成！");
+          } else {
+            setError(data.error || "任务处理失败");
+            setErrorDetails(data);
+          }
+          setLoading(false);
+          return;
+        }
+
+        // 继续轮询
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 5000); // 5 秒后再次轮询
+        } else {
+          setError("任务处理超时，请重试");
+          setLoading(false);
+        }
+      } catch (err: any) {
+        console.error("轮询错误:", err);
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 5000); // 5 秒后重试
+        } else {
+          setError("轮询失败，请重试");
+          setLoading(false);
+        }
+      }
+    };
+
+    // 开始轮询
+    poll();
   };
 
   return (
@@ -167,13 +224,18 @@ export default function VideoSubjectReplacePage() {
 
             {loading && (
               <div className="space-y-4">
-                <LoadingSpinner text="AI正在处理视频，这可能需要 5-20 分钟..." />
+                <LoadingSpinner text={taskId ? `正在处理视频... (任务ID: ${taskId})` : "正在创建任务..."} />
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <p className="text-sm text-yellow-800 text-center">
-                    ⏳ 正在调用 RunningHub ComfyUI 工作流<br />
-                    由于算力要求较高，处理时间可能较长<br />
-                    请耐心等待，不要关闭页面
+                    ⏳ 正在处理视频主体替换<br />
+                    {taskId ? "任务已创建，正在轮询状态..." : "正在上传文件并创建任务..."}<br />
+                    预计需要 5-20 分钟，请耐心等待
                   </p>
+                  {taskId && (
+                    <p className="text-xs text-yellow-600 mt-2 text-center">
+                      任务ID: {taskId}
+                    </p>
+                  )}
                 </div>
               </div>
             )}

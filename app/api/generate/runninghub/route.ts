@@ -102,22 +102,14 @@ export async function POST(request: NextRequest) {
 
     const { taskId, taskStatus, netWssUrl } = taskData.data;
 
-    // 步骤 4: 轮询任务状态
-    console.log(`Task ID: ${taskId}, Status: ${taskStatus}`);
-    const result = await pollTaskResult(apiKey, taskId);
-
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.error || "Task execution failed" },
-        { status: 500 }
-      );
-    }
+    // 步骤 4: 返回任务ID，让前端轮询
+    console.log(`Task created successfully. Task ID: ${taskId}, Status: ${taskStatus}`);
 
     return NextResponse.json({
       taskId,
-      status: result.status,
-      videoUrl: result.videoUrl,
-      message: "Video subject replacement completed successfully",
+      status: taskStatus,
+      message: "Task created successfully. Please use the task ID to check status.",
+      pollingRequired: true,
     });
   } catch (error: any) {
     console.error("Error in RunningHub generation:", error);
@@ -157,87 +149,4 @@ async function uploadFile(file: File, apiKey: string): Promise<{ success: boolea
   }
 }
 
-// 轮询任务结果
-async function pollTaskResult(
-  apiKey: string,
-  taskId: string,
-  maxAttempts: number = 240 // 240 attempts * 5 seconds = 1200 seconds = 20 minutes
-): Promise<{ success: boolean; status?: string; videoUrl?: string; error?: string }> {
-  let attempts = 0;
-
-  while (attempts < maxAttempts) {
-    await new Promise(resolve => setTimeout(resolve, 5000)); // 等待 5 秒
-
-    try {
-      const response = await fetch(`${RUNNINGHUB_API_URL}/task/openapi/query`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          apiKey: apiKey,
-          taskId: taskId,
-        }),
-      });
-
-      if (!response.ok) {
-        attempts++;
-        continue;
-      }
-
-      const data = await response.json();
-      console.log(`Poll attempt ${attempts + 1}:`, data);
-
-      if (data.code !== 0) {
-        attempts++;
-        continue;
-      }
-
-      const taskStatus = data.data.taskStatus;
-
-      if (taskStatus === "SUCCESS") {
-        // 任务完成，提取视频 URL
-        const outputs = data.data.outputs;
-        let videoUrl = null;
-
-        // 从 outputs 中查找视频文件
-        if (outputs && Array.isArray(outputs)) {
-          for (const output of outputs) {
-            if (output.type === "video" || output.url?.match(/\.(mp4|mov|avi|webm)$/i)) {
-              videoUrl = output.url;
-              break;
-            }
-          }
-        }
-
-        if (!videoUrl && data.data.resultUrl) {
-          videoUrl = data.data.resultUrl;
-        }
-
-        return {
-          success: true,
-          status: "SUCCESS",
-          videoUrl: videoUrl || undefined,
-        };
-      } else if (taskStatus === "FAILED" || taskStatus === "ERROR") {
-        return {
-          success: false,
-          status: taskStatus,
-          error: data.data.errorMessage || "Task failed",
-        };
-      }
-
-      // 任务还在运行中
-      attempts++;
-    } catch (error: any) {
-      console.error(`Poll error at attempt ${attempts + 1}:`, error);
-      attempts++;
-    }
-  }
-
-  return {
-    success: false,
-    error: "Task timeout - took too long to complete",
-  };
-}
 
