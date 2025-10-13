@@ -62,10 +62,32 @@ export default function TextToImagePage() {
         console.log("收到响应:", response.status, response.statusText);
 
         if (!response.ok) {
-          const errorData = await response.json();
+          let errorData: any;
+          const contentType = response.headers.get("content-type");
+          
+          try {
+            if (contentType && contentType.includes("application/json")) {
+              errorData = await response.json();
+            } else {
+              const errorText = await response.text();
+              errorData = { 
+                status: response.status, 
+                statusText: response.statusText,
+                error: errorText,
+                contentType: contentType 
+              };
+            }
+          } catch (parseError) {
+            errorData = { 
+              status: response.status, 
+              statusText: response.statusText,
+              error: "无法解析错误响应" 
+            };
+          }
+          
           console.error("❌ API 错误:", errorData);
           setErrorDetails(errorData);
-          throw new Error(errorData.error || "Generation failed");
+          throw new Error(errorData.error || errorData.statusText || "Generation failed");
         }
 
         console.log("开始解析响应数据...");
