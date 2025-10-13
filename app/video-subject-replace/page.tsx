@@ -131,6 +131,11 @@ export default function VideoSubjectReplacePage() {
           return;
         }
 
+        // 如果还在处理中，显示当前状态
+        if (data.status) {
+          console.log(`任务状态: ${data.status}`);
+        }
+
         // 继续轮询
         attempts++;
         if (attempts < maxAttempts) {
