@@ -90,21 +90,21 @@ export async function POST(request: NextRequest) {
           console.log("Direct outputs query response:", resultData);
           
           if (resultData.code === 0 && resultData.data && Array.isArray(resultData.data)) {
-            // 查找视频文件
-            let videoUrl = null;
+            // 收集所有视频文件
+            const videoUrls: string[] = [];
             for (const output of resultData.data) {
               if (output.fileType === "mp4" || output.fileUrl?.match(/\.(mp4|mov|avi|webm)$/i)) {
-                videoUrl = output.fileUrl;
-                break;
+                videoUrls.push(output.fileUrl);
               }
             }
             
-            if (videoUrl) {
+            if (videoUrls.length > 0) {
               return NextResponse.json({
                 taskId,
                 status: "SUCCESS",
                 completed: true,
-                videoUrl: videoUrl,
+                videoUrl: videoUrls[0], // 保持向后兼容
+                videoUrls: videoUrls, // 新增：返回所有视频
                 error: null,
               });
             }
@@ -125,12 +125,19 @@ export async function POST(request: NextRequest) {
 
     // RunningHub API 返回的 data 可能是字符串 "SUCCESS" 而不是对象
     const taskStatus = typeof data.data === 'string' ? data.data : data.data.taskStatus;
-    let result = {
+    let result: {
+      taskId: string;
+      status: string;
+      completed: boolean;
+      videoUrl: string | null;
+      videoUrls?: string[];
+      error: string | null;
+    } = {
       taskId,
       status: taskStatus,
       completed: false,
-      videoUrl: null as string | null,
-      error: null as string | null,
+      videoUrl: null,
+      error: null,
     };
 
     console.log(`Task status: ${taskStatus} (type: ${typeof data.data})`);
@@ -157,12 +164,11 @@ export async function POST(request: NextRequest) {
           console.log("Outputs response:", outputsData);
 
           if (outputsData.code === 0 && outputsData.data && Array.isArray(outputsData.data)) {
-            // 查找视频文件
-            let videoUrl = null;
+            // 收集所有视频文件
+            const videoUrls: string[] = [];
             for (const output of outputsData.data) {
               if (output.fileType === "mp4" || output.fileUrl?.match(/\.(mp4|mov|avi|webm)$/i)) {
-                videoUrl = output.fileUrl;
-                break;
+                videoUrls.push(output.fileUrl);
               }
             }
 
@@ -170,7 +176,8 @@ export async function POST(request: NextRequest) {
               taskId,
               status: "SUCCESS",
               completed: true,
-              videoUrl: videoUrl,
+              videoUrl: videoUrls.length > 0 ? videoUrls[0] : null, // 保持向后兼容
+              videoUrls: videoUrls, // 新增：返回所有视频
               error: null,
             };
           } else {

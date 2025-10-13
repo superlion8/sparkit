@@ -14,6 +14,16 @@ export interface GenerationResponse {
   error?: string;
 }
 
+// Video generation response
+export interface VideoGenerationResponse {
+  taskId: string;
+  status: string;
+  completed: boolean;
+  videoUrl?: string | null; // 向后兼容，第一个视频
+  videoUrls?: string[]; // 所有视频URL数组
+  error?: string | null;
+}
+
 // Video template
 export interface VideoTemplate {
   id: string;

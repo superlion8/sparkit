@@ -11,6 +11,7 @@ export default function VideoSubjectReplacePage() {
   const [subjectImage, setSubjectImage] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [generatedVideo, setGeneratedVideo] = useState<string>("");
+  const [generatedVideos, setGeneratedVideos] = useState<string[]>([]);
   const [taskId, setTaskId] = useState<string>("");
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
@@ -32,6 +33,7 @@ export default function VideoSubjectReplacePage() {
     setError("");
     setErrorDetails(null);
     setGeneratedVideo("");
+    setGeneratedVideos([]);
     setTaskId("");
 
     try {
@@ -120,9 +122,20 @@ export default function VideoSubjectReplacePage() {
         console.log(`轮询 ${attempts + 1}/${maxAttempts}:`, data);
 
         if (data.completed) {
-          if (data.status === "SUCCESS" && data.videoUrl) {
-            setGeneratedVideo(data.videoUrl);
-            console.log("✅ 视频处理完成！");
+          if (data.status === "SUCCESS") {
+            // 优先使用 videoUrls 数组，如果没有则使用 videoUrl
+            if (data.videoUrls && data.videoUrls.length > 0) {
+              setGeneratedVideos(data.videoUrls);
+              setGeneratedVideo(data.videoUrls[0]); // 保持向后兼容
+              console.log(`✅ 视频处理完成！生成了 ${data.videoUrls.length} 个视频`);
+            } else if (data.videoUrl) {
+              setGeneratedVideo(data.videoUrl);
+              setGeneratedVideos([data.videoUrl]);
+              console.log("✅ 视频处理完成！");
+            } else {
+              setError("未找到生成的视频");
+              setErrorDetails(data);
+            }
           } else {
             setError(data.error || "任务处理失败");
             setErrorDetails(data);
@@ -290,13 +303,47 @@ export default function VideoSubjectReplacePage() {
                   </div>
                 )}
                 
-                <div className="relative bg-gray-100 rounded-lg overflow-hidden">
-                  <video
-                    src={generatedVideo}
-                    controls
-                    className="w-full h-auto"
-                  />
-                </div>
+                {generatedVideos.length > 1 ? (
+                  <div className="space-y-4">
+                    <div className="text-center">
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">
+                        生成了 {generatedVideos.length} 个视频
+                      </h3>
+                    </div>
+                    {generatedVideos.map((videoUrl, index) => (
+                      <div key={index} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium text-gray-700">
+                            视频 {index + 1}
+                          </h4>
+                          <a
+                            href={videoUrl}
+                            download={`video-subject-replace-${index + 1}.mp4`}
+                            className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700"
+                          >
+                            <Download className="w-3 h-3" />
+                            下载
+                          </a>
+                        </div>
+                        <div className="relative bg-gray-100 rounded-lg overflow-hidden">
+                          <video
+                            src={videoUrl}
+                            controls
+                            className="w-full h-auto"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="relative bg-gray-100 rounded-lg overflow-hidden">
+                    <video
+                      src={generatedVideo}
+                      controls
+                      className="w-full h-auto"
+                    />
+                  </div>
+                )}
                 
                 <button
                   onClick={() => {
