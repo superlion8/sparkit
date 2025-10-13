@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       console.log("Status query failed, trying to get result directly...");
       
       try {
-        const resultResponse = await fetch(`${RUNNINGHUB_API_URL}/task/openapi/result`, {
+        const resultResponse = await fetch(`${RUNNINGHUB_API_URL}/task/openapi/outputs`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -89,13 +89,22 @@ export async function POST(request: NextRequest) {
           const resultData = await resultResponse.json();
           console.log("Direct result query response:", resultData);
           
-          if (resultData.code === 0 && resultData.data) {
+          if (resultData.code === 0 && resultData.data && Array.isArray(resultData.data)) {
+            // 查找视频文件
+            let videoUrl = null;
+            for (const output of resultData.data) {
+              if (output.fileType === "mp4" || output.fileUrl?.match(/\.(mp4|mov|avi|webm)$/i)) {
+                videoUrl = output.fileUrl;
+                break;
+              }
+            }
+
             // 直接返回结果
             return NextResponse.json({
               taskId,
               status: "SUCCESS",
               completed: true,
-              videoUrl: resultData.data.resultUrl || resultData.data.url,
+              videoUrl: videoUrl,
               error: null,
             });
           }
@@ -123,31 +132,71 @@ export async function POST(request: NextRequest) {
     };
 
     if (taskStatus === "SUCCESS") {
-      // 任务完成，提取视频 URL
-      const outputs = data.data.outputs;
-      let videoUrl = null;
+      // 任务完成，需要调用 outputs 接口获取结果
+      console.log("Task completed, fetching outputs...");
+      
+      try {
+        const outputsResponse = await fetch(`${RUNNINGHUB_API_URL}/task/openapi/outputs`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "User-Agent": "Creator-AI-Toolkit/1.0",
+          },
+          body: JSON.stringify({
+            apiKey: apiKey,
+            taskId: taskId,
+          }),
+        });
 
-      // 从 outputs 中查找视频文件
-      if (outputs && Array.isArray(outputs)) {
-        for (const output of outputs) {
-          if (output.type === "video" || output.url?.match(/\.(mp4|mov|avi|webm)$/i)) {
-            videoUrl = output.url;
-            break;
+        if (outputsResponse.ok) {
+          const outputsData = await outputsResponse.json();
+          console.log("Outputs response:", outputsData);
+
+          if (outputsData.code === 0 && outputsData.data && Array.isArray(outputsData.data)) {
+            // 查找视频文件
+            let videoUrl = null;
+            for (const output of outputsData.data) {
+              if (output.fileType === "mp4" || output.fileUrl?.match(/\.(mp4|mov|avi|webm)$/i)) {
+                videoUrl = output.fileUrl;
+                break;
+              }
+            }
+
+            result = {
+              taskId,
+              status: "SUCCESS",
+              completed: true,
+              videoUrl: videoUrl,
+              error: null,
+            };
+          } else {
+            result = {
+              taskId,
+              status: "SUCCESS",
+              completed: true,
+              videoUrl: null,
+              error: "No outputs found",
+            };
           }
+        } else {
+          result = {
+            taskId,
+            status: "SUCCESS",
+            completed: true,
+            videoUrl: null,
+            error: "Failed to fetch outputs",
+          };
         }
+      } catch (outputsError) {
+        console.error("Error fetching outputs:", outputsError);
+        result = {
+          taskId,
+          status: "SUCCESS",
+          completed: true,
+          videoUrl: null,
+          error: "Error fetching outputs",
+        };
       }
-
-      if (!videoUrl && data.data.resultUrl) {
-        videoUrl = data.data.resultUrl;
-      }
-
-      result = {
-        taskId,
-        status: "SUCCESS",
-        completed: true,
-        videoUrl: videoUrl || null,
-        error: null,
-      };
     } else if (taskStatus === "FAILED" || taskStatus === "ERROR") {
       result = {
         taskId,
