@@ -3,25 +3,21 @@
 import { useState } from "react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
-import { Replace, Download, Upload } from "lucide-react";
+import VideoUpload from "@/components/VideoUpload";
+import { Replace, Download } from "lucide-react";
 
 export default function VideoSubjectReplacePage() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [subjectImage, setSubjectImage] = useState<File[]>([]);
-  const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [generatedVideo, setGeneratedVideo] = useState<string>("");
+  const [taskId, setTaskId] = useState<string>("");
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
 
-  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setVideoFile(file);
-    }
-  };
-
   const handleGenerate = async () => {
+    console.log("=== 开始视频主体替换 ===");
+    
     if (!videoFile) {
       setError("请上传视频文件");
       return;
@@ -36,26 +32,67 @@ export default function VideoSubjectReplacePage() {
     setError("");
     setErrorDetails(null);
     setGeneratedVideo("");
+    setTaskId("");
 
     try {
-      // TODO: Implement video subject replacement API
-      // This requires advanced AI video editing services
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      const formData = new FormData();
+      formData.append("video", videoFile);
+      formData.append("subjectImage", subjectImage[0]);
+
+      console.log("发送请求到 RunningHub API...");
+      const response = await fetch("/api/generate/runninghub", {
+        method: "POST",
+        body: formData,
+      });
+
+      console.log("收到响应:", response.status);
+
+      if (!response.ok) {
+        let errorData: any;
+        const contentType = response.headers.get("content-type");
+        
+        try {
+          if (contentType && contentType.includes("application/json")) {
+            errorData = await response.json();
+          } else {
+            const errorText = await response.text();
+            errorData = { 
+              status: response.status, 
+              statusText: response.statusText,
+              error: errorText,
+              contentType: contentType 
+            };
+          }
+        } catch (parseError) {
+          errorData = { 
+            status: response.status, 
+            statusText: response.statusText,
+            error: "无法解析错误响应" 
+          };
+        }
+        
+        console.error("❌ API 错误:", errorData);
+        setErrorDetails(errorData);
+        throw new Error(errorData.error || errorData.statusText || "Video processing failed");
+      }
+
+      const data = await response.json();
+      console.log("✅ 响应数据:", data);
       
-      const devError = {
-        status: "not_implemented",
-        message: "视频主体替换功能正在开发中",
-        details: "此功能需要集成高级AI视频编辑服务，如Runway Gen-2、Wonder Studio或类似服务"
-      };
-      setErrorDetails(devError);
-      setError("视频主体替换功能正在开发中。此功能需要集成高级AI视频编辑服务，如Runway Gen-2、Wonder Studio或类似服务。");
-      
+      if (data.videoUrl) {
+        setGeneratedVideo(data.videoUrl);
+        setTaskId(data.taskId || "");
+        console.log("✅ 视频处理完成");
+      } else {
+        setError("API 返回成功但没有视频数据");
+        setErrorDetails(data);
+      }
     } catch (err: any) {
+      console.error("❌ 捕获到错误:", err);
       if (!errorDetails) {
         setErrorDetails({ message: err.message, stack: err.stack });
       }
-      setError(err.message || "生成失败，请重试");
-      console.error("Generation error:", err);
+      setError(err.message || "处理失败，请重试");
     } finally {
       setLoading(false);
     }
@@ -79,58 +116,23 @@ export default function VideoSubjectReplacePage() {
 
             <div className="space-y-6">
               {/* Video Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  上传视频
-                </label>
-                {!videoFile ? (
-                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary-500 transition-colors">
-                    <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                    <span className="text-sm text-gray-500">点击上传视频</span>
-                    <span className="text-xs text-gray-400 mt-1">支持 MP4, MOV 等格式</span>
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={handleVideoUpload}
-                      className="hidden"
-                    />
-                  </label>
-                ) : (
-                  <div className="relative">
-                    <video
-                      src={URL.createObjectURL(videoFile)}
-                      controls
-                      className="w-full rounded-lg"
-                    />
-                    <button
-                      onClick={() => setVideoFile(null)}
-                      className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-600"
-                    >
-                      移除
-                    </button>
-                  </div>
-                )}
-              </div>
+              <VideoUpload
+                onVideoChange={setVideoFile}
+                label="上传原始视频"
+              />
 
               {/* Subject Image Upload */}
               <ImageUpload
                 maxImages={1}
                 onImagesChange={setSubjectImage}
-                label="上传替换主体"
+                label="上传替换主体图片"
               />
 
-              {/* Additional Prompt */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  额外描述（可选）
-                </label>
-                <textarea
-                  value={additionalPrompt}
-                  onChange={(e) => setAdditionalPrompt(e.target.value)}
-                  placeholder="描述替换需求，如保持动作、调整光线等..."
-                  rows={3}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-                />
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  <strong>提示：</strong>上传一个视频和一张主体图片，AI 将会自动替换视频中的主体角色。
+                  处理时间取决于视频长度，通常需要 3-10 分钟。
+                </p>
               </div>
 
               {/* Generate Button */}
@@ -157,7 +159,17 @@ export default function VideoSubjectReplacePage() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">处理结果</h2>
 
-            {loading && <LoadingSpinner text="AI正在处理视频，这可能需要几分钟..." />}
+            {loading && (
+              <div className="space-y-4">
+                <LoadingSpinner text="AI正在处理视频，这可能需要 3-10 分钟..." />
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-sm text-yellow-800 text-center">
+                    ⏳ 正在调用 RunningHub ComfyUI 工作流<br />
+                    请耐心等待，不要关闭页面
+                  </p>
+                </div>
+              </div>
+            )}
 
             {error && !loading && (
               <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
@@ -188,29 +200,41 @@ export default function VideoSubjectReplacePage() {
                 <div className="text-center">
                   <Replace className="w-16 h-16 mx-auto mb-4 opacity-50" />
                   <p>上传视频和主体图片，点击开始按钮进行处理</p>
-                  <p className="text-sm mt-2">（功能开发中）</p>
+                  <p className="text-sm mt-2 text-primary-600">✨ 已集成 RunningHub ComfyUI API</p>
                 </div>
               </div>
             )}
 
             {!loading && generatedVideo && (
               <div className="space-y-4">
-                <video
-                  src={generatedVideo}
-                  controls
-                  className="w-full rounded-lg"
-                />
+                {taskId && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-sm text-green-800">
+                      <strong>任务ID：</strong>{taskId}
+                    </p>
+                    <p className="text-xs text-green-600 mt-1">✓ 处理完成</p>
+                  </div>
+                )}
+                
+                <div className="relative bg-gray-100 rounded-lg overflow-hidden">
+                  <video
+                    src={generatedVideo}
+                    controls
+                    className="w-full h-auto"
+                  />
+                </div>
+                
                 <button
                   onClick={() => {
                     const link = document.createElement("a");
                     link.href = generatedVideo;
-                    link.download = "processed-video.mp4";
+                    link.download = `video-subject-replaced-${taskId || Date.now()}.mp4`;
                     link.click();
                   }}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-md"
                 >
-                  <Download className="w-4 h-4" />
-                  下载视频
+                  <Download className="w-5 h-5" />
+                  下载处理后的视频
                 </button>
               </div>
             )}

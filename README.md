@@ -9,14 +9,14 @@ AI-powered image and video generation and editing toolkit built with Next.js and
 - 👗 AI Outfit Change
 - 🖼️ AI Background Replacement
 - 🎥 Video Generation
-- 🎬 Video Subject Replacement
+- 🎬 Video Subject Replacement (RunningHub ComfyUI) ✨
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 18+ installed
-- API Keys for Gemini and BFL
+- API Keys for Gemini, BFL, and RunningHub
 
 ### Installation
 
@@ -54,7 +54,7 @@ This app is ready to deploy on Vercel:
 - **UI**: React 18 + Tailwind CSS
 - **Language**: TypeScript
 - **Icons**: Lucide React
-- **API**: Gemini API + BFL API
+- **API**: Gemini API + BFL API + RunningHub ComfyUI API
 
 ## License
 
