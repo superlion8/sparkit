@@ -23,15 +23,15 @@ export async function POST(request: NextRequest) {
 
     console.log(`Checking task status for ID: ${taskId}`);
 
-    // 查询任务状态
-    console.log(`Making request to: ${RUNNINGHUB_API_URL}/task/openapi/query`);
+    // 查询任务状态 - 使用正确的API端点
+    console.log(`Making request to: ${RUNNINGHUB_API_URL}/task/openapi/status`);
     console.log(`Request body:`, { apiKey: "***", taskId });
     
-    const response = await fetch(`${RUNNINGHUB_API_URL}/task/openapi/query`, {
+    const response = await fetch(`${RUNNINGHUB_API_URL}/task/openapi/status`, {
       method: "POST",
       headers: {
+        "Host": "www.runninghub.cn",
         "Content-Type": "application/json",
-        "User-Agent": "Creator-AI-Toolkit/1.0",
       },
       body: JSON.stringify({
         apiKey: apiKey,
@@ -76,8 +76,8 @@ export async function POST(request: NextRequest) {
         const resultResponse = await fetch(`${RUNNINGHUB_API_URL}/task/openapi/outputs`, {
           method: "POST",
           headers: {
+            "Host": "www.runninghub.cn",
             "Content-Type": "application/json",
-            "User-Agent": "Creator-AI-Toolkit/1.0",
           },
           body: JSON.stringify({
             apiKey: apiKey,
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
         if (resultResponse.ok) {
           const resultData = await resultResponse.json();
-          console.log("Direct result query response:", resultData);
+          console.log("Direct outputs query response:", resultData);
           
           if (resultData.code === 0 && resultData.data && Array.isArray(resultData.data)) {
             // 查找视频文件
@@ -98,19 +98,20 @@ export async function POST(request: NextRequest) {
                 break;
               }
             }
-
-            // 直接返回结果
-            return NextResponse.json({
-              taskId,
-              status: "SUCCESS",
-              completed: true,
-              videoUrl: videoUrl,
-              error: null,
-            });
+            
+            if (videoUrl) {
+              return NextResponse.json({
+                taskId,
+                status: "SUCCESS",
+                completed: true,
+                videoUrl: videoUrl,
+                error: null,
+              });
+            }
           }
         }
       } catch (resultError) {
-        console.error("Direct result query failed:", resultError);
+        console.error("Direct outputs query failed:", resultError);
       }
       
       return NextResponse.json(
@@ -139,8 +140,8 @@ export async function POST(request: NextRequest) {
         const outputsResponse = await fetch(`${RUNNINGHUB_API_URL}/task/openapi/outputs`, {
           method: "POST",
           headers: {
+            "Host": "www.runninghub.cn",
             "Content-Type": "application/json",
-            "User-Agent": "Creator-AI-Toolkit/1.0",
           },
           body: JSON.stringify({
             apiKey: apiKey,
