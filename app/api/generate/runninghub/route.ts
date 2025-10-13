@@ -69,6 +69,23 @@ export async function POST(request: NextRequest) {
 
     // 步骤 3: 创建 ComfyUI 任务
     console.log("Creating ComfyUI task...");
+    
+    // 构建 nodeInfoList 来替换用户上传的文件
+    const nodeInfoList = [
+      {
+        nodeId: "193",  // LoadImage 节点
+        fieldName: "image",
+        fieldValue: imageUploadResult.filename || imageUploadResult.url.split('/').pop()
+      },
+      {
+        nodeId: "63",   // VHS_LoadVideo 节点
+        fieldName: "video", 
+        fieldValue: videoUploadResult.filename || videoUploadResult.url.split('/').pop()
+      }
+    ];
+    
+    console.log("Using nodeInfoList:", nodeInfoList);
+    
     const taskResponse = await fetch(`${RUNNINGHUB_API_URL}/task/openapi/create`, {
       method: "POST",
       headers: {
@@ -78,6 +95,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         apiKey: apiKey,
         workflowId: WORKFLOW_ID,
+        nodeInfoList: nodeInfoList,
       }),
     });
 
@@ -121,7 +139,7 @@ export async function POST(request: NextRequest) {
 }
 
 // 上传文件到 RunningHub
-async function uploadFile(file: File, apiKey: string): Promise<{ success: boolean; url?: string; error?: string }> {
+async function uploadFile(file: File, apiKey: string): Promise<{ success: boolean; url?: string; filename?: string; error?: string }> {
   try {
     const formData = new FormData();
     formData.append("apiKey", apiKey);
@@ -143,7 +161,17 @@ async function uploadFile(file: File, apiKey: string): Promise<{ success: boolea
       return { success: false, error: uploadData.msg || "Upload failed" };
     }
 
-    return { success: true, url: uploadData.data.url };
+    // 从 URL 中提取文件名
+    const url = uploadData.data.url;
+    const filename = url.split('/').pop();
+    
+    console.log(`File uploaded successfully: ${filename}, URL: ${url}`);
+
+    return { 
+      success: true, 
+      url: url,
+      filename: filename 
+    };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
