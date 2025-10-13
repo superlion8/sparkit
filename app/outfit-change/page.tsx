@@ -83,7 +83,7 @@ export default function OutfitChangePage() {
         <p className="text-gray-600 mt-2">上传模特图和商品图，AI帮你生成穿搭效果</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Control Panel */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sticky top-6">
@@ -155,7 +155,7 @@ export default function OutfitChangePage() {
         </div>
 
         {/* Results Panel */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">生成结果</h2>
 

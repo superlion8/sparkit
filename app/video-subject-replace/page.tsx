@@ -60,7 +60,7 @@ export default function VideoSubjectReplacePage() {
         <p className="text-gray-600 mt-2">上传视频和主体图片，AI替换视频中的主体</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Control Panel */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sticky top-6">
@@ -167,7 +167,7 @@ export default function VideoSubjectReplacePage() {
         </div>
 
         {/* Results Panel */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">处理结果</h2>
 
