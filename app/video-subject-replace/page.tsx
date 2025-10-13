@@ -134,7 +134,10 @@ export default function VideoSubjectReplacePage() {
                   处理时间取决于视频长度和复杂度，通常需要 5-20 分钟。
                 </p>
                 <p className="text-xs text-blue-600 mt-2">
-                  <strong>文件限制：</strong>视频文件最大 50MB（Vercel 限制），超过会自动压缩。
+                  <strong>文件限制：</strong>视频建议 5MB 以下，图片建议 2MB 以下，总大小不超过 10MB。
+                </p>
+                <p className="text-xs text-orange-600 mt-1">
+                  <strong>注意：</strong>如果遇到"载荷过大"错误，请使用更小的文件。
                 </p>
               </div>
 

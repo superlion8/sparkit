@@ -19,9 +19,27 @@ export default function ImageUpload({
   const [previews, setPreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const newImages = [...images, ...files].slice(0, maxImages);
+    
+    // 压缩图片文件
+    const compressedFiles: File[] = [];
+    for (const file of files) {
+      if (file.size > 2 * 1024 * 1024) { // 大于 2MB 就压缩
+        try {
+          const compressed = await compressImage(file);
+          compressedFiles.push(compressed);
+          console.log(`Image compressed: ${file.size} → ${compressed.size} bytes`);
+        } catch (error) {
+          console.error('Image compression failed:', error);
+          compressedFiles.push(file); // 压缩失败就用原文件
+        }
+      } else {
+        compressedFiles.push(file);
+      }
+    }
+    
+    const newImages = [...images, ...compressedFiles].slice(0, maxImages);
     
     setImages(newImages);
     onImagesChange(newImages);
@@ -37,6 +55,57 @@ export default function ImageUpload({
         }
       };
       reader.readAsDataURL(file);
+    });
+  };
+
+  // 图片压缩函数
+  const compressImage = async (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      img.onload = () => {
+        // 计算压缩后的尺寸
+        let { width, height } = img;
+        const maxDimension = 1920; // 最大宽度或高度
+        
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = (height * maxDimension) / width;
+            width = maxDimension;
+          } else {
+            width = (width * maxDimension) / height;
+            height = maxDimension;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // 绘制压缩后的图片
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        // 转换为 Blob
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            } else {
+              reject(new Error('Compression failed'));
+            }
+          },
+          'image/jpeg',
+          0.8 // 质量 80%
+        );
+      };
+      
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
     });
   };
 

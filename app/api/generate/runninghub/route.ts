@@ -6,6 +6,9 @@ const WORKFLOW_ID = "1977672819733684226"; // 视频主体替换 workflow
 
 export async function POST(request: NextRequest) {
   try {
+    // 检查文件大小限制（更严格的限制）
+    const MAX_TOTAL_SIZE = 10 * 1024 * 1024; // 10MB 总大小限制
+
     const formData = await request.formData();
     const videoFile = formData.get("video") as File | null;
     const subjectImage = formData.get("subjectImage") as File | null;
@@ -24,13 +27,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 检查文件大小限制
-    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-    if (videoFile.size > MAX_FILE_SIZE) {
+    const totalSize = videoFile.size + subjectImage.size;
+    console.log(`File sizes - Video: ${(videoFile.size / (1024 * 1024)).toFixed(1)}MB, Image: ${(subjectImage.size / (1024 * 1024)).toFixed(1)}MB, Total: ${(totalSize / (1024 * 1024)).toFixed(1)}MB`);
+
+    // 检查总文件大小
+    if (totalSize > MAX_TOTAL_SIZE) {
       return NextResponse.json(
         { 
-          error: `Video file too large. Maximum size: ${MAX_FILE_SIZE / (1024 * 1024)}MB. Your file: ${(videoFile.size / (1024 * 1024)).toFixed(1)}MB`,
-          suggestion: "Please compress your video file or use a smaller video."
+          error: `Files too large. Total size: ${(totalSize / (1024 * 1024)).toFixed(1)}MB, Maximum: ${MAX_TOTAL_SIZE / (1024 * 1024)}MB`,
+          suggestion: "Please use smaller files. Video should be under 5MB, image under 2MB for best results."
         },
         { status: 413 }
       );
@@ -45,7 +50,6 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("Starting RunningHub ComfyUI task...");
-    console.log(`Video file size: ${(videoFile.size / (1024 * 1024)).toFixed(1)}MB`);
 
     // 步骤 1: 上传视频文件
     console.log("Uploading video file...");

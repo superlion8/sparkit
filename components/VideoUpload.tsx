@@ -27,16 +27,16 @@ export default function VideoUpload({
       return;
     }
 
-    // 验证文件大小 (100MB 限制，但推荐 50MB 以下)
-    if (file.size > 100 * 1024 * 1024) {
-      alert('视频文件不能超过 100MB');
+    // 验证文件大小 (严格限制以避免 Vercel 错误)
+    if (file.size > 20 * 1024 * 1024) {
+      alert('视频文件不能超过 20MB，建议使用 5MB 以下的文件');
       return;
     }
     
     // 警告大文件用户
-    if (file.size > 50 * 1024 * 1024) {
+    if (file.size > 5 * 1024 * 1024) {
       const confirmUpload = confirm(
-        `视频文件较大 (${formatFileSize(file.size)})，可能因为 Vercel 限制导致上传失败。\n\n建议使用 50MB 以下的文件以获得最佳体验。\n\n是否继续上传？`
+        `视频文件较大 (${formatFileSize(file.size)})，可能导致上传失败。\n\n建议使用 5MB 以下的文件以获得最佳体验。\n\n是否继续上传？`
       );
       if (!confirmUpload) {
         return;
@@ -170,8 +170,8 @@ export default function VideoUpload({
             <div className="text-center">
               <span className="text-base font-medium block">点击上传视频</span>
               <span className="text-xs text-gray-400 mt-1 block">支持 MP4, MOV, AVI, WebM</span>
-              <span className="text-xs text-gray-400 mt-1 block">推荐 50MB 以下</span>
-              <span className="text-xs text-gray-400 mt-1 block">最大 100MB</span>
+              <span className="text-xs text-gray-400 mt-1 block">推荐 5MB 以下</span>
+              <span className="text-xs text-gray-400 mt-1 block">最大 20MB</span>
             </div>
         </button>
       )}
