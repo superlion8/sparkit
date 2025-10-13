@@ -66,25 +66,40 @@ export async function POST(request: NextRequest) {
       throw new Error(`Image upload failed: ${imageUploadResult.error}`);
     }
     console.log("Image uploaded:", imageUploadResult.url);
+    console.log("Image upload result:", imageUploadResult);
+    console.log("Video upload result:", videoUploadResult);
+
+    // 验证上传结果
+    if (!imageUploadResult.filename && !imageUploadResult.url) {
+      throw new Error(`Image upload failed: No filename or URL returned`);
+    }
+    if (!videoUploadResult.filename && !videoUploadResult.url) {
+      throw new Error(`Video upload failed: No filename or URL returned`);
+    }
 
     // 步骤 3: 创建 ComfyUI 任务
     console.log("Creating ComfyUI task...");
     
     // 构建 nodeInfoList 来替换用户上传的文件
+    const imageFieldValue = imageUploadResult.filename || (imageUploadResult.url ? imageUploadResult.url.split('/').pop() : '');
+    const videoFieldValue = videoUploadResult.filename || (videoUploadResult.url ? videoUploadResult.url.split('/').pop() : '');
+    
     const nodeInfoList = [
       {
         nodeId: "193",  // LoadImage 节点
         fieldName: "image",
-        fieldValue: imageUploadResult.filename || (imageUploadResult.url ? imageUploadResult.url.split('/').pop() : '')
+        fieldValue: imageFieldValue
       },
       {
         nodeId: "63",   // VHS_LoadVideo 节点
         fieldName: "video", 
-        fieldValue: videoUploadResult.filename || (videoUploadResult.url ? videoUploadResult.url.split('/').pop() : '')
+        fieldValue: videoFieldValue
       }
     ];
     
     console.log("Using nodeInfoList:", nodeInfoList);
+    console.log("Image field value:", imageFieldValue);
+    console.log("Video field value:", videoFieldValue);
     
     const taskResponse = await fetch(`${RUNNINGHUB_API_URL}/task/openapi/create`, {
       method: "POST",
@@ -162,7 +177,11 @@ async function uploadFile(file: File, apiKey: string): Promise<{ success: boolea
     }
 
     // 从 URL 中提取文件名
-    const url = uploadData.data.url;
+    const url = uploadData.data?.url;
+    if (!url) {
+      return { success: false, error: "Upload response missing URL" };
+    }
+    
     const filename = url.split('/').pop();
     
     console.log(`File uploaded successfully: ${filename}, URL: ${url}`);
