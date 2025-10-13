@@ -18,6 +18,7 @@ export default function ImageToImagePage() {
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [errorDetails, setErrorDetails] = useState<any>(null);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -32,6 +33,7 @@ export default function ImageToImagePage() {
 
     setLoading(true);
     setError("");
+    setErrorDetails(null);
     setGeneratedImages([]);
 
     try {
@@ -67,6 +69,7 @@ export default function ImageToImagePage() {
 
         if (!response.ok) {
           const errorData = await response.json();
+          setErrorDetails(errorData);
           throw new Error(errorData.error || "Generation failed");
         }
 
@@ -76,8 +79,16 @@ export default function ImageToImagePage() {
         }
       }
 
-      setGeneratedImages(allImages);
+      if (allImages.length > 0) {
+        setGeneratedImages(allImages);
+      } else {
+        setError("API 返回成功但没有图片数据");
+        setErrorDetails({ message: "No images in response", numImages, model });
+      }
     } catch (err: any) {
+      if (!errorDetails) {
+        setErrorDetails({ message: err.message, stack: err.stack });
+      }
       setError(err.message || "生成失败，请重试");
       console.error("Generation error:", err);
     } finally {
@@ -200,44 +211,62 @@ export default function ImageToImagePage() {
                 disabled={loading || !prompt.trim() || uploadedImages.length === 0}
                 className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
-                {loading ? (
-                  <>生成中...</>
-                ) : (
-                  <>
-                    <ImagePlus className="w-5 h-5" />
-                    生成图像
-                  </>
-                )}
-              </button>
-
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
+              {loading ? (
+                <>生成中...</>
+              ) : (
+                <>
+                  <ImagePlus className="w-5 h-5" />
+                  生成图像
+                </>
               )}
-            </div>
+            </button>
           </div>
         </div>
+      </div>
 
-        {/* Results Panel */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">生成结果</h2>
+      {/* Results Panel */}
+      <div className="lg:col-span-1">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">生成结果</h2>
 
-            {loading && <LoadingSpinner text="AI正在为你编辑图像..." />}
+          {loading && <LoadingSpinner text="AI正在为你编辑图像..." />}
 
-            {!loading && generatedImages.length === 0 && (
-              <div className="flex items-center justify-center h-64 text-gray-400">
-                <div className="text-center">
-                  <ImagePlus className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>上传图片并输入编辑描述，点击生成按钮开始创作</p>
+          {error && !loading && (
+            <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0">
+                  <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-red-900 mb-2">生成失败</h3>
+                  <p className="text-red-700 text-sm mb-3">{error}</p>
+                  {errorDetails && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer hover:text-red-800 font-medium text-red-700 mb-2">查看 API 返回详情</summary>
+                      <pre className="mt-2 p-3 bg-red-100 rounded text-red-900 overflow-x-auto">
+                        {JSON.stringify(errorDetails, null, 2)}
+                      </pre>
+                    </details>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {!loading && generatedImages.length > 0 && (
-              <ImageGrid images={generatedImages} />
-            )}
+          {!loading && !error && generatedImages.length === 0 && (
+            <div className="flex items-center justify-center h-64 text-gray-400">
+              <div className="text-center">
+                <ImagePlus className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p>上传图片并输入编辑描述，点击生成按钮开始创作</p>
+              </div>
+            </div>
+          )}
+
+          {!loading && generatedImages.length > 0 && (
+            <ImageGrid images={generatedImages} />
+          )}
           </div>
         </div>
       </div>

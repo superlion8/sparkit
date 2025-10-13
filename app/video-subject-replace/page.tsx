@@ -12,6 +12,7 @@ export default function VideoSubjectReplacePage() {
   const [loading, setLoading] = useState(false);
   const [generatedVideo, setGeneratedVideo] = useState<string>("");
   const [error, setError] = useState("");
+  const [errorDetails, setErrorDetails] = useState<any>(null);
 
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -33,6 +34,7 @@ export default function VideoSubjectReplacePage() {
 
     setLoading(true);
     setError("");
+    setErrorDetails(null);
     setGeneratedVideo("");
 
     try {
@@ -40,9 +42,18 @@ export default function VideoSubjectReplacePage() {
       // This requires advanced AI video editing services
       await new Promise(resolve => setTimeout(resolve, 3000));
       
+      const devError = {
+        status: "not_implemented",
+        message: "视频主体替换功能正在开发中",
+        details: "此功能需要集成高级AI视频编辑服务，如Runway Gen-2、Wonder Studio或类似服务"
+      };
+      setErrorDetails(devError);
       setError("视频主体替换功能正在开发中。此功能需要集成高级AI视频编辑服务，如Runway Gen-2、Wonder Studio或类似服务。");
       
     } catch (err: any) {
+      if (!errorDetails) {
+        setErrorDetails({ message: err.message, stack: err.stack });
+      }
       setError(err.message || "生成失败，请重试");
       console.error("Generation error:", err);
     } finally {
@@ -159,18 +170,14 @@ export default function VideoSubjectReplacePage() {
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-red-900 mb-2">处理失败</h3>
                     <p className="text-red-700 text-sm mb-3">{error}</p>
-                    <details className="text-xs text-red-600">
-                      <summary className="cursor-pointer hover:text-red-800 font-medium">查看可能的原因</summary>
-                      <ul className="mt-2 space-y-1 list-disc list-inside">
-                        <li>视频文件未上传</li>
-                        <li>主体图片未上传</li>
-                        <li>视频格式不支持</li>
-                        <li>视频文件过大</li>
-                        <li>功能正在开发中，暂不可用</li>
-                        <li>API 调用失败或超时</li>
-                        <li>网络连接问题</li>
-                      </ul>
-                    </details>
+                    {errorDetails && (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer hover:text-red-800 font-medium text-red-700 mb-2">查看 API 返回详情</summary>
+                        <pre className="mt-2 p-3 bg-red-100 rounded text-red-900 overflow-x-auto">
+                          {JSON.stringify(errorDetails, null, 2)}
+                        </pre>
+                      </details>
+                    )}
                   </div>
                 </div>
               </div>

@@ -13,6 +13,7 @@ export default function BackgroundReplacePage() {
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [errorDetails, setErrorDetails] = useState<any>(null);
 
   const handleGenerate = async () => {
     if (subjectImage.length === 0) {
@@ -27,6 +28,7 @@ export default function BackgroundReplacePage() {
 
     setLoading(true);
     setError("");
+    setErrorDetails(null);
     setGeneratedImages([]);
 
     try {
@@ -52,14 +54,21 @@ export default function BackgroundReplacePage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        setErrorDetails(errorData);
         throw new Error(errorData.error || "Generation failed");
       }
 
       const data = await response.json();
       if (data.images && data.images.length > 0) {
         setGeneratedImages(data.images);
+      } else {
+        setError("API 返回成功但没有图片数据");
+        setErrorDetails(data);
       }
     } catch (err: any) {
+      if (!errorDetails) {
+        setErrorDetails({ message: err.message, stack: err.stack });
+      }
       setError(err.message || "生成失败，请重试");
       console.error("Generation error:", err);
     } finally {
@@ -183,17 +192,14 @@ export default function BackgroundReplacePage() {
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-red-900 mb-2">生成失败</h3>
                     <p className="text-red-700 text-sm mb-3">{error}</p>
-                    <details className="text-xs text-red-600">
-                      <summary className="cursor-pointer hover:text-red-800 font-medium">查看可能的原因</summary>
-                      <ul className="mt-2 space-y-1 list-disc list-inside">
-                        <li>人物图片未上传</li>
-                        <li>背景描述为空</li>
-                        <li>图片格式不支持（请使用 JPG、PNG）</li>
-                        <li>图片过大（建议小于 2MB）</li>
-                        <li>API 调用失败或超时</li>
-                        <li>网络连接问题</li>
-                      </ul>
-                    </details>
+                    {errorDetails && (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer hover:text-red-800 font-medium text-red-700 mb-2">查看 API 返回详情</summary>
+                        <pre className="mt-2 p-3 bg-red-100 rounded text-red-900 overflow-x-auto">
+                          {JSON.stringify(errorDetails, null, 2)}
+                        </pre>
+                      </details>
+                    )}
                   </div>
                 </div>
               </div>

@@ -16,6 +16,7 @@ export default function TextToImagePage() {
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [errorDetails, setErrorDetails] = useState<any>(null);
 
   const handleGenerate = async () => {
     console.log("=== 开始生成 ===");
@@ -31,6 +32,7 @@ export default function TextToImagePage() {
 
     setLoading(true);
     setError("");
+    setErrorDetails(null);
     setGeneratedImages([]);
     console.log("✅ 已设置 loading 状态");
 
@@ -62,6 +64,7 @@ export default function TextToImagePage() {
         if (!response.ok) {
           const errorData = await response.json();
           console.error("❌ API 错误:", errorData);
+          setErrorDetails(errorData);
           throw new Error(errorData.error || "Generation failed");
         }
 
@@ -79,10 +82,18 @@ export default function TextToImagePage() {
       }
 
       console.log("所有图片生成完成，总数:", allImages.length);
-      setGeneratedImages(allImages);
-      console.log("✅ 图片已设置到 state");
+      if (allImages.length > 0) {
+        setGeneratedImages(allImages);
+        console.log("✅ 图片已设置到 state");
+      } else {
+        setError("API 返回成功但没有图片数据");
+        setErrorDetails({ message: "No images in response", numImages, model });
+      }
     } catch (err: any) {
       console.error("❌ 捕获到错误:", err);
+      if (!errorDetails) {
+        setErrorDetails({ message: err.message, stack: err.stack });
+      }
       setError(err.message || "生成失败，请重试");
       console.error("Generation error:", err);
     } finally {
@@ -204,11 +215,6 @@ export default function TextToImagePage() {
                 )}
               </button>
 
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -220,7 +226,31 @@ export default function TextToImagePage() {
 
             {loading && <LoadingSpinner text="AI正在为你生成图像..." />}
 
-            {!loading && generatedImages.length === 0 && (
+            {error && !loading && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0">
+                    <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-red-900 mb-2">生成失败</h3>
+                    <p className="text-red-700 text-sm mb-3">{error}</p>
+                    {errorDetails && (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer hover:text-red-800 font-medium text-red-700 mb-2">查看 API 返回详情</summary>
+                        <pre className="mt-2 p-3 bg-red-100 rounded text-red-900 overflow-x-auto">
+                          {JSON.stringify(errorDetails, null, 2)}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!loading && !error && generatedImages.length === 0 && (
               <div className="flex items-center justify-center h-64 text-gray-400">
                 <div className="text-center">
                   <Sparkles className="w-16 h-16 mx-auto mb-4 opacity-50" />
