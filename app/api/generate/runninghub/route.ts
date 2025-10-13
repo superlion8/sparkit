@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     if (!videoUploadResult.success) {
       throw new Error(`Video upload failed: ${videoUploadResult.error}`);
     }
-    console.log("Video uploaded:", videoUploadResult.url);
+    console.log("Video uploaded successfully");
 
     // 步骤 2: 上传主体图片
     console.log("Uploading subject image...");
@@ -65,24 +65,23 @@ export async function POST(request: NextRequest) {
     if (!imageUploadResult.success) {
       throw new Error(`Image upload failed: ${imageUploadResult.error}`);
     }
-    console.log("Image uploaded:", imageUploadResult.url);
     console.log("Image upload result:", imageUploadResult);
     console.log("Video upload result:", videoUploadResult);
 
     // 验证上传结果
-    if (!imageUploadResult.filename && !imageUploadResult.url) {
-      throw new Error(`Image upload failed: No filename or URL returned`);
+    if (!imageUploadResult.filename) {
+      throw new Error(`Image upload failed: No filename returned`);
     }
-    if (!videoUploadResult.filename && !videoUploadResult.url) {
-      throw new Error(`Video upload failed: No filename or URL returned`);
+    if (!videoUploadResult.filename) {
+      throw new Error(`Video upload failed: No filename returned`);
     }
 
     // 步骤 3: 创建 ComfyUI 任务
     console.log("Creating ComfyUI task...");
     
     // 构建 nodeInfoList 来替换用户上传的文件
-    const imageFieldValue = imageUploadResult.filename || (imageUploadResult.url ? imageUploadResult.url.split('/').pop() : '');
-    const videoFieldValue = videoUploadResult.filename || (videoUploadResult.url ? videoUploadResult.url.split('/').pop() : '');
+    const imageFieldValue = imageUploadResult.filename;
+    const videoFieldValue = videoUploadResult.filename;
     
     const nodeInfoList = [
       {
@@ -154,7 +153,7 @@ export async function POST(request: NextRequest) {
 }
 
 // 上传文件到 RunningHub
-async function uploadFile(file: File, apiKey: string): Promise<{ success: boolean; url?: string; filename?: string; error?: string }> {
+async function uploadFile(file: File, apiKey: string): Promise<{ success: boolean; filename?: string; error?: string }> {
   try {
     const formData = new FormData();
     formData.append("apiKey", apiKey);
@@ -176,20 +175,17 @@ async function uploadFile(file: File, apiKey: string): Promise<{ success: boolea
       return { success: false, error: uploadData.msg || "Upload failed" };
     }
 
-    // 从 URL 中提取文件名
-    const url = uploadData.data?.url;
-    if (!url) {
-      return { success: false, error: "Upload response missing URL" };
+    // RunningHub 返回的是 fileName，不是 url
+    const fileName = uploadData.data?.fileName;
+    if (!fileName) {
+      return { success: false, error: "Upload response missing fileName" };
     }
     
-    const filename = url.split('/').pop();
-    
-    console.log(`File uploaded successfully: ${filename}, URL: ${url}`);
+    console.log(`File uploaded successfully: ${fileName}`);
 
     return { 
       success: true, 
-      url: url,
-      filename: filename 
+      filename: fileName 
     };
   } catch (error: any) {
     return { success: false, error: error.message };
