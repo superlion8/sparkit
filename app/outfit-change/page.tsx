@@ -118,17 +118,6 @@ export default function OutfitChangePage() {
                 />
               </div>
 
-              {/* Tips */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-blue-900 mb-2">💡 使用提示</h3>
-                <ul className="text-xs text-blue-700 space-y-1">
-                  <li>• 模特图片应清晰，人物完整</li>
-                  <li>• 商品图片背景最好是白色或纯色</li>
-                  <li>• 可以同时上传多件商品进行搭配</li>
-                  <li>• AI会自动保持原始光线和背景风格</li>
-                </ul>
-              </div>
-
               {/* Generate Button */}
               <button
                 onClick={handleGenerate}
@@ -144,12 +133,6 @@ export default function OutfitChangePage() {
                   </>
                 )}
               </button>
-
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -161,7 +144,33 @@ export default function OutfitChangePage() {
 
             {loading && <LoadingSpinner text="AI正在生成换装效果..." />}
 
-            {!loading && generatedImages.length === 0 && (
+            {error && !loading && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0">
+                    <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-red-900 mb-2">生成失败</h3>
+                    <p className="text-red-700 text-sm mb-3">{error}</p>
+                    <details className="text-xs text-red-600">
+                      <summary className="cursor-pointer hover:text-red-800 font-medium">查看可能的原因</summary>
+                      <ul className="mt-2 space-y-1 list-disc list-inside">
+                        <li>模特图或商品图未上传</li>
+                        <li>图片格式不支持（请使用 JPG、PNG）</li>
+                        <li>图片过大（建议小于 2MB）</li>
+                        <li>API 调用失败或超时</li>
+                        <li>网络连接问题</li>
+                      </ul>
+                    </details>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!loading && !error && generatedImages.length === 0 && (
               <div className="flex items-center justify-center h-64 text-gray-400">
                 <div className="text-center">
                   <Shirt className="w-16 h-16 mx-auto mb-4 opacity-50" />

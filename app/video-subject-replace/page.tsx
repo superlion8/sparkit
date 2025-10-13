@@ -122,25 +122,6 @@ export default function VideoSubjectReplacePage() {
                 />
               </div>
 
-              {/* Tips */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-blue-900 mb-2">💡 使用提示</h3>
-                <ul className="text-xs text-blue-700 space-y-1">
-                  <li>• 视频时长建议在10秒以内</li>
-                  <li>• 主体图片应清晰，背景简单</li>
-                  <li>• AI会自动匹配动作和光线</li>
-                  <li>• 处理时间较长，请耐心等待</li>
-                </ul>
-              </div>
-
-              {/* Warning */}
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-amber-900 mb-2">⚠️ 开发中</h3>
-                <p className="text-xs text-amber-700">
-                  视频主体替换功能正在开发中。完整实现需要集成专业的AI视频编辑服务。
-                </p>
-              </div>
-
               {/* Generate Button */}
               <button
                 onClick={handleGenerate}
@@ -156,12 +137,6 @@ export default function VideoSubjectReplacePage() {
                   </>
                 )}
               </button>
-
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -173,7 +148,35 @@ export default function VideoSubjectReplacePage() {
 
             {loading && <LoadingSpinner text="AI正在处理视频，这可能需要几分钟..." />}
 
-            {!loading && !generatedVideo && (
+            {error && !loading && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0">
+                    <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-red-900 mb-2">处理失败</h3>
+                    <p className="text-red-700 text-sm mb-3">{error}</p>
+                    <details className="text-xs text-red-600">
+                      <summary className="cursor-pointer hover:text-red-800 font-medium">查看可能的原因</summary>
+                      <ul className="mt-2 space-y-1 list-disc list-inside">
+                        <li>视频文件未上传</li>
+                        <li>主体图片未上传</li>
+                        <li>视频格式不支持</li>
+                        <li>视频文件过大</li>
+                        <li>功能正在开发中，暂不可用</li>
+                        <li>API 调用失败或超时</li>
+                        <li>网络连接问题</li>
+                      </ul>
+                    </details>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!loading && !error && !generatedVideo && (
               <div className="flex items-center justify-center h-64 text-gray-400">
                 <div className="text-center">
                   <Replace className="w-16 h-16 mx-auto mb-4 opacity-50" />
