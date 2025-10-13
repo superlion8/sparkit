@@ -75,12 +75,12 @@ export async function POST(request: NextRequest) {
       {
         nodeId: "193",  // LoadImage 节点
         fieldName: "image",
-        fieldValue: imageUploadResult.filename || imageUploadResult.url.split('/').pop()
+        fieldValue: imageUploadResult.filename || (imageUploadResult.url ? imageUploadResult.url.split('/').pop() : '')
       },
       {
         nodeId: "63",   // VHS_LoadVideo 节点
         fieldName: "video", 
-        fieldValue: videoUploadResult.filename || videoUploadResult.url.split('/').pop()
+        fieldValue: videoUploadResult.filename || (videoUploadResult.url ? videoUploadResult.url.split('/').pop() : '')
       }
     ];
     
