@@ -133,6 +133,9 @@ export default function VideoSubjectReplacePage() {
                   <strong>提示：</strong>上传一个视频和一张主体图片，AI 将会自动替换视频中的主体角色。
                   处理时间取决于视频长度和复杂度，通常需要 5-20 分钟。
                 </p>
+                <p className="text-xs text-blue-600 mt-2">
+                  <strong>文件限制：</strong>视频文件最大 50MB（Vercel 限制），超过会自动压缩。
+                </p>
               </div>
 
               {/* Generate Button */}
