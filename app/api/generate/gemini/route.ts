@@ -45,9 +45,10 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    // Call Gemini API
+    // Call Gemini API (using image generation model)
+    // 根据官方文档: https://ai.google.dev/gemini-api/docs/image-generation
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: {
@@ -67,21 +68,32 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
+    console.log("Gemini API 响应:", JSON.stringify(data, null, 2));
     
     // Extract generated images
     const generatedImages: string[] = [];
     if (data.candidates && data.candidates.length > 0) {
+      console.log("找到 candidates:", data.candidates.length);
       for (const candidate of data.candidates) {
-        for (const part of candidate.content.parts) {
-          if (part.inlineData) {
-            // Convert to data URL
-            const dataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-            generatedImages.push(dataUrl);
+        if (candidate.content && candidate.content.parts) {
+          console.log("处理 parts:", candidate.content.parts.length);
+          for (const part of candidate.content.parts) {
+            if (part.inlineData) {
+              console.log("找到图片数据, mimeType:", part.inlineData.mimeType);
+              // Convert to data URL
+              const dataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+              generatedImages.push(dataUrl);
+            } else if (part.text) {
+              console.log("文本内容:", part.text);
+            }
           }
         }
       }
+    } else {
+      console.log("没有 candidates 或为空");
     }
 
+    console.log("生成的图片数量:", generatedImages.length);
     return NextResponse.json({ images: generatedImages });
   } catch (error) {
     console.error("Error in Gemini generation:", error);
