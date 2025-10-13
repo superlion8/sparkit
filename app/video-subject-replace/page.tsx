@@ -131,7 +131,7 @@ export default function VideoSubjectReplacePage() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">
                   <strong>提示：</strong>上传一个视频和一张主体图片，AI 将会自动替换视频中的主体角色。
-                  处理时间取决于视频长度，通常需要 3-10 分钟。
+                  处理时间取决于视频长度和复杂度，通常需要 5-20 分钟。
                 </p>
               </div>
 
@@ -161,10 +161,11 @@ export default function VideoSubjectReplacePage() {
 
             {loading && (
               <div className="space-y-4">
-                <LoadingSpinner text="AI正在处理视频，这可能需要 3-10 分钟..." />
+                <LoadingSpinner text="AI正在处理视频，这可能需要 5-20 分钟..." />
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <p className="text-sm text-yellow-800 text-center">
                     ⏳ 正在调用 RunningHub ComfyUI 工作流<br />
+                    由于算力要求较高，处理时间可能较长<br />
                     请耐心等待，不要关闭页面
                   </p>
                 </div>

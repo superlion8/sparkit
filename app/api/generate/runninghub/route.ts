@@ -144,7 +144,7 @@ async function uploadFile(file: File, apiKey: string): Promise<{ success: boolea
 async function pollTaskResult(
   apiKey: string,
   taskId: string,
-  maxAttempts: number = 60
+  maxAttempts: number = 240 // 240 attempts * 5 seconds = 1200 seconds = 20 minutes
 ): Promise<{ success: boolean; status?: string; videoUrl?: string; error?: string }> {
   let attempts = 0;
 
