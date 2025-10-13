@@ -123,7 +123,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const taskStatus = data.data.taskStatus;
+    // RunningHub API 返回的 data 可能是字符串 "SUCCESS" 而不是对象
+    const taskStatus = typeof data.data === 'string' ? data.data : data.data.taskStatus;
     let result = {
       taskId,
       status: taskStatus,
@@ -131,6 +132,8 @@ export async function POST(request: NextRequest) {
       videoUrl: null as string | null,
       error: null as string | null,
     };
+
+    console.log(`Task status: ${taskStatus} (type: ${typeof data.data})`);
 
     if (taskStatus === "SUCCESS") {
       // 任务完成，需要调用 outputs 接口获取结果
