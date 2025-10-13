@@ -18,7 +18,13 @@ export default function TextToImagePage() {
   const [error, setError] = useState("");
 
   const handleGenerate = async () => {
+    console.log("=== 开始生成 ===");
+    console.log("Prompt:", prompt);
+    console.log("Model:", model);
+    console.log("Num Images:", numImages);
+    
     if (!prompt.trim()) {
+      console.log("❌ 提示词为空");
       setError("请输入描述文本");
       return;
     }
@@ -26,26 +32,32 @@ export default function TextToImagePage() {
     setLoading(true);
     setError("");
     setGeneratedImages([]);
+    console.log("✅ 已设置 loading 状态");
 
     try {
       const allImages: string[] = [];
 
       // Generate multiple images if requested
       for (let i = 0; i < numImages; i++) {
+        console.log(`开始生成第 ${i + 1} 张图片...`);
         const formData = new FormData();
         
         // Add aspect ratio to prompt for better results
         const enhancedPrompt = `${prompt}. Aspect ratio: ${aspectRatio}`;
         formData.append("prompt", enhancedPrompt);
+        console.log("FormData 已创建, prompt:", enhancedPrompt);
 
         const endpoint = model === "gemini" 
           ? "/api/generate/gemini"
           : "/api/generate/flux";
+        console.log("准备调用 API:", endpoint);
 
+        console.log("发送 fetch 请求...");
         const response = await fetch(endpoint, {
           method: "POST",
           body: formData,
         });
+        console.log("收到响应:", response.status, response.statusText);
 
         if (!response.ok) {
           const errorData = await response.json();
