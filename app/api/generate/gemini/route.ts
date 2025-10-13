@@ -5,6 +5,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const prompt = formData.get("prompt") as string;
     const images = formData.getAll("images") as File[];
+    const aspectRatio = formData.get("aspectRatio") as string;
 
     if (!prompt) {
       return NextResponse.json(
@@ -45,6 +46,20 @@ export async function POST(request: NextRequest) {
       },
     ];
 
+    // Build generation config
+    const generationConfig: any = {
+      responseModalities: ["IMAGE"],
+    };
+
+    // Add aspect ratio if provided
+    if (aspectRatio) {
+      generationConfig.imageConfig = {
+        aspectRatio: aspectRatio,
+      };
+    }
+
+    console.log("Generation config:", JSON.stringify(generationConfig, null, 2));
+
     // Call Gemini API (using image generation model)
     // 根据官方文档: https://ai.google.dev/gemini-api/docs/image-generation
     const response = await fetch(
@@ -54,7 +69,10 @@ export async function POST(request: NextRequest) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ contents }),
+        body: JSON.stringify({ 
+          contents,
+          generationConfig,
+        }),
       }
     );
 

@@ -43,9 +43,12 @@ export default function ImageToImagePage() {
       for (let i = 0; i < numImages; i++) {
         const formData = new FormData();
         
-        // Add aspect ratio to prompt
-        const enhancedPrompt = `${prompt}. Aspect ratio: ${aspectRatio}`;
-        formData.append("prompt", enhancedPrompt);
+        formData.append("prompt", prompt);
+        
+        // Add aspect ratio as API parameter (for Gemini)
+        if (model === "gemini") {
+          formData.append("aspectRatio", aspectRatio);
+        }
 
         // Add images
         if (model === "gemini") {

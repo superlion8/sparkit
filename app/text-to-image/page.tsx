@@ -44,10 +44,14 @@ export default function TextToImagePage() {
         console.log(`开始生成第 ${i + 1} 张图片...`);
         const formData = new FormData();
         
-        // Add aspect ratio to prompt for better results
-        const enhancedPrompt = `${prompt}. Aspect ratio: ${aspectRatio}`;
-        formData.append("prompt", enhancedPrompt);
-        console.log("FormData 已创建, prompt:", enhancedPrompt);
+        formData.append("prompt", prompt);
+        
+        // Add aspect ratio as API parameter (for Gemini)
+        if (model === "gemini") {
+          formData.append("aspectRatio", aspectRatio);
+        }
+        
+        console.log("FormData 已创建, prompt:", prompt, "aspectRatio:", aspectRatio);
 
         const endpoint = model === "gemini" 
           ? "/api/generate/gemini"
