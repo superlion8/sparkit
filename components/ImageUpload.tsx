@@ -61,7 +61,7 @@ export default function ImageUpload({
   // 图片压缩函数
   const compressImage = async (file: File): Promise<File> => {
     return new Promise((resolve, reject) => {
-      const img = new Image();
+      const img = new window.Image();
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       
