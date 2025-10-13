@@ -61,20 +61,32 @@ export default function TextToImagePage() {
 
         if (!response.ok) {
           const errorData = await response.json();
+          console.error("❌ API 错误:", errorData);
           throw new Error(errorData.error || "Generation failed");
         }
 
+        console.log("开始解析响应数据...");
         const data = await response.json();
+        console.log("✅ 响应数据:", data);
+        console.log("图片数量:", data.images?.length);
+        
         if (data.images && data.images.length > 0) {
+          console.log("✅ 添加图片到结果数组");
           allImages.push(...data.images);
+        } else {
+          console.warn("⚠️ 响应中没有图片数据");
         }
       }
 
+      console.log("所有图片生成完成，总数:", allImages.length);
       setGeneratedImages(allImages);
+      console.log("✅ 图片已设置到 state");
     } catch (err: any) {
+      console.error("❌ 捕获到错误:", err);
       setError(err.message || "生成失败，请重试");
       console.error("Generation error:", err);
     } finally {
+      console.log("设置 loading = false");
       setLoading(false);
     }
   };
