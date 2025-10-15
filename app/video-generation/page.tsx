@@ -268,11 +268,27 @@ export default function VideoGenerationPage() {
           console.log(`Task status: ${taskStatus}`);
           
           if (taskStatus === 2) { // 成功状态
-            // 从results字段获取video_url
+            // 从响应数据中获取video_url
+            console.log("Full response data:", JSON.stringify(data, null, 2));
+            
+            let videoUrl = null;
+            
+            // 尝试从不同的可能位置获取video_url
             if (data.data.results && data.data.results.video_url) {
-              setGeneratedVideo(data.data.results.video_url);
-              console.log("✅ 视频生成完成！", data.data.results.video_url);
+              videoUrl = data.data.results.video_url;
+            } else if (Array.isArray(data.data) && data.data.length > 0 && data.data[0].video_url) {
+              videoUrl = data.data[0].video_url;
+            } else if (data.data.task && data.data.task.video_url) {
+              videoUrl = data.data.task.video_url;
+            } else if (data.data.video_url) {
+              videoUrl = data.data.video_url;
+            }
+            
+            if (videoUrl) {
+              setGeneratedVideo(videoUrl);
+              console.log("✅ 视频生成完成！", videoUrl);
             } else {
+              console.error("Could not find video_url in response:", data);
               setError("生成完成但未找到视频URL");
             }
             setLoading(false);
