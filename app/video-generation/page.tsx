@@ -170,21 +170,27 @@ export default function VideoGenerationPage() {
     setTaskId("");
 
     try {
-      // 先上传图像
+      // 先上传图像到Aimovely获取resource_id
       const imageFormData = new FormData();
       imageFormData.append("file", uploadedImage[0]);
 
-      const uploadResponse = await fetch("/api/upload/image", {
+      const uploadResponse = await fetch("/api/resource/upload", {
         method: "POST",
+        headers: {
+          "Authorization": userToken,
+        },
         body: imageFormData,
       });
 
       if (!uploadResponse.ok) {
-        throw new Error("图像上传失败");
+        const errorData = await uploadResponse.json();
+        throw new Error(errorData.error || "图像上传失败");
       }
 
       const uploadData = await uploadResponse.json();
-      const imageUrl = uploadData.url;
+      const resourceId = uploadData.resource_id;
+      
+      console.log("Image uploaded successfully, resource_id:", resourceId);
 
       // 创建视频生成任务
       const generateResponse = await fetch("/api/video/generate", {
@@ -195,7 +201,7 @@ export default function VideoGenerationPage() {
         },
         body: JSON.stringify({
           generate_type: selectedTemplate.generate_type,
-          origin_resource_id: imageUrl,
+          origin_resource_id: resourceId,
         }),
       });
 
@@ -243,17 +249,27 @@ export default function VideoGenerationPage() {
         const data = await response.json();
         console.log(`轮询 ${attempts + 1}/${maxAttempts}:`, data);
 
-        if (data.code === 0 && data.data.task.status === 3) { // 完成状态
-          if (data.data.task.result_url) {
-            setGeneratedVideo(data.data.task.result_url);
-            console.log("✅ 视频生成完成！");
-          } else {
-            setError("生成完成但未找到结果URL");
+        if (data.code === 0) {
+          const taskStatus = data.data.task.status;
+          console.log(`Task status: ${taskStatus}`);
+          
+          if (taskStatus === 3) { // 完成状态
+            if (data.data.task.result_url) {
+              setGeneratedVideo(data.data.task.result_url);
+              console.log("✅ 视频生成完成！");
+            } else {
+              setError("生成完成但未找到结果URL");
+            }
+            setLoading(false);
+            return;
+          } else if (taskStatus === 4) { // 失败状态
+            setError("视频生成失败");
+            setLoading(false);
+            return;
           }
-          setLoading(false);
-          return;
-        } else if (data.data.task.status === 4) { // 失败状态
-          setError("视频生成失败");
+          // 状态2表示进行中，继续轮询
+        } else {
+          setError(`查询任务失败: ${data.msg}`);
           setLoading(false);
           return;
         }
