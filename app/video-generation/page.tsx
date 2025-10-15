@@ -123,11 +123,16 @@ export default function VideoGenerationPage() {
         console.log("Template API response data:", data);
         
         if (data.code === 0) {
+          console.log(`Raw templates count: ${data.data.entries.length}`);
+          console.log("Raw templates:", data.data.entries);
+          
           // 过滤出符合条件的模板
           const filteredTemplates = data.data.entries.filter(
-            template => 
-              template.video_type === "image2video" && 
-              [1, 2, 3].includes(template.template_level || 0)
+            template => {
+              console.log(`Template ${template.title}: video_type=${template.video_type}, template_level=${template.template_level}`);
+              return template.video_type === "image2video" && 
+                     [1, 2, 3].includes(template.template_level || 0);
+            }
           );
           console.log(`Filtered templates count: ${filteredTemplates.length}`);
           setTemplates(filteredTemplates);
@@ -323,6 +328,15 @@ export default function VideoGenerationPage() {
                   ))}
                 </div>
               </div>
+
+              {/* 调试信息 */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mb-4 p-2 bg-gray-100 rounded text-xs">
+                  <div>User Token: {userToken ? '已获取' : '未获取'}</div>
+                  <div>Active Tag: {activeTag}</div>
+                  <div>Templates Count: {templates.length}</div>
+                </div>
+              )}
 
               {/* 模板列表 */}
               <div className="space-y-3 max-h-96 overflow-y-auto">
