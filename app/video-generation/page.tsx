@@ -1,228 +1,483 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
-import { Video, Download } from "lucide-react";
+import { Video, Play, Download, Sparkles } from "lucide-react";
 
-type VideoTemplate = {
+interface VideoTemplate {
   id: string;
-  name: string;
-  description: string;
-  duration: string;
-  preview: string;
-};
+  video_type: string;
+  generate_type: string;
+  template_level?: number;
+  title: string;
+  title_en_name: string;
+  image_url: string;
+  video_url: string;
+  video_medium_url: string;
+  video_low_url: string;
+  video_width: number;
+  video_height: number;
+  autoplay: boolean;
+  free_trial: boolean;
+  like_count: number;
+  base_like_count: number;
+  thirdparty: string;
+  user_template_info: {
+    is_like: boolean;
+  };
+}
 
-const templates: VideoTemplate[] = [
-  {
-    id: "zoom-in",
-    name: "缩放进入",
-    description: "图片从远到近缓缓放大",
-    duration: "3秒",
-    preview: "🔍"
-  },
-  {
-    id: "pan-left",
-    name: "左移动画",
-    description: "图片从右向左平移",
-    duration: "3秒",
-    preview: "⬅️"
-  },
-  {
-    id: "pan-right",
-    name: "右移动画",
-    description: "图片从左向右平移",
-    duration: "3秒",
-    preview: "➡️"
-  },
-  {
-    id: "fade-in",
-    name: "淡入效果",
-    description: "图片渐渐显现",
-    duration: "2秒",
-    preview: "✨"
-  },
-  {
-    id: "rotate",
-    name: "旋转动画",
-    description: "图片360度旋转",
-    duration: "4秒",
-    preview: "🔄"
-  },
-  {
-    id: "parallax",
-    name: "视差效果",
-    description: "3D视差滚动效果",
-    duration: "5秒",
-    preview: "🎬"
-  },
+interface TemplateResponse {
+  code: number;
+  msg: string;
+  data: {
+    total: number;
+    next_index: number;
+    next_page_info: string;
+    entries: VideoTemplate[];
+  };
+}
+
+const TAG_CATEGORIES = [
+  { id: "tag_category_animal", name: "动物", icon: "🐾" },
+  { id: "tag_category_business", name: "商务", icon: "💼" },
+  { id: "tag_category_anime", name: "动漫", icon: "🎌" },
+  { id: "tag_category_beauty", name: "美妆", icon: "💄" },
+  { id: "tag_category_horror", name: "恐怖", icon: "👻" },
+  { id: "tag_category_comedy", name: "喜剧", icon: "😂" },
+  { id: "tag_category_dance", name: "舞蹈", icon: "💃" },
+  { id: "tag_category_emotions", name: "情感", icon: "💕" },
 ];
 
 export default function VideoGenerationPage() {
-  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [uploadedImage, setUploadedImage] = useState<File[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<VideoTemplate | null>(null);
+  const [activeTag, setActiveTag] = useState(TAG_CATEGORIES[0].id);
+  const [templates, setTemplates] = useState<VideoTemplate[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [generatedVideo, setGeneratedVideo] = useState<string>("");
+  const [taskId, setTaskId] = useState<string>("");
   const [error, setError] = useState("");
+  const [userToken, setUserToken] = useState<string>("");
+
+  // 获取用户token
+  useEffect(() => {
+    const getUserToken = async () => {
+      try {
+        const response = await fetch("/api/auth/verify", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setUserToken(data.token);
+          console.log("User token obtained:", data.token);
+        } else {
+          console.error("Failed to get user token");
+        }
+      } catch (error) {
+        console.error("Error getting user token:", error);
+      }
+    };
+
+    getUserToken();
+  }, []);
+
+  // 获取模板列表
+  useEffect(() => {
+    if (userToken && activeTag) {
+      fetchTemplates(activeTag);
+    }
+  }, [userToken, activeTag]);
+
+  const fetchTemplates = async (categoryId: string) => {
+    setLoadingTemplates(true);
+    try {
+      const response = await fetch("/api/templates/list", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": userToken,
+        },
+        body: JSON.stringify({ category_id: categoryId }),
+      });
+
+      if (response.ok) {
+        const data: TemplateResponse = await response.json();
+        if (data.code === 0) {
+          // 过滤出符合条件的模板
+          const filteredTemplates = data.data.entries.filter(
+            template => 
+              template.video_type === "image2video" && 
+              [1, 2, 3].includes(template.template_level || 0)
+          );
+          setTemplates(filteredTemplates);
+        } else {
+          console.error("Failed to fetch templates:", data.msg);
+        }
+      } else {
+        console.error("Failed to fetch templates");
+      }
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
 
   const handleGenerate = async () => {
-    if (!selectedTemplate) {
-      setError("请选择一个视频模板");
+    if (!uploadedImage.length) {
+      setError("请上传图像文件");
       return;
     }
 
-    if (uploadedImage.length === 0) {
-      setError("请上传一张图片");
+    if (!selectedTemplate) {
+      setError("请选择一个视频模板");
       return;
     }
 
     setLoading(true);
     setError("");
     setGeneratedVideo("");
+    setTaskId("");
 
     try {
-      // TODO: Implement video generation API
-      // For now, we'll show a placeholder
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      setError("视频生成功能正在开发中。此功能需要集成视频生成API，如Runway ML、Pika Labs或类似服务。");
-      
-    } catch (err: any) {
-      setError(err.message || "生成失败，请重试");
-      console.error("Generation error:", err);
-    } finally {
+      // 先上传图像
+      const imageFormData = new FormData();
+      imageFormData.append("file", uploadedImage[0]);
+
+      const uploadResponse = await fetch("/api/upload/image", {
+        method: "POST",
+        body: imageFormData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("图像上传失败");
+      }
+
+      const uploadData = await uploadResponse.json();
+      const imageUrl = uploadData.url;
+
+      // 创建视频生成任务
+      const generateResponse = await fetch("/api/video/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": userToken,
+        },
+        body: JSON.stringify({
+          generate_type: selectedTemplate.generate_type,
+          origin_resource_id: imageUrl,
+        }),
+      });
+
+      if (!generateResponse.ok) {
+        throw new Error("创建生成任务失败");
+      }
+
+      const generateData = await generateResponse.json();
+      if (generateData.code === 0) {
+        const taskId = generateData.data.task.id;
+        setTaskId(taskId);
+        console.log("任务创建成功，开始轮询:", taskId);
+
+        // 开始轮询任务状态
+        await pollTaskStatus(taskId);
+      } else {
+        throw new Error(generateData.msg || "创建任务失败");
+      }
+    } catch (error: any) {
+      setError(error.message);
       setLoading(false);
     }
   };
 
+  // 轮询任务状态
+  const pollTaskStatus = async (taskId: string) => {
+    const maxAttempts = 60; // 5分钟，每5秒一次
+    let attempts = 0;
+
+    const poll = async () => {
+      try {
+        const response = await fetch("/api/video/query", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": userToken,
+          },
+          body: JSON.stringify({ task_id: taskId }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`查询失败: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log(`轮询 ${attempts + 1}/${maxAttempts}:`, data);
+
+        if (data.code === 0 && data.data.task.status === 3) { // 完成状态
+          if (data.data.task.result_url) {
+            setGeneratedVideo(data.data.task.result_url);
+            console.log("✅ 视频生成完成！");
+          } else {
+            setError("生成完成但未找到结果URL");
+          }
+          setLoading(false);
+          return;
+        } else if (data.data.task.status === 4) { // 失败状态
+          setError("视频生成失败");
+          setLoading(false);
+          return;
+        }
+
+        // 继续轮询
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 5000); // 5秒后再次轮询
+        } else {
+          setError("生成超时，请重试");
+          setLoading(false);
+        }
+      } catch (err: any) {
+        console.error("轮询错误:", err);
+        setError(`轮询失败: ${err.message}`);
+        setLoading(false);
+      }
+    };
+
+    poll();
+  };
+
   return (
-    <div className="max-w-7xl mx-auto p-6 lg:p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-          <Video className="w-8 h-8 text-primary-600" />
-          视频生成
-        </h1>
-        <p className="text-gray-600 mt-2">选择模板并上传图片，AI生成动态视频</p>
-      </div>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* 页面标题 */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">视频生成</h1>
+          <p className="text-gray-600">上传图像，选择模板，生成精彩视频</p>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Control Panel */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sticky top-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">控制面板</h2>
-
-            <div className="space-y-6">
-              {/* Image Upload */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* 左侧：图像上传 */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Video className="w-5 h-5 text-primary-600" />
+                上传图像
+              </h2>
+              
               <ImageUpload
-                maxImages={1}
                 onImagesChange={setUploadedImage}
-                label="上传图片"
+                maxImages={1}
+                label="上传图像"
               />
+            </div>
+          </div>
 
-              {/* Template Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  选择视频模板
-                </label>
-                <div className="space-y-2">
-                  {templates.map((template) => (
+          {/* 中间：模板选择 */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary-600" />
+                选择模板
+              </h2>
+
+              {/* 标签导航 */}
+              <div className="mb-6">
+                <div className="flex flex-wrap gap-2">
+                  {TAG_CATEGORIES.map((tag) => (
                     <button
-                      key={template.id}
-                      onClick={() => setSelectedTemplate(template.id)}
-                      className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${
-                        selectedTemplate === template.id
-                          ? "border-primary-500 bg-primary-50"
-                          : "border-gray-200 hover:border-gray-300"
+                      key={tag.id}
+                      onClick={() => setActiveTag(tag.id)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        activeTag === tag.id
+                          ? "bg-primary-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl">{template.preview}</span>
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900">{template.name}</div>
-                          <div className="text-xs text-gray-500 mt-1">{template.description}</div>
-                          <div className="text-xs text-primary-600 mt-1">时长: {template.duration}</div>
-                        </div>
-                      </div>
+                      {tag.icon} {tag.name}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Tips */}
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-amber-900 mb-2">⚠️ 开发中</h3>
-                <p className="text-xs text-amber-700">
-                  视频生成功能正在开发中。完整实现需要集成专业的视频生成API服务。
-                </p>
-              </div>
-
-              {/* Generate Button */}
-              <button
-                onClick={handleGenerate}
-                disabled={loading || !selectedTemplate || uploadedImage.length === 0}
-                className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>生成中...</>
+              {/* 模板列表 */}
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {loadingTemplates ? (
+                  <div className="flex justify-center py-8">
+                    <LoadingSpinner text="加载模板中..." />
+                  </div>
+                ) : templates.length > 0 ? (
+                  templates.map((template) => (
+                    <div
+                      key={template.id}
+                      className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                        selectedTemplate?.id === template.id
+                          ? "border-primary-500 bg-primary-50"
+                          : "border-gray-200 hover:border-gray-300"
+                      }`}
+                      onClick={() => setSelectedTemplate(template)}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="relative w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                          <video
+                            src={template.video_low_url}
+                            className="w-full h-full object-cover"
+                            muted
+                            loop
+                            playsInline
+                          />
+                          <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
+                            <Play className="w-4 h-4 text-white" />
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-gray-900 truncate">
+                            {template.title_en_name || template.title}
+                          </h3>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {template.thirdparty} • {template.video_width}×{template.video_height}
+                          </p>
+                          {template.free_trial && (
+                            <span className="inline-block mt-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
+                              免费试用
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
                 ) : (
-                  <>
-                    <Video className="w-5 h-5" />
-                    生成视频
-                  </>
+                  <div className="text-center py-8 text-gray-500">
+                    该分类下暂无模板
+                  </div>
                 )}
-              </button>
+              </div>
+            </div>
+          </div>
 
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                  {error}
+          {/* 右侧：生成结果 */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
+              <h2 className="text-lg font-semibold text-gray-900 mb-6">生成结果</h2>
+
+              {loading && (
+                <div className="space-y-4">
+                  <LoadingSpinner text={taskId ? `正在生成视频... (任务ID: ${taskId})` : "正在创建任务..."} />
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-sm text-blue-800 text-center">
+                      ✨ 正在生成精彩视频<br />
+                      {taskId ? "任务已创建，正在生成中..." : "正在上传图像并创建任务..."}<br />
+                      预计需要 1-3 分钟，请耐心等待
+                    </p>
+                    {taskId && (
+                      <p className="text-xs text-blue-600 mt-2 text-center">
+                        任务ID: {taskId}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {error && !loading && (
+                <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0">
+                      <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-semibold text-red-900 mb-2">生成失败</h3>
+                      <p className="text-red-700 text-sm break-words">{error}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!loading && !error && !generatedVideo && (
+                <div className="flex items-center justify-center h-64 text-gray-400">
+                  <div className="text-center">
+                    <Video className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <p>上传图像并选择模板，点击生成按钮开始创作</p>
+                    <p className="text-sm mt-2 text-primary-600">✨ 支持多种风格模板</p>
+                  </div>
+                </div>
+              )}
+
+              {!loading && generatedVideo && (
+                <div className="space-y-4">
+                  {taskId && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <p className="text-sm text-green-800">
+                        <strong>任务ID：</strong>{taskId}
+                      </p>
+                      <p className="text-xs text-green-600 mt-1">✓ 生成完成</p>
+                    </div>
+                  )}
+                  
+                  <div className="relative bg-gray-100 rounded-lg overflow-hidden">
+                    <video
+                      src={generatedVideo}
+                      controls
+                      className="w-full h-auto"
+                    />
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        const link = document.createElement("a");
+                        link.href = generatedVideo;
+                        link.download = `generated-video-${Date.now()}.mp4`;
+                        link.click();
+                      }}
+                      className="flex-1 bg-primary-600 text-white py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      下载视频
+                    </button>
+                    <button
+                      onClick={() => {
+                        setGeneratedVideo("");
+                        setTaskId("");
+                        setUploadedImage([]);
+                        setSelectedTemplate(null);
+                      }}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      重新生成
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Results Panel */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">生成结果</h2>
-
-            {loading && <LoadingSpinner text="AI正在生成视频..." />}
-
-            {!loading && !generatedVideo && (
-              <div className="flex items-center justify-center h-64 text-gray-400">
-                <div className="text-center">
-                  <Video className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>选择模板并上传图片，点击生成按钮开始创作</p>
-                  <p className="text-sm mt-2">（功能开发中）</p>
-                </div>
-              </div>
+        {/* 生成按钮 */}
+        <div className="mt-8 flex justify-center">
+          <button
+            onClick={handleGenerate}
+            disabled={loading || !uploadedImage.length || !selectedTemplate}
+            className="bg-primary-600 text-white py-4 px-8 rounded-xl font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-3 text-lg"
+          >
+            {loading ? (
+              <>生成中...</>
+            ) : (
+              <>
+                <Sparkles className="w-6 h-6" />
+                生成视频
+              </>
             )}
-
-            {!loading && generatedVideo && (
-              <div className="space-y-4">
-                <video
-                  src={generatedVideo}
-                  controls
-                  className="w-full rounded-lg"
-                />
-                <button
-                  onClick={() => {
-                    const link = document.createElement("a");
-                    link.href = generatedVideo;
-                    link.download = "generated-video.mp4";
-                    link.click();
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                  下载视频
-                </button>
-              </div>
-            )}
-          </div>
+          </button>
         </div>
       </div>
     </div>
   );
 }
-
