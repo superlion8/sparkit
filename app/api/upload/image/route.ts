@@ -39,10 +39,10 @@ export async function POST(request: NextRequest) {
     const base64 = Buffer.from(arrayBuffer).toString('base64');
     const dataUrl = `data:${file.type};base64,${base64}`;
     
-    // 在实际应用中，您应该上传到真实的存储服务并返回真实的URL
-    const imageUrl = `https://temp-storage.example.com/images/${Date.now()}-${file.name}`;
+    // 使用真实的数据URL作为图像URL
+    const imageUrl = dataUrl;
     
-    console.log(`Image uploaded successfully: ${imageUrl}`);
+    console.log(`Image uploaded successfully: ${imageUrl.substring(0, 100)}...`);
 
     return NextResponse.json({
       url: imageUrl,

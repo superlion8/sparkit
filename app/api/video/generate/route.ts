@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`Creating video generation task for type: ${generate_type}`);
+    console.log(`Origin resource ID: ${origin_resource_id}`);
 
     const response = await fetch(`${AIMOVELY_API_URL}/v1/task/video/create`, {
       method: "POST",
@@ -35,11 +36,13 @@ export async function POST(request: NextRequest) {
       }),
     });
 
+    console.log(`AIMOVELY API response status: ${response.status}`);
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error("AIMOVELY video create error:", errorText);
       return NextResponse.json(
-        { error: "Failed to create video generation task" },
+        { error: `Failed to create video generation task: ${errorText}` },
         { status: response.status }
       );
     }
@@ -48,8 +51,9 @@ export async function POST(request: NextRequest) {
     console.log("Video creation response:", data);
 
     if (data.code !== 0) {
+      console.error(`AIMOVELY API error: code=${data.code}, msg=${data.msg}`);
       return NextResponse.json(
-        { error: data.msg || "Failed to create video generation task" },
+        { error: `API Error: ${data.msg} (code: ${data.code})` },
         { status: 500 }
       );
     }
