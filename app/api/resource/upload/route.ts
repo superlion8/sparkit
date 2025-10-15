@@ -62,7 +62,9 @@ export async function POST(request: NextRequest) {
     
     console.log("Created FormData for Aimovely upload");
     console.log("FormData entries:");
-    for (const [key, value] of uploadFormData.entries()) {
+    // 使用 Array.from 来兼容 TypeScript 编译目标
+    const entries = Array.from(uploadFormData.entries());
+    for (const [key, value] of entries) {
       if (value instanceof File) {
         console.log(`  ${key}: File(${value.name}, ${value.size} bytes, ${value.type})`);
       } else {
