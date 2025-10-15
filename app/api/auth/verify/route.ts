@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      token: data.data.token,
+      token: data.data.access_token,  // 修正：使用 access_token 而不是 token
       account_id: data.data.account_id,
       refresh_token: data.data.refresh_token,
       is_first_login: data.data.is_first_login,
