@@ -57,8 +57,8 @@ export async function POST(request: NextRequest) {
     const uploadFormData = new FormData();
     // 确保文件对象正确传递
     uploadFormData.append("file", file, file.name);
-    // 尝试添加可能的额外参数
-    uploadFormData.append("biz", "test");
+    // 添加业务类型参数
+    uploadFormData.append("biz", "img2video");
     
     console.log("Created FormData for Aimovely upload");
     console.log("FormData entries:");
