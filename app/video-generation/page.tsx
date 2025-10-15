@@ -273,8 +273,12 @@ export default function VideoGenerationPage() {
             
             let videoUrl = null;
             
-            // 尝试从不同的可能位置获取video_url
-            if (data.data.results && data.data.results.video_url) {
+            // 根据实际响应格式获取video_url
+            if (data.data.results && Array.isArray(data.data.results) && data.data.results.length > 0) {
+              // 从 results 数组的第一个元素获取 video_url
+              videoUrl = data.data.results[0].video_url;
+            } else if (data.data.results && data.data.results.video_url) {
+              // 兼容其他可能的格式
               videoUrl = data.data.results.video_url;
             } else if (Array.isArray(data.data) && data.data.length > 0 && data.data[0].video_url) {
               videoUrl = data.data[0].video_url;
