@@ -11,6 +11,9 @@ export async function POST(request: NextRequest) {
     
     const file = formData.get("file") as File;
     console.log("File from formData:", file ? `name=${file.name}, size=${file.size}, type=${file.type}` : "null");
+    console.log("File object type:", typeof file);
+    console.log("File constructor:", file?.constructor?.name);
+    console.log("File instanceof File:", file instanceof File);
     
     const authHeader = request.headers.get("Authorization");
     console.log("Auth header:", authHeader ? "present" : "missing");
@@ -52,11 +55,20 @@ export async function POST(request: NextRequest) {
 
     // 创建FormData用于上传到Aimovely
     const uploadFormData = new FormData();
-    uploadFormData.append("file", file);
+    // 确保文件对象正确传递
+    uploadFormData.append("file", file, file.name);
     // 尝试添加可能的额外参数
     uploadFormData.append("biz", "test");
     
     console.log("Created FormData for Aimovely upload");
+    console.log("FormData entries:");
+    for (const [key, value] of uploadFormData.entries()) {
+      if (value instanceof File) {
+        console.log(`  ${key}: File(${value.name}, ${value.size} bytes, ${value.type})`);
+      } else {
+        console.log(`  ${key}: ${value}`);
+      }
+    }
     console.log("Uploading to:", `${AIMOVELY_API_URL}/v1/resource/upload`);
     console.log("Auth token:", authHeader.substring(0, 20) + "...");
 
