@@ -66,6 +66,7 @@ export default function VideoGenerationPage() {
   useEffect(() => {
     const getUserToken = async () => {
       try {
+        console.log("Attempting to get user token...");
         const response = await fetch("/api/auth/verify", {
           method: "POST",
           headers: {
@@ -73,15 +74,20 @@ export default function VideoGenerationPage() {
           },
         });
 
+        console.log(`Auth API response status: ${response.status}`);
+
         if (response.ok) {
           const data = await response.json();
           setUserToken(data.token);
           console.log("User token obtained:", data.token);
         } else {
-          console.error("Failed to get user token");
+          const errorText = await response.text();
+          console.error("Failed to get user token:", response.status, errorText);
+          setError(`认证失败: HTTP ${response.status}`);
         }
       } catch (error) {
         console.error("Error getting user token:", error);
+        setError(`认证失败: ${error}`);
       }
     };
 
@@ -98,6 +104,9 @@ export default function VideoGenerationPage() {
   const fetchTemplates = async (categoryId: string) => {
     setLoadingTemplates(true);
     try {
+      console.log(`Fetching templates for category: ${categoryId}`);
+      console.log(`Using token: ${userToken}`);
+      
       const response = await fetch("/api/templates/list", {
         method: "POST",
         headers: {
@@ -107,8 +116,12 @@ export default function VideoGenerationPage() {
         body: JSON.stringify({ category_id: categoryId }),
       });
 
+      console.log(`Template API response status: ${response.status}`);
+
       if (response.ok) {
         const data: TemplateResponse = await response.json();
+        console.log("Template API response data:", data);
+        
         if (data.code === 0) {
           // 过滤出符合条件的模板
           const filteredTemplates = data.data.entries.filter(
@@ -116,15 +129,20 @@ export default function VideoGenerationPage() {
               template.video_type === "image2video" && 
               [1, 2, 3].includes(template.template_level || 0)
           );
+          console.log(`Filtered templates count: ${filteredTemplates.length}`);
           setTemplates(filteredTemplates);
         } else {
-          console.error("Failed to fetch templates:", data.msg);
+          console.error("API returned error:", data.msg);
+          setError(`获取模板失败: ${data.msg}`);
         }
       } else {
-        console.error("Failed to fetch templates");
+        const errorText = await response.text();
+        console.error("HTTP error:", response.status, errorText);
+        setError(`获取模板失败: HTTP ${response.status}`);
       }
     } catch (error) {
       console.error("Error fetching templates:", error);
+      setError(`获取模板失败: ${error}`);
     } finally {
       setLoadingTemplates(false);
     }

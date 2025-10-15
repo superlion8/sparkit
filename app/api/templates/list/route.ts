@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`Fetching templates for category: ${category_id}`);
 
-    const response = await fetch(`${AIMOVELY_API_URL}/v1/feeds/template_list`, {
+    const response = await fetch(`${AIMOVELY_API_URL}/v1/feeds/template/list`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
