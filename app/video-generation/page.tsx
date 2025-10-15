@@ -267,21 +267,26 @@ export default function VideoGenerationPage() {
           const taskStatus = data.data.task.status;
           console.log(`Task status: ${taskStatus}`);
           
-          if (taskStatus === 3) { // 完成状态
-            if (data.data.task.result_url) {
-              setGeneratedVideo(data.data.task.result_url);
-              console.log("✅ 视频生成完成！");
+          if (taskStatus === 2) { // 成功状态
+            // 从results字段获取video_url
+            if (data.data.results && data.data.results.video_url) {
+              setGeneratedVideo(data.data.results.video_url);
+              console.log("✅ 视频生成完成！", data.data.results.video_url);
             } else {
-              setError("生成完成但未找到结果URL");
+              setError("生成完成但未找到视频URL");
             }
             setLoading(false);
             return;
-          } else if (taskStatus === 4) { // 失败状态
-            setError("视频生成失败");
+          } else if (taskStatus === 3) { // 失败状态
+            // 从task字段获取失败原因
+            const errorMsg = data.data.task.msg || "视频生成失败";
+            setError(errorMsg);
+            console.error("视频生成失败:", errorMsg);
             setLoading(false);
             return;
           }
-          // 状态2表示进行中，继续轮询
+          // 状态1表示进行中，继续轮询
+          console.log("任务进行中，继续等待...");
         } else {
           setError(`查询任务失败: ${data.msg}`);
           setLoading(false);
