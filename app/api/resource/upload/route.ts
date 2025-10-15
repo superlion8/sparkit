@@ -4,11 +4,19 @@ const AIMOVELY_API_URL = "https://dev.aimovely.com";
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("=== Resource Upload API Called ===");
+    
     const formData = await request.formData();
+    console.log("FormData received");
+    
     const file = formData.get("file") as File;
+    console.log("File from formData:", file ? `name=${file.name}, size=${file.size}, type=${file.type}` : "null");
+    
     const authHeader = request.headers.get("Authorization");
+    console.log("Auth header:", authHeader ? "present" : "missing");
 
     if (!file) {
+      console.error("No file provided in request");
       return NextResponse.json(
         { error: "No file provided" },
         { status: 400 }
@@ -16,6 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!authHeader) {
+      console.error("No Authorization header provided");
       return NextResponse.json(
         { error: "Authorization token is required" },
         { status: 401 }
@@ -44,6 +53,12 @@ export async function POST(request: NextRequest) {
     // 创建FormData用于上传到Aimovely
     const uploadFormData = new FormData();
     uploadFormData.append("file", file);
+    // 尝试添加可能的额外参数
+    uploadFormData.append("biz", "test");
+    
+    console.log("Created FormData for Aimovely upload");
+    console.log("Uploading to:", `${AIMOVELY_API_URL}/v1/resource/upload`);
+    console.log("Auth token:", authHeader.substring(0, 20) + "...");
 
     const response = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
       method: "POST",
@@ -54,6 +69,7 @@ export async function POST(request: NextRequest) {
     });
 
     console.log(`Aimovely upload response status: ${response.status}`);
+    console.log(`Response headers:`, Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -65,15 +81,22 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log("Aimovely upload response:", data);
+    console.log("Aimovely upload response:", JSON.stringify(data, null, 2));
 
     if (data.code !== 0) {
       console.error(`Aimovely upload API error: code=${data.code}, msg=${data.msg}`);
+      console.error("Full response data:", data);
       return NextResponse.json(
         { error: `Upload failed: ${data.msg} (code: ${data.code})` },
         { status: 500 }
       );
     }
+
+    console.log("Upload successful, returning:", {
+      url: data.data.url,
+      resource_id: data.data.resource_id,
+      biz: data.data.biz,
+    });
 
     return NextResponse.json({
       url: data.data.url,

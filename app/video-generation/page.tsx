@@ -170,9 +170,19 @@ export default function VideoGenerationPage() {
     setTaskId("");
 
     try {
+      console.log("=== Starting video generation process ===");
+      console.log("Selected template:", selectedTemplate);
+      console.log("User token:", userToken ? "present" : "missing");
+      
       // 先上传图像到Aimovely获取resource_id
       const imageFormData = new FormData();
       imageFormData.append("file", uploadedImage[0]);
+      
+      console.log("Uploading image:", {
+        name: uploadedImage[0].name,
+        size: uploadedImage[0].size,
+        type: uploadedImage[0].type
+      });
 
       const uploadResponse = await fetch("/api/resource/upload", {
         method: "POST",
@@ -182,8 +192,11 @@ export default function VideoGenerationPage() {
         body: imageFormData,
       });
 
+      console.log("Upload response status:", uploadResponse.status);
+
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json();
+        console.error("Upload failed with error:", errorData);
         throw new Error(errorData.error || "图像上传失败");
       }
 
@@ -191,6 +204,7 @@ export default function VideoGenerationPage() {
       const resourceId = uploadData.resource_id;
       
       console.log("Image uploaded successfully, resource_id:", resourceId);
+      console.log("Upload response data:", uploadData);
 
       // 创建视频生成任务
       const generateResponse = await fetch("/api/video/generate", {
