@@ -10,13 +10,14 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      const stored = typeof window !== "undefined"
-        ? window.sessionStorage.getItem("postLoginRedirect")
-        : null;
-      const next = stored || "/text-to-image";
-      if (typeof window !== "undefined") {
-        window.sessionStorage.removeItem("postLoginRedirect");
+      if (typeof window === "undefined") {
+        router.replace("/text-to-image");
+        return;
       }
+      const stored = window.sessionStorage.getItem("postLoginRedirect");
+      const next = stored || "/text-to-image";
+      console.log("[AuthCallback] stored redirect", stored, "->", next);
+      window.sessionStorage.removeItem("postLoginRedirect");
       router.replace(next);
     }, 200);
 

@@ -82,6 +82,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         const current = window.location.href;
         window.sessionStorage.setItem("postLoginRedirect", current);
         redirectTo = `${origin}/auth/callback`;
+        console.log("[Auth] redirecting to", redirectTo, "from", current);
       }
       const { error } = await supabaseClient.auth.signInWithOAuth({
         provider: "google",
