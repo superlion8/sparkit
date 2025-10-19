@@ -76,7 +76,13 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   const signInWithGoogle = useCallback(async () => {
     setLoginLoading(true);
     try {
-      const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
+      let redirectTo: string | undefined;
+      if (typeof window !== "undefined") {
+        const origin = window.location.origin;
+        const current = window.location.href;
+        window.sessionStorage.setItem("postLoginRedirect", current);
+        redirectTo = `${origin}/auth/callback`;
+      }
       const { error } = await supabaseClient.auth.signInWithOAuth({
         provider: "google",
         options: {
