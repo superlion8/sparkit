@@ -13,6 +13,9 @@ interface AuthContextValue {
   promptLogin: () => void;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
+  userEmail: string | null;
+  userAvatar: string | null;
+  userName: string | null;
 }
 
 export const AuthContext = createContext<AuthContextValue>({
@@ -26,6 +29,9 @@ export const AuthContext = createContext<AuthContextValue>({
   signInWithGoogle: async () => {},
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   signOut: async () => {},
+  userEmail: null,
+  userAvatar: null,
+  userName: null,
 });
 
 interface AuthProviderProps {
@@ -117,6 +123,14 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   const accessToken = session?.access_token ?? null;
   const isAuthenticated = Boolean(session && accessToken);
 
+  const userEmail = session?.user?.email ?? null;
+  const userAvatar =
+    (session?.user?.user_metadata?.picture as string | undefined) || null;
+  const userName =
+    (session?.user?.user_metadata?.name as string | undefined) ||
+    (session?.user?.user_metadata?.full_name as string | undefined) ||
+    userEmail;
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
@@ -126,8 +140,22 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       promptLogin,
       signInWithGoogle,
       signOut,
+      userEmail,
+      userAvatar,
+      userName,
     }),
-    [session, accessToken, isAuthenticated, loading, promptLogin, signInWithGoogle, signOut]
+    [
+      session,
+      accessToken,
+      isAuthenticated,
+      loading,
+      promptLogin,
+      signInWithGoogle,
+      signOut,
+      userEmail,
+      userAvatar,
+      userName,
+    ]
   );
 
   return (
