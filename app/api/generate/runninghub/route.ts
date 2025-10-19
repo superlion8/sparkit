@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateRequestAuth } from "@/lib/auth";
 
 // RunningHub API 配置
 const RUNNINGHUB_API_URL = "https://www.runninghub.cn";
 const WORKFLOW_ID = "1977672819733684226"; // 视频主体替换 workflow
 
 export async function POST(request: NextRequest) {
+  const { errorResponse } = await validateRequestAuth(request);
+  if (errorResponse) {
+    return errorResponse;
+  }
+
   try {
     // 检查文件大小限制（更严格的限制）
     const MAX_TOTAL_SIZE = 10 * 1024 * 1024; // 10MB 总大小限制

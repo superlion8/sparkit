@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateRequestAuth } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
+  const { errorResponse } = await validateRequestAuth(request);
+  if (errorResponse) {
+    return errorResponse;
+  }
+
   try {
     const formData = await request.formData();
     const chunk = formData.get("chunk") as File;

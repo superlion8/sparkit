@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
+import LoginPrompt from "@/components/LoginPrompt";
+import { useAuth } from "@/hooks/useAuth";
 import { Video, Play, Download, Sparkles } from "lucide-react";
 
 interface VideoTemplate {
@@ -51,6 +53,7 @@ const TAG_CATEGORIES = [
 ];
 
 export default function VideoGenerationPage() {
+  const { session, accessToken, loading: authLoading, signInWithGoogle } = useAuth();
   const [uploadedImage, setUploadedImage] = useState<File[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<VideoTemplate | null>(null);
   const [activeTag, setActiveTag] = useState(TAG_CATEGORIES[0].id);
@@ -65,12 +68,14 @@ export default function VideoGenerationPage() {
   // 获取用户token
   useEffect(() => {
     const getUserToken = async () => {
+      if (!accessToken) return;
       try {
         console.log("Attempting to get user token...");
         const response = await fetch("/api/auth/verify", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
           },
         });
 
@@ -92,7 +97,7 @@ export default function VideoGenerationPage() {
     };
 
     getUserToken();
-  }, []);
+  }, [accessToken]);
 
   // 获取模板列表
   useEffect(() => {
@@ -101,9 +106,31 @@ export default function VideoGenerationPage() {
     }
   }, [userToken, activeTag]);
 
+  if (authLoading) {
+    return (
+      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50">
+        <LoadingSpinner text="加载登录状态..." />
+      </div>
+    );
+  }
+
+  if (!session || !accessToken) {
+    return (
+      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50 p-6">
+        <LoginPrompt onLogin={signInWithGoogle} />
+      </div>
+    );
+  }
+
   const fetchTemplates = async (categoryId: string) => {
     setLoadingTemplates(true);
     try {
+      if (!accessToken) {
+        setError("登录状态已失效，请重新登录");
+        setLoadingTemplates(false);
+        return;
+      }
+
       console.log(`Fetching templates for category: ${categoryId}`);
       console.log(`Using token: ${userToken}`);
       
@@ -111,7 +138,8 @@ export default function VideoGenerationPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": userToken,
+          Authorization: `Bearer ${accessToken}`,
+          "X-Aimovely-Token": userToken,
         },
         body: JSON.stringify({ category_id: categoryId }),
       });
@@ -164,6 +192,16 @@ export default function VideoGenerationPage() {
       return;
     }
 
+    if (!accessToken) {
+      setError("登录状态已失效，请重新登录");
+      return;
+    }
+
+    if (!userToken) {
+      setError("Aimovely 认证失败，请刷新页面后重试");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setGeneratedVideo("");
@@ -187,7 +225,8 @@ export default function VideoGenerationPage() {
       const uploadResponse = await fetch("/api/resource/upload", {
         method: "POST",
         headers: {
-          "Authorization": userToken,
+          Authorization: `Bearer ${accessToken}`,
+          "X-Aimovely-Token": userToken,
         },
         body: imageFormData,
       });
@@ -211,7 +250,8 @@ export default function VideoGenerationPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": userToken,
+          Authorization: `Bearer ${accessToken}`,
+          "X-Aimovely-Token": userToken,
         },
         body: JSON.stringify({
           generate_type: selectedTemplate.generate_type,
@@ -247,11 +287,18 @@ export default function VideoGenerationPage() {
 
     const poll = async () => {
       try {
+        if (!accessToken || !userToken) {
+          setError("登录状态已失效，请刷新页面重试");
+          setLoading(false);
+          return;
+        }
+
         const response = await fetch("/api/video/query", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": userToken,
+            Authorization: `Bearer ${accessToken}`,
+            "X-Aimovely-Token": userToken,
           },
           body: JSON.stringify({ task_id: taskId }),
         });

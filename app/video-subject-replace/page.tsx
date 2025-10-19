@@ -4,9 +4,12 @@ import { useState } from "react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
 import VideoUpload from "@/components/VideoUpload";
+import LoginPrompt from "@/components/LoginPrompt";
+import { useAuth } from "@/hooks/useAuth";
 import { Replace, Download } from "lucide-react";
 
 export default function VideoSubjectReplacePage() {
+  const { session, accessToken, loading: authLoading, signInWithGoogle } = useAuth();
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [subjectImage, setSubjectImage] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
@@ -15,6 +18,22 @@ export default function VideoSubjectReplacePage() {
   const [taskId, setTaskId] = useState<string>("");
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
+
+  if (authLoading) {
+    return (
+      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50">
+        <LoadingSpinner text="加载登录状态..." />
+      </div>
+    );
+  }
+
+  if (!session || !accessToken) {
+    return (
+      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50 p-6">
+        <LoginPrompt onLogin={signInWithGoogle} />
+      </div>
+    );
+  }
 
   const handleGenerate = async () => {
     console.log("=== 开始视频主体替换 ===");
@@ -26,6 +45,11 @@ export default function VideoSubjectReplacePage() {
 
     if (subjectImage.length === 0) {
       setError("请上传替换的主体图片");
+      return;
+    }
+
+    if (!accessToken) {
+      setError("登录状态已失效，请重新登录");
       return;
     }
 
@@ -44,6 +68,9 @@ export default function VideoSubjectReplacePage() {
       console.log("发送请求到 RunningHub API...");
       const response = await fetch("/api/generate/runninghub", {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: formData,
       });
 
@@ -106,10 +133,17 @@ export default function VideoSubjectReplacePage() {
 
     const poll = async () => {
       try {
+        if (!accessToken) {
+          setError("登录状态已失效，请重新登录");
+          setLoading(false);
+          return;
+        }
+
         const response = await fetch("/api/generate/runninghub/status", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({ taskId }),
         });
@@ -365,4 +399,3 @@ export default function VideoSubjectReplacePage() {
     </div>
   );
 }
-

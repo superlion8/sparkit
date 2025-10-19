@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateRequestAuth } from "@/lib/auth";
 
 const AIMOVELY_API_URL = "https://dev.aimovely.com";
 
 export async function POST(request: NextRequest) {
+  const { errorResponse } = await validateRequestAuth(request);
+  if (errorResponse) {
+    return errorResponse;
+  }
+
   try {
     const { task_id } = await request.json();
-    const authHeader = request.headers.get("Authorization");
+    const aimovelyToken = request.headers.get("X-Aimovely-Token");
 
     if (!task_id) {
       return NextResponse.json(
@@ -14,9 +20,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!authHeader) {
+    if (!aimovelyToken) {
       return NextResponse.json(
-        { error: "Authorization token is required" },
+        { error: "Aimovely token is required" },
         { status: 401 }
       );
     }
@@ -27,7 +33,7 @@ export async function POST(request: NextRequest) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": authHeader,
+        "Authorization": aimovelyToken,
       },
       body: JSON.stringify({
         task_id: task_id,

@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateRequestAuth } from "@/lib/auth";
 
 const AIMOVELY_API_URL = "https://dev.aimovely.com";
 
 export async function POST(request: NextRequest) {
+  const { errorResponse } = await validateRequestAuth(request);
+  if (errorResponse) {
+    return errorResponse;
+  }
+
   try {
     const email = process.env.AIMOVELY_EMAIL;
     const vcode = process.env.AIMOVELY_VCODE;

@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateRequestAuth } from "@/lib/auth";
 
 const AIMOVELY_API_URL = "https://dev.aimovely.com";
 
 export async function POST(request: NextRequest) {
+  const { errorResponse } = await validateRequestAuth(request);
+  if (errorResponse) {
+    return errorResponse;
+  }
+
   try {
     console.log("=== Resource Upload API Called ===");
     
@@ -15,8 +21,8 @@ export async function POST(request: NextRequest) {
     console.log("File constructor:", file?.constructor?.name);
     console.log("File instanceof File:", file instanceof File);
     
-    const authHeader = request.headers.get("Authorization");
-    console.log("Auth header:", authHeader ? "present" : "missing");
+    const aimovelyToken = request.headers.get("X-Aimovely-Token");
+    console.log("Aimovely token:", aimovelyToken ? "present" : "missing");
 
     if (!file) {
       console.error("No file provided in request");
@@ -26,10 +32,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!authHeader) {
-      console.error("No Authorization header provided");
+    if (!aimovelyToken) {
+      console.error("No Aimovely token provided");
       return NextResponse.json(
-        { error: "Authorization token is required" },
+        { error: "Aimovely token is required" },
         { status: 401 }
       );
     }
@@ -72,12 +78,12 @@ export async function POST(request: NextRequest) {
       }
     }
     console.log("Uploading to:", `${AIMOVELY_API_URL}/v1/resource/upload`);
-    console.log("Auth token:", authHeader.substring(0, 20) + "...");
+    console.log("Aimovely token:", aimovelyToken.substring(0, 20) + "...");
 
     const response = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
       method: "POST",
       headers: {
-        "Authorization": authHeader,
+        "Authorization": aimovelyToken,
       },
       body: uploadFormData,
     });

@@ -4,12 +4,15 @@ import { useState } from "react";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
+import LoginPrompt from "@/components/LoginPrompt";
+import { useAuth } from "@/hooks/useAuth";
 import { ImagePlus } from "lucide-react";
 
 type Model = "gemini" | "flux";
 type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
 
 export default function ImageToImagePage() {
+  const { session, accessToken, loading: authLoading, signInWithGoogle } = useAuth();
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState<Model>("gemini");
   const [numImages, setNumImages] = useState(1);
@@ -19,6 +22,22 @@ export default function ImageToImagePage() {
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
+
+  if (authLoading) {
+    return (
+      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50">
+        <LoadingSpinner text="加载登录状态..." />
+      </div>
+    );
+  }
+
+  if (!session || !accessToken) {
+    return (
+      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50 p-6">
+        <LoginPrompt onLogin={signInWithGoogle} />
+      </div>
+    );
+  }
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -37,6 +56,12 @@ export default function ImageToImagePage() {
     setGeneratedImages([]);
 
     try {
+      if (!accessToken) {
+        setError("登录状态已失效，请重新登录");
+        setLoading(false);
+        return;
+      }
+
       const allImages: string[] = [];
 
       // Generate multiple images if requested
@@ -67,6 +92,9 @@ export default function ImageToImagePage() {
 
         const response = await fetch(endpoint, {
           method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
           body: formData,
         });
 
@@ -298,4 +326,3 @@ export default function ImageToImagePage() {
     </div>
   );
 }
-

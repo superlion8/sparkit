@@ -4,9 +4,12 @@ import { useState } from "react";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
+import LoginPrompt from "@/components/LoginPrompt";
+import { useAuth } from "@/hooks/useAuth";
 import { Palette } from "lucide-react";
 
 export default function BackgroundReplacePage() {
+  const { session, accessToken, loading: authLoading, signInWithGoogle } = useAuth();
   const [subjectImage, setSubjectImage] = useState<File[]>([]);
   const [backgroundPrompt, setBackgroundPrompt] = useState("");
   const [posePrompt, setPosePrompt] = useState("");
@@ -14,6 +17,22 @@ export default function BackgroundReplacePage() {
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
+
+  if (authLoading) {
+    return (
+      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50">
+        <LoadingSpinner text="加载登录状态..." />
+      </div>
+    );
+  }
+
+  if (!session || !accessToken) {
+    return (
+      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50 p-6">
+        <LoginPrompt onLogin={signInWithGoogle} />
+      </div>
+    );
+  }
 
   const handleGenerate = async () => {
     if (subjectImage.length === 0) {
@@ -32,6 +51,12 @@ export default function BackgroundReplacePage() {
     setGeneratedImages([]);
 
     try {
+      if (!accessToken) {
+        setError("登录状态已失效，请重新登录");
+        setLoading(false);
+        return;
+      }
+
       const formData = new FormData();
       
       // Build comprehensive prompt
@@ -49,6 +74,9 @@ export default function BackgroundReplacePage() {
 
       const response = await fetch("/api/generate/gemini", {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: formData,
       });
 
@@ -245,4 +273,3 @@ export default function BackgroundReplacePage() {
     </div>
   );
 }
-

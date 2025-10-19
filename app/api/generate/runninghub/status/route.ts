@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateRequestAuth } from "@/lib/auth";
 
 const RUNNINGHUB_API_URL = "https://www.runninghub.cn";
 
 export async function POST(request: NextRequest) {
+  const { errorResponse } = await validateRequestAuth(request);
+  if (errorResponse) {
+    return errorResponse;
+  }
+
   try {
     const { taskId } = await request.json();
 
