@@ -123,12 +123,16 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   const accessToken = session?.access_token ?? null;
   const isAuthenticated = Boolean(session && accessToken);
 
+  const metadata = (session?.user?.user_metadata as Record<string, any>) || {};
   const userEmail = session?.user?.email ?? null;
   const userAvatar =
-    (session?.user?.user_metadata?.picture as string | undefined) || null;
+    (metadata.avatar_url as string | undefined) ||
+    (metadata.picture as string | undefined) ||
+    null;
   const userName =
-    (session?.user?.user_metadata?.name as string | undefined) ||
-    (session?.user?.user_metadata?.full_name as string | undefined) ||
+    (metadata.full_name as string | undefined) ||
+    (metadata.name as string | undefined) ||
+    (metadata.user_name as string | undefined) ||
     userEmail;
 
   const value = useMemo<AuthContextValue>(

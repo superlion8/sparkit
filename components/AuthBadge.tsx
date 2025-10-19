@@ -3,11 +3,24 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { LogIn, LogOut, ChevronDown } from "lucide-react";
-import Image from "next/image";
+import { useEffect, useRef } from "react";
 
 export default function AuthBadge() {
   const { isAuthenticated, loading, promptLogin, signOut, userEmail, userAvatar, userName } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    if (menuOpen) {
+      window.addEventListener("click", handler);
+    }
+    return () => window.removeEventListener("click", handler);
+  }, [menuOpen]);
 
   if (loading) {
     return (
@@ -31,19 +44,18 @@ export default function AuthBadge() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={menuRef}>
       <button
         onClick={() => setMenuOpen((open) => !open)}
         className="inline-flex items-center gap-3 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50"
       >
         <div className="flex items-center gap-2">
           {userAvatar ? (
-            <Image
+            <img
               src={userAvatar}
               alt={userName || "profile"}
-              width={28}
-              height={28}
               className="h-7 w-7 rounded-full object-cover"
+              referrerPolicy="no-referrer"
             />
           ) : (
             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700">
