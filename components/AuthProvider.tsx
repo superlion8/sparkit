@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { supabaseClient, isSupabaseConfigured } from "@/lib/supabaseClient";
+import { supabaseClient } from "@/lib/supabaseClient";
 import LoginDialog from "@/components/LoginDialog";
 
 interface AuthContextValue {
@@ -41,13 +41,6 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     let isMounted = true;
 
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      return () => {
-        isMounted = false;
-      };
-    }
-
     const initSession = async () => {
       const { data, error } = await supabaseClient.auth.getSession();
 
@@ -81,11 +74,6 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
-    if (!isSupabaseConfigured) {
-      console.error("Supabase 环境变量缺失，无法发起登录");
-      return;
-    }
-
     setLoginLoading(true);
     try {
       const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
@@ -107,10 +95,6 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const signOut = useCallback(async () => {
-    if (!isSupabaseConfigured) {
-      setSession(null);
-      return;
-    }
     const { error } = await supabaseClient.auth.signOut();
     if (error) {
       console.error("退出登录失败:", error.message);
