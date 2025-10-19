@@ -78,11 +78,12 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     try {
       let redirectTo: string | undefined;
       if (typeof window !== "undefined") {
+        const currentUrl = window.location.href;
+        window.sessionStorage.setItem("postLoginRedirect", currentUrl);
         const origin = window.location.origin;
-        const current = window.location.href;
-        window.sessionStorage.setItem("postLoginRedirect", current);
-        redirectTo = `${origin}/auth/callback`;
-        console.log("[Auth] redirecting to", redirectTo, "from", current);
+        const normalized = origin.endsWith("/") ? origin.slice(0, -1) : origin;
+        redirectTo = `${normalized}/auth/callback`;
+        console.log("[Auth] redirecting to", redirectTo, "from", currentUrl);
       }
       const { error } = await supabaseClient.auth.signInWithOAuth({
         provider: "google",
