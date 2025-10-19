@@ -3,7 +3,6 @@
 import { useState } from "react";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import LoginPrompt from "@/components/LoginPrompt";
 import { useAuth } from "@/hooks/useAuth";
 import { Sparkles } from "lucide-react";
 
@@ -11,7 +10,7 @@ type Model = "gemini" | "flux";
 type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
 
 export default function TextToImagePage() {
-  const { session, accessToken, loading: authLoading, signInWithGoogle } = useAuth();
+  const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState<Model>("gemini");
   const [numImages, setNumImages] = useState(1);
@@ -21,31 +20,16 @@ export default function TextToImagePage() {
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
 
-  if (authLoading) {
-    return (
-      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50">
-        <LoadingSpinner text="加载登录状态..." />
-      </div>
-    );
-  }
-
-  if (!session || !accessToken) {
-    return (
-      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50 p-6">
-        <LoginPrompt onLogin={signInWithGoogle} />
-      </div>
-    );
-  }
-
   const handleGenerate = async () => {
-    console.log("=== 开始生成 ===");
-    console.log("Prompt:", prompt);
-    console.log("Model:", model);
-    console.log("Num Images:", numImages);
-    
     if (!prompt.trim()) {
-      console.log("❌ 提示词为空");
       setError("请输入描述文本");
+      return;
+    }
+
+    if (!isAuthenticated || !accessToken) {
+      setError("登录后才能生成图像");
+      setErrorDetails(null);
+      promptLogin();
       return;
     }
 
@@ -53,37 +37,21 @@ export default function TextToImagePage() {
     setError("");
     setErrorDetails(null);
     setGeneratedImages([]);
-    console.log("✅ 已设置 loading 状态");
 
     try {
-      if (!accessToken) {
-        setError("登录状态已失效，请重新登录");
-        setLoading(false);
-        return;
-      }
-
       const allImages: string[] = [];
 
-      // Generate multiple images if requested
       for (let i = 0; i < numImages; i++) {
-        console.log(`开始生成第 ${i + 1} 张图片...`);
         const formData = new FormData();
-        
+
         formData.append("prompt", prompt);
-        
-        // Add aspect ratio as API parameter (for Gemini)
+
         if (model === "gemini") {
           formData.append("aspectRatio", aspectRatio);
         }
-        
-        console.log("FormData 已创建, prompt:", prompt, "aspectRatio:", aspectRatio);
 
-        const endpoint = model === "gemini" 
-          ? "/api/generate/gemini"
-          : "/api/generate/flux";
-        console.log("准备调用 API:", endpoint);
+        const endpoint = model === "gemini" ? "/api/generate/gemini" : "/api/generate/flux";
 
-        console.log("发送 fetch 请求...");
         const response = await fetch(endpoint, {
           method: "POST",
           headers: {
@@ -91,67 +59,53 @@ export default function TextToImagePage() {
           },
           body: formData,
         });
-        console.log("收到响应:", response.status, response.statusText);
 
         if (!response.ok) {
           let errorData: any;
           const contentType = response.headers.get("content-type");
-          
           try {
             if (contentType && contentType.includes("application/json")) {
               errorData = await response.json();
             } else {
               const errorText = await response.text();
-              errorData = { 
-                status: response.status, 
+              errorData = {
+                status: response.status,
                 statusText: response.statusText,
                 error: errorText,
-                contentType: contentType 
+                contentType,
               };
             }
           } catch (parseError) {
-            errorData = { 
-              status: response.status, 
+            errorData = {
+              status: response.status,
               statusText: response.statusText,
-              error: "无法解析错误响应" 
+              error: "无法解析错误响应",
             };
           }
-          
-          console.error("❌ API 错误:", errorData);
+
           setErrorDetails(errorData);
           throw new Error(errorData.error || errorData.statusText || "Generation failed");
         }
 
-        console.log("开始解析响应数据...");
         const data = await response.json();
-        console.log("✅ 响应数据:", data);
-        console.log("图片数量:", data.images?.length);
-        
+
         if (data.images && data.images.length > 0) {
-          console.log("✅ 添加图片到结果数组");
           allImages.push(...data.images);
-        } else {
-          console.warn("⚠️ 响应中没有图片数据");
         }
       }
 
-      console.log("所有图片生成完成，总数:", allImages.length);
       if (allImages.length > 0) {
         setGeneratedImages(allImages);
-        console.log("✅ 图片已设置到 state");
       } else {
         setError("API 返回成功但没有图片数据");
         setErrorDetails({ message: "No images in response", numImages, model });
       }
     } catch (err: any) {
-      console.error("❌ 捕获到错误:", err);
       if (!errorDetails) {
         setErrorDetails({ message: err.message, stack: err.stack });
       }
       setError(err.message || "生成失败，请重试");
-      console.error("Generation error:", err);
     } finally {
-      console.log("设置 loading = false");
       setLoading(false);
     }
   };
@@ -164,16 +118,19 @@ export default function TextToImagePage() {
           文生图
         </h1>
         <p className="text-gray-600 mt-2">输入文本描述，AI为你生成精美图像</p>
+        {!authLoading && !isAuthenticated && (
+          <div className="mt-4 rounded-lg border border-dashed border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
+            当前为未登录状态，点击“生成图像”时会提示登录，登录后即可正常使用。
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Control Panel */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sticky top-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">控制面板</h2>
 
             <div className="space-y-6">
-              {/* Prompt Input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   描述文本
@@ -187,7 +144,6 @@ export default function TextToImagePage() {
                 />
               </div>
 
-              {/* Model Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   选择模型
@@ -216,7 +172,6 @@ export default function TextToImagePage() {
                 </div>
               </div>
 
-              {/* Number of Images */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   生成数量: {numImages}
@@ -235,7 +190,6 @@ export default function TextToImagePage() {
                 </div>
               </div>
 
-              {/* Aspect Ratio */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   宽高比
@@ -253,10 +207,9 @@ export default function TextToImagePage() {
                 </select>
               </div>
 
-              {/* Generate Button */}
               <button
                 onClick={handleGenerate}
-                disabled={loading || !prompt.trim()}
+                disabled={loading || authLoading || !prompt.trim()}
                 className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
                 {loading ? (
@@ -268,43 +221,43 @@ export default function TextToImagePage() {
                   </>
                 )}
               </button>
-
             </div>
           </div>
         </div>
 
-        {/* Results Panel */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">生成结果</h2>
 
-            {loading && <LoadingSpinner text="AI正在为你生成图像..." />}
+            {(loading || authLoading) && (
+              <LoadingSpinner text={authLoading ? "加载登录状态..." : "AI正在为你生成图像..."} />
+            )}
 
-          {error && !loading && (
-            <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0">
-                  <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-semibold text-red-900 mb-2">生成失败</h3>
-                  <p className="text-red-700 text-sm mb-3 break-words">{error}</p>
-                  {errorDetails && (
-                    <div className="mt-3">
-                      <div className="text-xs font-medium text-red-700 mb-2">API 返回详情：</div>
-                      <div className="mt-2 p-3 bg-red-100 rounded text-red-900 overflow-x-auto max-h-64 overflow-y-auto">
-                        <pre className="text-xs whitespace-pre-wrap break-words">{JSON.stringify(errorDetails, null, 2)}</pre>
+            {error && !loading && !authLoading && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 mb-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0">
+                    <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-red-900 mb-2">生成失败</h3>
+                    <p className="text-red-700 text-sm mb-3 break-words">{error}</p>
+                    {errorDetails && (
+                      <div className="mt-3">
+                        <div className="text-xs font-medium text-red-700 mb-2">API 返回详情：</div>
+                        <div className="mt-2 p-3 bg-red-100 rounded text-red-900 overflow-x-auto max-h-64 overflow-y-auto">
+                          <pre className="text-xs whitespace-pre-wrap break-words">{JSON.stringify(errorDetails, null, 2)}</pre>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-            {!loading && !error && generatedImages.length === 0 && (
+            {!loading && !authLoading && !error && generatedImages.length === 0 && (
               <div className="flex items-center justify-center h-64 text-gray-400">
                 <div className="text-center">
                   <Sparkles className="w-16 h-16 mx-auto mb-4 opacity-50" />
@@ -313,7 +266,7 @@ export default function TextToImagePage() {
               </div>
             )}
 
-            {!loading && generatedImages.length > 0 && (
+            {!loading && !authLoading && generatedImages.length > 0 && (
               <ImageGrid images={generatedImages} />
             )}
           </div>

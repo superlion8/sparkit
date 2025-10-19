@@ -4,12 +4,11 @@ import { useState } from "react";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
-import LoginPrompt from "@/components/LoginPrompt";
 import { useAuth } from "@/hooks/useAuth";
 import { Palette } from "lucide-react";
 
 export default function BackgroundReplacePage() {
-  const { session, accessToken, loading: authLoading, signInWithGoogle } = useAuth();
+  const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [subjectImage, setSubjectImage] = useState<File[]>([]);
   const [backgroundPrompt, setBackgroundPrompt] = useState("");
   const [posePrompt, setPosePrompt] = useState("");
@@ -17,22 +16,6 @@ export default function BackgroundReplacePage() {
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
-
-  if (authLoading) {
-    return (
-      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50">
-        <LoadingSpinner text="加载登录状态..." />
-      </div>
-    );
-  }
-
-  if (!session || !accessToken) {
-    return (
-      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50 p-6">
-        <LoginPrompt onLogin={signInWithGoogle} />
-      </div>
-    );
-  }
 
   const handleGenerate = async () => {
     if (subjectImage.length === 0) {
@@ -45,27 +28,25 @@ export default function BackgroundReplacePage() {
       return;
     }
 
+    if (!isAuthenticated || !accessToken) {
+      setError("登录后才能生成新背景");
+      setErrorDetails(null);
+      promptLogin();
+      return;
+    }
+
     setLoading(true);
     setError("");
     setErrorDetails(null);
     setGeneratedImages([]);
 
     try {
-      if (!accessToken) {
-        setError("登录状态已失效，请重新登录");
-        setLoading(false);
-        return;
-      }
-
       const formData = new FormData();
-      
-      // Build comprehensive prompt
+
       let prompt = `Place the subject in the following background: ${backgroundPrompt}. `;
-      
       if (posePrompt.trim()) {
         prompt += `Adjust the pose: ${posePrompt}. `;
       }
-      
       prompt += "Maintain natural lighting and ensure the subject blends seamlessly with the new background. ";
       prompt += "Keep the subject's appearance consistent.";
 
@@ -83,27 +64,26 @@ export default function BackgroundReplacePage() {
       if (!response.ok) {
         let errorData: any;
         const contentType = response.headers.get("content-type");
-        
         try {
           if (contentType && contentType.includes("application/json")) {
             errorData = await response.json();
           } else {
             const errorText = await response.text();
-            errorData = { 
-              status: response.status, 
+            errorData = {
+              status: response.status,
               statusText: response.statusText,
               error: errorText,
-              contentType: contentType 
+              contentType,
             };
           }
         } catch (parseError) {
-          errorData = { 
-            status: response.status, 
+          errorData = {
+            status: response.status,
             statusText: response.statusText,
-            error: "无法解析错误响应" 
+            error: "无法解析错误响应",
           };
         }
-        
+
         setErrorDetails(errorData);
         throw new Error(errorData.error || errorData.statusText || "Generation failed");
       }
@@ -120,7 +100,6 @@ export default function BackgroundReplacePage() {
         setErrorDetails({ message: err.message, stack: err.stack });
       }
       setError(err.message || "生成失败，请重试");
-      console.error("Generation error:", err);
     } finally {
       setLoading(false);
     }
@@ -143,23 +122,25 @@ export default function BackgroundReplacePage() {
           AI换背景
         </h1>
         <p className="text-gray-600 mt-2">上传人物图片，描述想要的背景和姿势</p>
+        {!authLoading && !isAuthenticated && (
+          <div className="mt-4 rounded-lg border border-dashed border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
+            登录后才能生成新背景，点击“生成新背景”按钮会唤起登录提示。
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Control Panel */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sticky top-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">控制面板</h2>
 
             <div className="space-y-6">
-              {/* Subject Image Upload */}
               <ImageUpload
                 maxImages={1}
                 onImagesChange={setSubjectImage}
                 label="上传人物图片"
               />
 
-              {/* Preset Backgrounds */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   快速选择背景
@@ -177,7 +158,6 @@ export default function BackgroundReplacePage() {
                 </div>
               </div>
 
-              {/* Background Prompt */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   背景描述
@@ -191,7 +171,6 @@ export default function BackgroundReplacePage() {
                 />
               </div>
 
-              {/* Pose Prompt */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   姿势调整（可选）
@@ -205,10 +184,9 @@ export default function BackgroundReplacePage() {
                 />
               </div>
 
-              {/* Generate Button */}
               <button
                 onClick={handleGenerate}
-                disabled={loading || subjectImage.length === 0 || !backgroundPrompt.trim()}
+                disabled={loading || authLoading || subjectImage.length === 0 || !backgroundPrompt.trim()}
                 className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
                 {loading ? (
@@ -224,15 +202,16 @@ export default function BackgroundReplacePage() {
           </div>
         </div>
 
-        {/* Results Panel */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">生成结果</h2>
 
-            {loading && <LoadingSpinner text="AI正在生成新背景..." />}
+            {(loading || authLoading) && (
+              <LoadingSpinner text={authLoading ? "加载登录状态..." : "AI正在生成新背景..."} />
+            )}
 
-            {error && !loading && (
-              <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
+            {error && !loading && !authLoading && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 mb-4">
                 <div className="flex items-start gap-3">
                   <div className="flex-shrink-0">
                     <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -255,7 +234,7 @@ export default function BackgroundReplacePage() {
               </div>
             )}
 
-            {!loading && !error && generatedImages.length === 0 && (
+            {!loading && !authLoading && !error && generatedImages.length === 0 && (
               <div className="flex items-center justify-center h-64 text-gray-400">
                 <div className="text-center">
                   <Palette className="w-16 h-16 mx-auto mb-4 opacity-50" />
@@ -264,7 +243,7 @@ export default function BackgroundReplacePage() {
               </div>
             )}
 
-            {!loading && generatedImages.length > 0 && (
+            {!loading && !authLoading && generatedImages.length > 0 && (
               <ImageGrid images={generatedImages} />
             )}
           </div>

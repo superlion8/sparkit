@@ -1,13 +1,16 @@
 "use client";
 
-import { createContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { supabaseClient } from "@/lib/supabaseClient";
+import { supabaseClient, isSupabaseConfigured } from "@/lib/supabaseClient";
+import LoginDialog from "@/components/LoginDialog";
 
 interface AuthContextValue {
   session: Session | null;
   accessToken: string | null;
+  isAuthenticated: boolean;
   loading: boolean;
+  promptLogin: () => void;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -15,7 +18,10 @@ interface AuthContextValue {
 export const AuthContext = createContext<AuthContextValue>({
   session: null,
   accessToken: null,
+  isAuthenticated: false,
   loading: true,
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  promptLogin: () => {},
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   signInWithGoogle: async () => {},
   // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -29,9 +35,18 @@ interface AuthProviderProps {
 export default function AuthProvider({ children }: AuthProviderProps) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
+
+    if (!isSupabaseConfigured) {
+      setLoading(false);
+      return () => {
+        isMounted = false;
+      };
+    }
 
     const initSession = async () => {
       const { data, error } = await supabaseClient.auth.getSession();
@@ -53,6 +68,10 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       if (!isMounted) return;
       setSession(newSession);
       setLoading(false);
+      if (newSession) {
+        setLoginModalOpen(false);
+        setLoginLoading(false);
+      }
     });
 
     return () => {
@@ -61,35 +80,77 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     };
   }, []);
 
-  const value = useMemo<AuthContextValue>(() => {
-    const accessToken = session?.access_token ?? null;
+  const signInWithGoogle = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      console.error("Supabase 环境变量缺失，无法发起登录");
+      return;
+    }
 
-    return {
+    setLoginLoading(true);
+    try {
+      const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
+      const { error } = await supabaseClient.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+        },
+      });
+      if (error) {
+        console.error("Google 登录失败:", error.message);
+        setLoginLoading(false);
+        throw error;
+      }
+    } catch (err) {
+      setLoginLoading(false);
+      throw err;
+    }
+  }, []);
+
+  const signOut = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      setSession(null);
+      return;
+    }
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) {
+      console.error("退出登录失败:", error.message);
+      throw error;
+    }
+  }, []);
+
+  const promptLogin = useCallback(() => {
+    setLoginModalOpen(true);
+  }, []);
+
+  const accessToken = session?.access_token ?? null;
+  const isAuthenticated = Boolean(session && accessToken);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
       session,
       accessToken,
+      isAuthenticated,
       loading,
-      signInWithGoogle: async () => {
-        const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
-        const { error } = await supabaseClient.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo,
-          },
-        });
-        if (error) {
-          console.error("Google 登录失败:", error.message);
-          throw error;
-        }
-      },
-      signOut: async () => {
-        const { error } = await supabaseClient.auth.signOut();
-        if (error) {
-          console.error("退出登录失败:", error.message);
-          throw error;
-        }
-      },
-    };
-  }, [session, loading]);
+      promptLogin,
+      signInWithGoogle,
+      signOut,
+    }),
+    [session, accessToken, isAuthenticated, loading, promptLogin, signInWithGoogle, signOut]
+  );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <LoginDialog
+        open={loginModalOpen}
+        loading={loginLoading}
+        onLogin={signInWithGoogle}
+        onClose={() => {
+          if (!loginLoading) {
+            setLoginModalOpen(false);
+          }
+        }}
+      />
+    </AuthContext.Provider>
+  );
 }

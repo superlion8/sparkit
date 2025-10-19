@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
-import LoginPrompt from "@/components/LoginPrompt";
 import { useAuth } from "@/hooks/useAuth";
 import { Video, Play, Download, Sparkles } from "lucide-react";
 
@@ -53,7 +52,7 @@ const TAG_CATEGORIES = [
 ];
 
 export default function VideoGenerationPage() {
-  const { session, accessToken, loading: authLoading, signInWithGoogle } = useAuth();
+  const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [uploadedImage, setUploadedImage] = useState<File[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<VideoTemplate | null>(null);
   const [activeTag, setActiveTag] = useState(TAG_CATEGORIES[0].id);
@@ -65,12 +64,14 @@ export default function VideoGenerationPage() {
   const [error, setError] = useState("");
   const [userToken, setUserToken] = useState<string>("");
 
-  // 获取用户token
   useEffect(() => {
     const getUserToken = async () => {
-      if (!accessToken) return;
+      if (!isAuthenticated || !accessToken) {
+        setUserToken("");
+        return;
+      }
+
       try {
-        console.log("Attempting to get user token...");
         const response = await fetch("/api/auth/verify", {
           method: "POST",
           headers: {
@@ -79,61 +80,38 @@ export default function VideoGenerationPage() {
           },
         });
 
-        console.log(`Auth API response status: ${response.status}`);
-
         if (response.ok) {
           const data = await response.json();
           setUserToken(data.token);
-          console.log("User token obtained:", data.token);
         } else {
           const errorText = await response.text();
           console.error("Failed to get user token:", response.status, errorText);
           setError(`认证失败: HTTP ${response.status}`);
         }
-      } catch (error) {
-        console.error("Error getting user token:", error);
-        setError(`认证失败: ${error}`);
+      } catch (err) {
+        console.error("Error getting user token:", err);
+        setError(`认证失败: ${err}`);
       }
     };
 
     getUserToken();
-  }, [accessToken]);
+  }, [isAuthenticated, accessToken]);
 
-  // 获取模板列表
   useEffect(() => {
-    if (userToken && activeTag) {
-      fetchTemplates(activeTag);
+    if (!isAuthenticated || !accessToken || !userToken) {
+      return;
     }
-  }, [userToken, activeTag]);
+    fetchTemplates(activeTag);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTag, isAuthenticated, accessToken, userToken]);
 
-  if (authLoading) {
-    return (
-      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50">
-        <LoadingSpinner text="加载登录状态..." />
-      </div>
-    );
-  }
+  async function fetchTemplates(categoryId: string) {
+    if (!isAuthenticated || !accessToken || !userToken) {
+      return;
+    }
 
-  if (!session || !accessToken) {
-    return (
-      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50 p-6">
-        <LoginPrompt onLogin={signInWithGoogle} />
-      </div>
-    );
-  }
-
-  const fetchTemplates = async (categoryId: string) => {
     setLoadingTemplates(true);
     try {
-      if (!accessToken) {
-        setError("登录状态已失效，请重新登录");
-        setLoadingTemplates(false);
-        return;
-      }
-
-      console.log(`Fetching templates for category: ${categoryId}`);
-      console.log(`Using token: ${userToken}`);
-      
       const response = await fetch("/api/templates/list", {
         method: "POST",
         headers: {
@@ -144,42 +122,26 @@ export default function VideoGenerationPage() {
         body: JSON.stringify({ category_id: categoryId }),
       });
 
-      console.log(`Template API response status: ${response.status}`);
-
       if (response.ok) {
         const data: TemplateResponse = await response.json();
-        console.log("Template API response data:", data);
-        
         if (data.code === 0) {
-          console.log(`Raw templates count: ${data.data.entries.length}`);
-          console.log("Raw templates:", data.data.entries);
-          
-          // 过滤出符合条件的模板
-          const filteredTemplates = data.data.entries.filter(
-            template => {
-              console.log(`Template ${template.title}: video_type=${template.video_type}, template_level=${template.template_level}`);
-              return template.video_type === "image2video" && 
-                     [1, 2, 3].includes(template.template_level || 0);
-            }
-          );
-          console.log(`Filtered templates count: ${filteredTemplates.length}`);
+          const filteredTemplates = data.data.entries.filter((template) => {
+            return template.video_type === "image2video" && [1, 2, 3].includes(template.template_level || 0);
+          });
           setTemplates(filteredTemplates);
         } else {
-          console.error("API returned error:", data.msg);
           setError(`获取模板失败: ${data.msg}`);
         }
       } else {
         const errorText = await response.text();
-        console.error("HTTP error:", response.status, errorText);
-        setError(`获取模板失败: HTTP ${response.status}`);
+        setError(`获取模板失败: HTTP ${response.status} ${errorText}`);
       }
-    } catch (error) {
-      console.error("Error fetching templates:", error);
-      setError(`获取模板失败: ${error}`);
+    } catch (err) {
+      setError(`获取模板失败: ${err}`);
     } finally {
       setLoadingTemplates(false);
     }
-  };
+  }
 
   const handleGenerate = async () => {
     if (!uploadedImage.length) {
@@ -192,8 +154,9 @@ export default function VideoGenerationPage() {
       return;
     }
 
-    if (!accessToken) {
-      setError("登录状态已失效，请重新登录");
+    if (!isAuthenticated || !accessToken) {
+      setError("登录后才能生成视频");
+      promptLogin();
       return;
     }
 
@@ -208,19 +171,8 @@ export default function VideoGenerationPage() {
     setTaskId("");
 
     try {
-      console.log("=== Starting video generation process ===");
-      console.log("Selected template:", selectedTemplate);
-      console.log("User token:", userToken ? "present" : "missing");
-      
-      // 先上传图像到Aimovely获取resource_id
       const imageFormData = new FormData();
       imageFormData.append("file", uploadedImage[0]);
-      
-      console.log("Uploading image:", {
-        name: uploadedImage[0].name,
-        size: uploadedImage[0].size,
-        type: uploadedImage[0].type
-      });
 
       const uploadResponse = await fetch("/api/resource/upload", {
         method: "POST",
@@ -231,21 +183,14 @@ export default function VideoGenerationPage() {
         body: imageFormData,
       });
 
-      console.log("Upload response status:", uploadResponse.status);
-
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json();
-        console.error("Upload failed with error:", errorData);
         throw new Error(errorData.error || "图像上传失败");
       }
 
       const uploadData = await uploadResponse.json();
       const resourceId = uploadData.resource_id;
-      
-      console.log("Image uploaded successfully, resource_id:", resourceId);
-      console.log("Upload response data:", uploadData);
 
-      // 创建视频生成任务
       const generateResponse = await fetch("/api/video/generate", {
         method: "POST",
         headers: {
@@ -265,30 +210,27 @@ export default function VideoGenerationPage() {
 
       const generateData = await generateResponse.json();
       if (generateData.code === 0) {
-        const taskId = generateData.data.task.id;
-        setTaskId(taskId);
-        console.log("任务创建成功，开始轮询:", taskId);
-
-        // 开始轮询任务状态
-        await pollTaskStatus(taskId);
+        const newTaskId = generateData.data.task.id;
+        setTaskId(newTaskId);
+        await pollTaskStatus(newTaskId);
       } else {
         throw new Error(generateData.msg || "创建任务失败");
       }
-    } catch (error: any) {
-      setError(error.message);
+    } catch (err: any) {
+      setError(err.message);
       setLoading(false);
     }
   };
 
-  // 轮询任务状态
   const pollTaskStatus = async (taskId: string) => {
-    const maxAttempts = 60; // 5分钟，每5秒一次
+    const maxAttempts = 60;
     let attempts = 0;
 
     const poll = async () => {
       try {
-        if (!accessToken || !userToken) {
-          setError("登录状态已失效，请刷新页面重试");
+        if (!isAuthenticated || !accessToken || !userToken) {
+          setError("登录状态已失效，请重新登录");
+          promptLogin();
           setLoading(false);
           return;
         }
@@ -308,68 +250,47 @@ export default function VideoGenerationPage() {
         }
 
         const data = await response.json();
-        console.log(`轮询 ${attempts + 1}/${maxAttempts}:`, data);
 
         if (data.code === 0) {
           const taskStatus = data.data.task.status;
-          console.log(`Task status: ${taskStatus}`);
-          
-          if (taskStatus === 2) { // 成功状态
-            // 从响应数据中获取video_url
-            console.log("Full response data:", JSON.stringify(data, null, 2));
-            
+
+          if (taskStatus === 2) {
             let videoUrl = null;
-            
-            // 根据实际响应格式获取video_url
             if (data.data.results && Array.isArray(data.data.results) && data.data.results.length > 0) {
-              // 从 results 数组的第一个元素获取 video_url
               videoUrl = data.data.results[0].video_url;
-            } else if (data.data.results && data.data.results.video_url) {
-              // 兼容其他可能的格式
-              videoUrl = data.data.results.video_url;
-            } else if (Array.isArray(data.data) && data.data.length > 0 && data.data[0].video_url) {
-              videoUrl = data.data[0].video_url;
-            } else if (data.data.task && data.data.task.video_url) {
-              videoUrl = data.data.task.video_url;
             } else if (data.data.video_url) {
               videoUrl = data.data.video_url;
             }
-            
+
             if (videoUrl) {
               setGeneratedVideo(videoUrl);
-              console.log("✅ 视频生成完成！", videoUrl);
             } else {
-              console.error("Could not find video_url in response:", data);
               setError("生成完成但未找到视频URL");
             }
             setLoading(false);
             return;
-          } else if (taskStatus === 3) { // 失败状态
-            // 从task字段获取失败原因
+          }
+
+          if (taskStatus === 3) {
             const errorMsg = data.data.task.msg || "视频生成失败";
             setError(errorMsg);
-            console.error("视频生成失败:", errorMsg);
             setLoading(false);
             return;
           }
-          // 状态1表示进行中，继续轮询
-          console.log("任务进行中，继续等待...");
         } else {
           setError(`查询任务失败: ${data.msg}`);
           setLoading(false);
           return;
         }
 
-        // 继续轮询
         attempts++;
         if (attempts < maxAttempts) {
-          setTimeout(poll, 5000); // 5秒后再次轮询
+          setTimeout(poll, 5000);
         } else {
           setError("生成超时，请重试");
           setLoading(false);
         }
       } catch (err: any) {
-        console.error("轮询错误:", err);
         setError(`轮询失败: ${err.message}`);
         setLoading(false);
       }
@@ -381,21 +302,24 @@ export default function VideoGenerationPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* 页面标题 */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">视频生成</h1>
           <p className="text-gray-600">上传图像，选择模板，生成精彩视频</p>
+          {!authLoading && !isAuthenticated && (
+            <div className="mt-4 inline-block rounded-lg border border-dashed border-primary-200 bg-primary-50 px-4 py-2 text-sm text-primary-700">
+              登录后即可开始生成视频，点击“生成视频”按钮会提示登录。
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* 左侧：图像上传 */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Video className="w-5 h-5 text-primary-600" />
                 上传图像
               </h2>
-              
+
               <ImageUpload
                 onImagesChange={setUploadedImage}
                 maxImages={1}
@@ -404,7 +328,6 @@ export default function VideoGenerationPage() {
             </div>
           </div>
 
-          {/* 中间：模板选择 */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -412,7 +335,6 @@ export default function VideoGenerationPage() {
                 选择模板
               </h2>
 
-              {/* 标签导航 */}
               <div className="mb-6">
                 <div className="flex flex-wrap gap-2">
                   {TAG_CATEGORIES.map((tag) => (
@@ -431,23 +353,13 @@ export default function VideoGenerationPage() {
                 </div>
               </div>
 
-              {/* 调试信息 */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="mb-4 p-2 bg-gray-100 rounded text-xs">
-                  <div>User Token: {userToken ? '已获取' : '未获取'}</div>
-                  <div>Active Tag: {activeTag}</div>
-                  <div>Templates Count: {templates.length}</div>
+              {loadingTemplates ? (
+                <div className="flex justify-center py-8">
+                  <LoadingSpinner text="加载模板中..." />
                 </div>
-              )}
-
-              {/* 模板列表 */}
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {loadingTemplates ? (
-                  <div className="flex justify-center py-8">
-                    <LoadingSpinner text="加载模板中..." />
-                  </div>
-                ) : templates.length > 0 ? (
-                  templates.map((template) => (
+              ) : templates.length > 0 ? (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {templates.map((template) => (
                     <div
                       key={template.id}
                       className={`border rounded-lg p-3 cursor-pointer transition-all ${
@@ -485,17 +397,16 @@ export default function VideoGenerationPage() {
                         </div>
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    该分类下暂无模板
-                  </div>
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  {isAuthenticated ? "该分类下暂无模板" : "登录后即可加载模板列表"}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* 右侧：生成结果 */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
               <h2 className="text-lg font-semibold text-gray-900 mb-6">生成结果</h2>
@@ -503,17 +414,10 @@ export default function VideoGenerationPage() {
               {loading && (
                 <div className="space-y-4">
                   <LoadingSpinner text={taskId ? `正在生成视频... (任务ID: ${taskId})` : "正在创建任务..."} />
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-sm text-blue-800 text-center">
-                      ✨ 正在生成精彩视频<br />
-                      {taskId ? "任务已创建，正在生成中..." : "正在上传图像并创建任务..."}<br />
-                      预计需要 1-3 分钟，请耐心等待
-                    </p>
-                    {taskId && (
-                      <p className="text-xs text-blue-600 mt-2 text-center">
-                        任务ID: {taskId}
-                      </p>
-                    )}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 text-center">
+                    ✨ 正在生成精彩视频<br />
+                    {taskId ? "任务已创建，正在生成中..." : "正在上传图像并创建任务..."}<br />
+                    预计需要 1-3 分钟，请耐心等待
                   </div>
                 </div>
               )}
@@ -547,20 +451,14 @@ export default function VideoGenerationPage() {
               {!loading && generatedVideo && (
                 <div className="space-y-4">
                   {taskId && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                      <p className="text-sm text-green-800">
-                        <strong>任务ID：</strong>{taskId}
-                      </p>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+                      <strong>任务ID：</strong>{taskId}
                       <p className="text-xs text-green-600 mt-1">✓ 生成完成</p>
                     </div>
                   )}
-                  
+
                   <div className="relative bg-gray-100 rounded-lg overflow-hidden">
-                    <video
-                      src={generatedVideo}
-                      controls
-                      className="w-full h-auto"
-                    />
+                    <video src={generatedVideo} controls className="w-full h-auto" />
                   </div>
 
                   <div className="flex gap-3">
@@ -594,11 +492,13 @@ export default function VideoGenerationPage() {
           </div>
         </div>
 
-        {/* 生成按钮 */}
         <div className="mt-8 flex justify-center">
           <button
-            onClick={handleGenerate}
-            disabled={loading || !uploadedImage.length || !selectedTemplate}
+            onClick={isAuthenticated ? handleGenerate : () => {
+              setError("登录后才能生成视频");
+              promptLogin();
+            }}
+            disabled={loading || authLoading}
             className="bg-primary-600 text-white py-4 px-8 rounded-xl font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-3 text-lg"
           >
             {loading ? (

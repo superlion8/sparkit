@@ -4,7 +4,6 @@ import { useState } from "react";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
-import LoginPrompt from "@/components/LoginPrompt";
 import { useAuth } from "@/hooks/useAuth";
 import { ImagePlus } from "lucide-react";
 
@@ -12,7 +11,7 @@ type Model = "gemini" | "flux";
 type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
 
 export default function ImageToImagePage() {
-  const { session, accessToken, loading: authLoading, signInWithGoogle } = useAuth();
+  const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState<Model>("gemini");
   const [numImages, setNumImages] = useState(1);
@@ -22,22 +21,6 @@ export default function ImageToImagePage() {
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
-
-  if (authLoading) {
-    return (
-      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50">
-        <LoadingSpinner text="加载登录状态..." />
-      </div>
-    );
-  }
-
-  if (!session || !accessToken) {
-    return (
-      <div className="flex h-full min-h-screen items-center justify-center bg-gray-50 p-6">
-        <LoginPrompt onLogin={signInWithGoogle} />
-      </div>
-    );
-  }
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -50,45 +33,35 @@ export default function ImageToImagePage() {
       return;
     }
 
+    if (!isAuthenticated || !accessToken) {
+      setError("登录后才能使用图生图功能");
+      setErrorDetails(null);
+      promptLogin();
+      return;
+    }
+
     setLoading(true);
     setError("");
     setErrorDetails(null);
     setGeneratedImages([]);
 
     try {
-      if (!accessToken) {
-        setError("登录状态已失效，请重新登录");
-        setLoading(false);
-        return;
-      }
-
       const allImages: string[] = [];
 
-      // Generate multiple images if requested
       for (let i = 0; i < numImages; i++) {
         const formData = new FormData();
-        
         formData.append("prompt", prompt);
-        
-        // Add aspect ratio as API parameter (for Gemini)
+
         if (model === "gemini") {
           formData.append("aspectRatio", aspectRatio);
-        }
-
-        // Add images
-        if (model === "gemini") {
-          // Gemini supports multiple images
           uploadedImages.forEach((image) => {
             formData.append("images", image);
           });
         } else {
-          // Flux only supports one image
           formData.append("image", uploadedImages[0]);
         }
 
-        const endpoint = model === "gemini" 
-          ? "/api/generate/gemini"
-          : "/api/generate/flux";
+        const endpoint = model === "gemini" ? "/api/generate/gemini" : "/api/generate/flux";
 
         const response = await fetch(endpoint, {
           method: "POST",
@@ -101,27 +74,26 @@ export default function ImageToImagePage() {
         if (!response.ok) {
           let errorData: any;
           const contentType = response.headers.get("content-type");
-          
           try {
             if (contentType && contentType.includes("application/json")) {
               errorData = await response.json();
             } else {
               const errorText = await response.text();
-              errorData = { 
-                status: response.status, 
+              errorData = {
+                status: response.status,
                 statusText: response.statusText,
                 error: errorText,
-                contentType: contentType 
+                contentType,
               };
             }
           } catch (parseError) {
-            errorData = { 
-              status: response.status, 
+            errorData = {
+              status: response.status,
               statusText: response.statusText,
-              error: "无法解析错误响应" 
+              error: "无法解析错误响应",
             };
           }
-          
+
           setErrorDetails(errorData);
           throw new Error(errorData.error || errorData.statusText || "Generation failed");
         }
@@ -143,7 +115,6 @@ export default function ImageToImagePage() {
         setErrorDetails({ message: err.message, stack: err.stack });
       }
       setError(err.message || "生成失败，请重试");
-      console.error("Generation error:", err);
     } finally {
       setLoading(false);
     }
@@ -157,23 +128,25 @@ export default function ImageToImagePage() {
           图生图
         </h1>
         <p className="text-gray-600 mt-2">上传图片并输入描述，AI帮你编辑和变换</p>
+        {!authLoading && !isAuthenticated && (
+          <div className="mt-4 rounded-lg border border-dashed border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
+            未登录状态下可以浏览界面，点击“生成图像”时会提示登录。
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Control Panel */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sticky top-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">控制面板</h2>
 
             <div className="space-y-6">
-              {/* Image Upload */}
               <ImageUpload
                 maxImages={model === "gemini" ? 4 : 1}
                 onImagesChange={setUploadedImages}
                 label="上传图片"
               />
 
-              {/* Prompt Input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   编辑描述
@@ -187,7 +160,6 @@ export default function ImageToImagePage() {
                 />
               </div>
 
-              {/* Model Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   选择模型
@@ -221,7 +193,6 @@ export default function ImageToImagePage() {
                 )}
               </div>
 
-              {/* Number of Images */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   生成数量: {numImages}
@@ -240,7 +211,6 @@ export default function ImageToImagePage() {
                 </div>
               </div>
 
-              {/* Aspect Ratio */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   宽高比
@@ -258,68 +228,68 @@ export default function ImageToImagePage() {
                 </select>
               </div>
 
-              {/* Generate Button */}
               <button
                 onClick={handleGenerate}
-                disabled={loading || !prompt.trim() || uploadedImages.length === 0}
+                disabled={loading || authLoading || !prompt.trim() || uploadedImages.length === 0}
                 className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
-              {loading ? (
-                <>生成中...</>
-              ) : (
-                <>
-                  <ImagePlus className="w-5 h-5" />
-                  生成图像
-                </>
-              )}
-            </button>
+                {loading ? (
+                  <>生成中...</>
+                ) : (
+                  <>
+                    <ImagePlus className="w-5 h-5" />
+                    生成图像
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Results Panel */}
-      <div className="lg:col-span-1">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">生成结果</h2>
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
+            <h2 className="text-lg font-semibold text-gray-900 mb-6">生成结果</h2>
 
-          {loading && <LoadingSpinner text="AI正在为你编辑图像..." />}
+            {(loading || authLoading) && (
+              <LoadingSpinner text={authLoading ? "加载登录状态..." : "AI正在为你编辑图像..."} />
+            )}
 
-          {error && !loading && (
-            <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0">
-                  <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-semibold text-red-900 mb-2">生成失败</h3>
-                  <p className="text-red-700 text-sm mb-3 break-words">{error}</p>
-                  {errorDetails && (
-                    <div className="mt-3">
-                      <div className="text-xs font-medium text-red-700 mb-2">API 返回详情：</div>
-                      <div className="mt-2 p-3 bg-red-100 rounded text-red-900 overflow-x-auto max-h-64 overflow-y-auto">
-                        <pre className="text-xs whitespace-pre-wrap break-words">{JSON.stringify(errorDetails, null, 2)}</pre>
+            {error && !loading && !authLoading && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 mb-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0">
+                    <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-red-900 mb-2">生成失败</h3>
+                    <p className="text-red-700 text-sm mb-3 break-words">{error}</p>
+                    {errorDetails && (
+                      <div className="mt-3">
+                        <div className="text-xs font-medium text-red-700 mb-2">API 返回详情：</div>
+                        <div className="mt-2 p-3 bg-red-100 rounded text-red-900 overflow-x-auto max-h-64 overflow-y-auto">
+                          <pre className="text-xs whitespace-pre-wrap break-words">{JSON.stringify(errorDetails, null, 2)}</pre>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {!loading && !error && generatedImages.length === 0 && (
-            <div className="flex items-center justify-center h-64 text-gray-400">
-              <div className="text-center">
-                <ImagePlus className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p>上传图片并输入编辑描述，点击生成按钮开始创作</p>
+            {!loading && !authLoading && !error && generatedImages.length === 0 && (
+              <div className="flex items-center justify-center h-64 text-gray-400">
+                <div className="text-center">
+                  <ImagePlus className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p>上传图片并输入编辑描述，点击生成按钮开始创作</p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {!loading && generatedImages.length > 0 && (
-            <ImageGrid images={generatedImages} />
-          )}
+            {!loading && !authLoading && generatedImages.length > 0 && (
+              <ImageGrid images={generatedImages} />
+            )}
           </div>
         </div>
       </div>
