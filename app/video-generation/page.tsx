@@ -122,7 +122,7 @@ export default function VideoGenerationPage() {
     setLoadingTemplates(true);
     setError("");
     try {
-      const aggregated = new Map<string, VideoTemplate>();
+      const aggregated: VideoTemplate[] = [];
 
       for (const requestId of currentCategory.requestIds) {
         let index = 0;
@@ -159,13 +159,13 @@ export default function VideoGenerationPage() {
           console.log("[VideoGeneration] fetched templates", {
             requestId,
             fetched: entries.length,
-            aggregated: aggregated.size,
+            aggregated: aggregated.length,
             nextPageInfo: data.data.next_page_info,
           });
           for (const template of entries) {
             const level = Number(template.template_level ?? 0);
             if (template.video_type === "image2video" && [1, 2, 3].includes(level)) {
-              aggregated.set(template.id, template);
+              aggregated.push(template);
             }
           }
 
@@ -178,7 +178,7 @@ export default function VideoGenerationPage() {
         }
       }
 
-      setTemplates(Array.from(aggregated.values()));
+      setTemplates(aggregated);
     } catch (err: any) {
       console.error("加载模板失败:", err);
       setTemplates([]);
