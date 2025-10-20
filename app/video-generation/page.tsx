@@ -510,7 +510,7 @@ export default function VideoGenerationPage() {
 
             {loading && (
               <div className="space-y-4">
-                <LoadingSpinner text={taskId ? `正在生成视频... (任务ID: ${taskId})` : "正在创建任务..."} />
+                <LoadingSpinner text={taskId ? "正在生成视频..." : "正在创建任务..."} />
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 text-center">
                   ✨ 正在生成精彩视频<br />
                   {taskId ? "任务已创建，正在生成中..." : "正在上传图像并创建任务..."}<br />
