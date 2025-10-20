@@ -55,7 +55,7 @@ const TAG_CATEGORIES: TagCategory[] = [
 ];
 
 export default function VideoGenerationPage() {
-  const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
+  const { accessToken, isAuthenticated, loading: authLoading, promptLogin, userEmail, userName } = useAuth();
   const [uploadedImage, setUploadedImage] = useState<File[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<VideoTemplate | null>(null);
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string>("");
@@ -223,6 +223,8 @@ export default function VideoGenerationPage() {
     setGeneratedVideo("");
     setTaskId("");
 
+    const templateSnapshot = selectedTemplate;
+
     try {
       const imageFormData = new FormData();
       imageFormData.append("file", uploadedImage[0]);
@@ -243,6 +245,7 @@ export default function VideoGenerationPage() {
 
       const uploadData = await uploadResponse.json();
       const resourceId = uploadData.resource_id;
+      const inputImageUrl = typeof uploadData.url === "string" ? uploadData.url : null;
 
       const generateResponse = await fetch("/api/video/generate", {
         method: "POST",
@@ -265,7 +268,11 @@ export default function VideoGenerationPage() {
       if (generateData.code === 0) {
         const newTaskId = generateData.data.task.id;
         setTaskId(newTaskId);
-        await pollTaskStatus(newTaskId);
+        await pollTaskStatus(newTaskId, {
+          prompt: templateSnapshot?.title_en_name || templateSnapshot?.title || null,
+          inputImageUrl,
+          inputVideoUrl: null,
+        });
       } else {
         throw new Error(generateData.msg || "创建任务失败");
       }
@@ -275,7 +282,7 @@ export default function VideoGenerationPage() {
     }
   };
 
-  const pollTaskStatus = async (taskId: string) => {
+  const pollTaskStatus = async (taskId: string, metadata: { prompt?: string | null; inputImageUrl?: string | null; inputVideoUrl?: string | null }) => {
     const maxAttempts = 60;
     let attempts = 0;
 
@@ -317,6 +324,19 @@ export default function VideoGenerationPage() {
 
             if (videoUrl) {
               setGeneratedVideo(videoUrl);
+              try {
+                await logTaskRecord({
+                  taskId,
+                  taskType: "video_generation",
+                  prompt: metadata.prompt ?? null,
+                  inputImageUrl: metadata.inputImageUrl ?? null,
+                  inputVideoUrl: metadata.inputVideoUrl ?? null,
+                  outputImageUrl: null,
+                  outputVideoUrl: videoUrl,
+                });
+              } catch (logError) {
+                console.error("记录生成日志失败:", logError);
+              }
             } else {
               setError("生成完成但未找到视频URL");
             }
@@ -363,6 +383,36 @@ export default function VideoGenerationPage() {
   const isGenerateDisabled = loading || !uploadedImage.length || !selectedTemplate;
   const selectedTemplatePreview =
     selectedTemplate?.video_medium_url || selectedTemplate?.video_low_url || selectedTemplate?.video_url;
+
+
+  const logTaskRecord = async (payload: { taskId: string; taskType: string; prompt?: string | null; inputImageUrl?: string | null; inputVideoUrl?: string | null; outputImageUrl?: string | null; outputVideoUrl?: string | null; }) => {
+    if (!accessToken || !isAuthenticated) {
+      return;
+    }
+
+    try {
+      await fetch("/api/tasks/log", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          task_id: payload.taskId,
+          task_type: payload.taskType,
+          username: userName ?? undefined,
+          email: userEmail ?? undefined,
+          prompt: payload.prompt ?? null,
+          input_image_url: payload.inputImageUrl ?? null,
+          input_video_url: payload.inputVideoUrl ?? null,
+          output_image_url: payload.outputImageUrl ?? null,
+          output_video_url: payload.outputVideoUrl ?? null,
+        }),
+      });
+    } catch (error) {
+      console.error("记录任务失败:", error);
+    }
+  };
 
   const handleDownloadVideo = async () => {
     if (!generatedVideo || !accessToken) {
