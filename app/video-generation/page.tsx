@@ -326,7 +326,7 @@ export default function VideoGenerationPage() {
             if (videoUrl) {
               setGeneratedVideo(videoUrl);
               try {
-                await logTaskEvent({
+                await logTaskEvent(accessToken, {
                   taskId,
                   taskType: "video_generation",
                   prompt: metadata.prompt ?? null,
