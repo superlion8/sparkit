@@ -58,6 +58,7 @@ export default function VideoGenerationPage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [uploadedImage, setUploadedImage] = useState<File[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<VideoTemplate | null>(null);
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState<string>("");
   const [activeTag, setActiveTag] = useState(TAG_CATEGORIES[0].id);
   const [templates, setTemplates] = useState<VideoTemplate[]>([]);
   const [loading, setLoading] = useState(false);
@@ -67,6 +68,13 @@ export default function VideoGenerationPage() {
   const [error, setError] = useState("");
   const [userToken, setUserToken] = useState<string>("");
   const [isDownloading, setIsDownloading] = useState(false);
+
+  const scrollToGenerator = () => {
+    const target = document.getElementById("video-generation-result");
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
 
   useEffect(() => {
     const getUserToken = async () => {
@@ -404,7 +412,7 @@ export default function VideoGenerationPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col">
+          <div id="video-generation-result" className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Video className="w-5 h-5 text-primary-600" />
               上传图片
@@ -609,21 +617,27 @@ export default function VideoGenerationPage() {
             </div>
           ) : templates.length > 0 ? (
             <div className="mt-6 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-              {templates.map((template) => {
-                const isSelected = selectedTemplate?.id === template.id;
+              {templates.map((template, index) => {
+                const templateKey = `${template.id}-${template.video_url}`;
+                const isSelected = selectedTemplateKey === templateKey;
                 const preview = template.video_medium_url || template.video_low_url || template.video_url;
 
                 return (
                   <div
-                    key={template.id}
-                    className={`group flex flex-col rounded-2xl border transition-all cursor-pointer ${
+                    key={`${templateKey}-${index}`}
+                    className={`group relative flex flex-col rounded-2xl border transition-all duration-300 cursor-pointer ${
                       isSelected
-                        ? "border-primary-500 shadow-lg shadow-primary-200/50"
-                        : "border-gray-200 hover:border-primary-400 hover:shadow-md"
+                        ? "border-primary-500 shadow-xl shadow-primary-200/60 ring-2 ring-primary-200/80"
+                        : "border-gray-200 hover:border-primary-300 hover:shadow-lg"
                     }`}
-                    onClick={() => setSelectedTemplate(template)}
+                    onClick={() => {
+                      setSelectedTemplate(template);
+                      setSelectedTemplateKey(templateKey);
+                    }}
                   >
-                    <div className="relative aspect-[9/16] overflow-hidden rounded-t-2xl bg-black">
+                    <div className={`relative aspect-[9/16] overflow-hidden rounded-t-2xl bg-black transition-transform duration-300 ${
+                        isSelected ? "scale-[1.01]" : "group-hover:scale-[1.01]"
+                      }`}>
                       <video
                         src={preview}
                         className="h-full w-full object-cover"
@@ -643,7 +657,7 @@ export default function VideoGenerationPage() {
                         }}
                       />
                       {isSelected && (
-                        <span className="absolute left-3 top-3 rounded-full bg-primary-600/90 px-3 py-1 text-xs font-medium text-white">
+                        <span className="absolute left-3 top-3 rounded-full bg-primary-600 px-3 py-1 text-xs font-medium text-white shadow">
                           已选
                         </span>
                       )}
@@ -665,20 +679,30 @@ export default function VideoGenerationPage() {
                         </span>
                       )}
                       <div className="mt-auto">
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setSelectedTemplate(template);
-                          }}
-                          className={`w-full rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                            isSelected
-                              ? "bg-primary-600 text-white"
-                              : "bg-gray-100 text-gray-700 hover:bg-primary-50 hover:text-primary-600"
-                          }`}
-                        >
-                          {isSelected ? "已选择" : "选择"}
-                        </button>
+                        {isSelected ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              scrollToGenerator();
+                            }}
+                            className="w-full rounded-lg px-4 py-2 text-sm font-medium transition-colors bg-primary-600 text-white shadow hover:bg-primary-700"
+                          >
+                            生成视频
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedTemplate(template);
+                              setSelectedTemplateKey(templateKey);
+                            }}
+                            className="w-full rounded-lg px-4 py-2 text-sm font-medium transition-colors bg-gray-100 text-gray-700 hover:bg-primary-50 hover:text-primary-600"
+                          >
+                            选择模板
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
