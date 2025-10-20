@@ -399,9 +399,20 @@ export default function VideoGenerationPage() {
                           <video
                             src={template.video_low_url}
                             className="w-full h-full object-cover"
+                            preload="metadata"
                             muted
                             loop
                             playsInline
+                            autoPlay
+                            onMouseEnter={(event) => {
+                              event.currentTarget.play().catch(() => {
+                                /* ignore autoplay errors */
+                              });
+                            }}
+                            onMouseLeave={(event) => {
+                              event.currentTarget.pause();
+                              event.currentTarget.currentTime = 0;
+                            }}
                           />
                           <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
                             <Play className="w-4 h-4 text-white" />
