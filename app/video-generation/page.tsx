@@ -156,6 +156,12 @@ export default function VideoGenerationPage() {
           }
 
           const entries = data.data.entries || [];
+          console.log("[VideoGeneration] fetched templates", {
+            requestId,
+            fetched: entries.length,
+            aggregated: aggregated.size,
+            nextPageInfo: data.data.next_page_info,
+          });
           for (const template of entries) {
             const level = Number(template.template_level ?? 0);
             if (template.video_type === "image2video" && [1, 2, 3].includes(level)) {
