@@ -357,15 +357,21 @@ export default function VideoGenerationPage() {
     selectedTemplate?.video_medium_url || selectedTemplate?.video_low_url || selectedTemplate?.video_url;
 
   const handleDownloadVideo = async () => {
-    if (!generatedVideo) {
+    if (!generatedVideo || !accessToken) {
       return;
     }
 
     try {
       setIsDownloading(true);
-      const response = await fetch(generatedVideo);
+      const response = await fetch(`/api/video/download?target=${encodeURIComponent(generatedVideo)}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
       if (!response.ok) {
-        throw new Error(`下载失败: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(errorText || `下载失败: ${response.status}`);
       }
 
       const blob = await response.blob();
@@ -379,12 +385,7 @@ export default function VideoGenerationPage() {
       URL.revokeObjectURL(objectUrl);
     } catch (err) {
       console.error("下载视频失败:", err);
-      const fallbackLink = document.createElement("a");
-      fallbackLink.href = generatedVideo;
-      fallbackLink.download = `generated-video-${Date.now()}.mp4`;
-      document.body.appendChild(fallbackLink);
-      fallbackLink.click();
-      document.body.removeChild(fallbackLink);
+      setError("视频下载失败，请稍后重试");
     } finally {
       setIsDownloading(false);
     }
