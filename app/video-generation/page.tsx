@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
 import { useAuth } from "@/hooks/useAuth";
-import { Video, Download, Sparkles, Maximize2, X } from "lucide-react";
+import { Video, Download, Sparkles } from "lucide-react";
 
 interface VideoTemplate {
   id: string;
@@ -40,15 +40,18 @@ interface TemplateResponse {
   };
 }
 
-const TAG_CATEGORIES = [
-  { id: "tag_category_animal", name: "动物", icon: "🐾" },
-  { id: "tag_category_business", name: "商务", icon: "💼" },
-  { id: "tag_category_anime", name: "动漫", icon: "🎌" },
-  { id: "tag_category_beauty", name: "美妆", icon: "💄" },
-  { id: "tag_category_horror", name: "恐怖", icon: "👻" },
-  { id: "tag_category_comedy", name: "喜剧", icon: "😂" },
-  { id: "tag_category_dance", name: "舞蹈", icon: "💃" },
-  { id: "tag_category_emotions", name: "情感", icon: "💕" },
+interface TagCategory {
+  id: string;
+  label: string;
+  requestIds: string[];
+}
+
+const TAG_CATEGORIES: TagCategory[] = [
+  { id: "business", label: "电商展示", requestIds: ["tag_category_business"] },
+  { id: "social", label: "社媒感", requestIds: ["tag_category_beauty"] },
+  { id: "motion", label: "性感动作", requestIds: ["tag_category_dance"] },
+  { id: "expression", label: "表情展示", requestIds: ["tag_category_emotions"] },
+  { id: "fun", label: "娱乐模板", requestIds: ["tag_category_anime", "tag_category_comedy", "tag_category_horror"] },
 ];
 
 export default function VideoGenerationPage() {
@@ -63,7 +66,7 @@ export default function VideoGenerationPage() {
   const [taskId, setTaskId] = useState<string>("");
   const [error, setError] = useState("");
   const [userToken, setUserToken] = useState<string>("");
-  const [previewTemplate, setPreviewTemplate] = useState<VideoTemplate | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     const getUserToken = async () => {
@@ -111,59 +114,69 @@ export default function VideoGenerationPage() {
       return;
     }
 
+    const currentCategory = TAG_CATEGORIES.find((category) => category.id === categoryId);
+    if (!currentCategory) {
+      return;
+    }
+
     setLoadingTemplates(true);
+    setError("");
     try {
-      const aggregated: VideoTemplate[] = [];
-      let index = 0;
-      let pageInfo = "";
-      const pageSize = 60;
+      const aggregated = new Map<string, VideoTemplate>();
 
-      while (true) {
-        const response = await fetch("/api/templates/list", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-            "X-Aimovely-Token": userToken,
-          },
-          body: JSON.stringify({
-            category_id: categoryId,
-            index,
-            size: pageSize,
-            page_info: pageInfo,
-          }),
-        });
+      for (const requestId of currentCategory.requestIds) {
+        let index = 0;
+        let pageInfo = "";
+        const pageSize = 60;
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          setError(`获取模版失败: HTTP ${response.status} ${errorText}`);
-          break;
+        while (true) {
+          const response = await fetch("/api/templates/list", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+              "X-Aimovely-Token": userToken,
+            },
+            body: JSON.stringify({
+              category_id: requestId,
+              index,
+              size: pageSize,
+              page_info: pageInfo,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status} ${errorText}`);
+          }
+
+          const data: TemplateResponse = await response.json();
+          if (data.code !== 0) {
+            throw new Error(data.msg);
+          }
+
+          const entries = data.data.entries || [];
+          for (const template of entries) {
+            const level = Number(template.template_level ?? 0);
+            if (template.video_type === "image2video" && [1, 2, 3].includes(level)) {
+              aggregated.set(template.id, template);
+            }
+          }
+
+          if (!data.data.next_page_info || entries.length === 0) {
+            break;
+          }
+
+          pageInfo = data.data.next_page_info;
+          index = data.data.next_index;
         }
-
-        const data: TemplateResponse = await response.json();
-        if (data.code !== 0) {
-          setError(`获取模版失败: ${data.msg}`);
-          break;
-        }
-
-        const entries = data.data.entries || [];
-        const filtered = entries.filter((template) => {
-          const level = Number(template.template_level ?? 0);
-          return template.video_type === "image2video" && [1, 2, 3].includes(level);
-        });
-        aggregated.push(...filtered);
-
-        if (!data.data.next_page_info || entries.length === 0) {
-          break;
-        }
-
-        pageInfo = data.data.next_page_info;
-        index = data.data.next_index;
       }
 
-      setTemplates(aggregated);
-    } catch (err) {
-      setError(`获取模版失败: ${err}`);
+      setTemplates(Array.from(aggregated.values()));
+    } catch (err: any) {
+      console.error("加载模板失败:", err);
+      setTemplates([]);
+      setError(`获取模板失败: ${err?.message ?? err}`);
     } finally {
       setLoadingTemplates(false);
     }
@@ -176,7 +189,7 @@ export default function VideoGenerationPage() {
     }
 
     if (!selectedTemplate) {
-      setError("请选择一个视频模版");
+      setError("请选择一个视频模板");
       return;
     }
 
@@ -328,7 +341,7 @@ export default function VideoGenerationPage() {
   const generateHint = !uploadedImage.length
     ? "请先上传一张图片"
     : !selectedTemplate
-      ? "请选择一个模版"
+      ? "请选择一个模板"
       : !isAuthenticated
         ? "登录后即可提交生成任务"
         : "准备就绪，点击按钮开始生成";
@@ -337,12 +350,46 @@ export default function VideoGenerationPage() {
   const selectedTemplatePreview =
     selectedTemplate?.video_medium_url || selectedTemplate?.video_low_url || selectedTemplate?.video_url;
 
+  const handleDownloadVideo = async () => {
+    if (!generatedVideo) {
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+      const response = await fetch(generatedVideo);
+      if (!response.ok) {
+        throw new Error(`下载失败: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `generated-video-${Date.now()}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      console.error("下载视频失败:", err);
+      const fallbackLink = document.createElement("a");
+      fallbackLink.href = generatedVideo;
+      fallbackLink.download = `generated-video-${Date.now()}.mp4`;
+      document.body.appendChild(fallbackLink);
+      fallbackLink.click();
+      document.body.removeChild(fallbackLink);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">视频生成</h1>
-          <p className="text-gray-600">上传图像，选择模版，生成精彩视频</p>
+          <p className="text-gray-600">上传图像，选择模板，生成精彩视频</p>
           {!authLoading && !isAuthenticated && (
             <div className="mt-4 inline-block rounded-lg border border-dashed border-primary-200 bg-primary-50 px-4 py-2 text-sm text-primary-700">
               登录后即可开始生成视频，点击“开始生成”按钮会提示登录。
@@ -368,7 +415,7 @@ export default function VideoGenerationPage() {
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">已选模版</h2>
+              <h2 className="text-lg font-semibold text-gray-900">已选模板</h2>
               {selectedTemplate ? (
                 <span className="inline-flex items-center rounded-full bg-primary-100 px-3 py-1 text-xs font-medium text-primary-700">
                   已选择
@@ -390,13 +437,6 @@ export default function VideoGenerationPage() {
                     playsInline
                     autoPlay
                   />
-                  <button
-                    type="button"
-                    onClick={() => setPreviewTemplate(selectedTemplate)}
-                    className="absolute right-3 top-3 rounded-full bg-white/90 p-2 text-gray-700 shadow transition hover:bg-white"
-                  >
-                    <Maximize2 className="h-4 w-4" />
-                  </button>
                 </div>
                 <div className="space-y-1">
                   <p className="text-base font-semibold text-gray-900">
@@ -408,7 +448,7 @@ export default function VideoGenerationPage() {
                       分辨率 {selectedTemplate.video_width}×{selectedTemplate.video_height}
                     </span>
                     {selectedTemplate.template_level && (
-                      <span>模版等级 {selectedTemplate.template_level}</span>
+                      <span>模板等级 {selectedTemplate.template_level}</span>
                     )}
                   </div>
                   {selectedTemplate.free_trial && (
@@ -421,9 +461,9 @@ export default function VideoGenerationPage() {
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 text-center">
                 <Sparkles className="h-10 w-10 text-primary-400 mb-2" />
-                <p className="font-medium text-gray-700">暂未选择模版</p>
+                <p className="font-medium text-gray-700">暂未选择模板</p>
                 <p className="text-sm text-gray-500 mt-1">
-                  在下方模版浏览区域点击“选择模版”按钮，选中的模版会展示在这里。
+                  在下方模板浏览区域点击“选择”按钮，选中的模板会展示在这里。
                 </p>
               </div>
             )}
@@ -458,7 +498,7 @@ export default function VideoGenerationPage() {
             <div className="mb-4">
               <h2 className="text-lg font-semibold text-gray-900">生成结果</h2>
               <p className="text-sm text-gray-500 mt-1">
-                上传图片并选择模版后，点击“开始生成”，结果会在此展示。
+                上传图片并选择模板后，点击“开始生成”，结果会在此展示。
               </p>
             </div>
 
@@ -494,36 +534,25 @@ export default function VideoGenerationPage() {
                 <div className="text-center px-4 py-10">
                   <Video className="w-16 h-16 mx-auto mb-4 opacity-40" />
                   <p>生成完成后将在此展示结果视频</p>
-                  <p className="text-sm mt-2 text-primary-600">✨ 支持多种风格模版</p>
+                  <p className="text-sm mt-2 text-primary-600">✨ 支持多种风格模板</p>
                 </div>
               </div>
             )}
 
             {!loading && generatedVideo && (
               <div className="space-y-4">
-                {taskId && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
-                    <strong>任务ID：</strong>{taskId}
-                    <p className="text-xs text-green-600 mt-1">✓ 生成完成</p>
-                  </div>
-                )}
-
                 <div className="relative bg-gray-100 rounded-lg overflow-hidden">
                   <video src={generatedVideo} controls className="w-full h-auto" />
                 </div>
 
                 <div className="flex gap-3">
                   <button
-                    onClick={() => {
-                      const link = document.createElement("a");
-                      link.href = generatedVideo;
-                      link.download = `generated-video-${Date.now()}.mp4`;
-                      link.click();
-                    }}
-                    className="flex-1 bg-primary-600 text-white py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
+                    onClick={handleDownloadVideo}
+                    disabled={isDownloading}
+                    className="flex-1 bg-primary-600 text-white py-2 px-4 rounded-lg hover:bg-primary-700 disabled:bg-primary-300 disabled:cursor-wait transition-colors flex items-center justify-center gap-2"
                   >
                     <Download className="w-4 h-4" />
-                    下载视频
+                    {isDownloading ? "下载中..." : "下载视频"}
                   </button>
                   <button
                     onClick={() => {
@@ -547,9 +576,9 @@ export default function VideoGenerationPage() {
             <div>
               <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-primary-600" />
-                模版浏览
+                模板浏览
               </h2>
-              <p className="text-sm text-gray-500 mt-1">浏览模版并点击选择，支持点击预览查看大图效果。</p>
+              <p className="text-sm text-gray-500 mt-1">浏览模板并点击选择，快速调整生成风格。</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {TAG_CATEGORIES.map((tag) => (
@@ -562,7 +591,7 @@ export default function VideoGenerationPage() {
                       : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
-                  {tag.icon} {tag.name}
+                  {tag.label}
                 </button>
               ))}
             </div>
@@ -570,7 +599,7 @@ export default function VideoGenerationPage() {
 
           {loadingTemplates ? (
             <div className="flex justify-center py-12">
-              <LoadingSpinner text="加载模版中..." />
+              <LoadingSpinner text="加载模板中..." />
             </div>
           ) : templates.length > 0 ? (
             <div className="mt-6 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
@@ -607,16 +636,6 @@ export default function VideoGenerationPage() {
                           event.currentTarget.currentTime = 0;
                         }}
                       />
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setPreviewTemplate(template);
-                        }}
-                        className="absolute right-3 top-3 rounded-full bg-white/90 p-2 text-gray-700 shadow transition hover:bg-white"
-                      >
-                        <Maximize2 className="h-4 w-4" />
-                      </button>
                       {isSelected && (
                         <span className="absolute left-3 top-3 rounded-full bg-primary-600/90 px-3 py-1 text-xs font-medium text-white">
                           已选
@@ -652,7 +671,7 @@ export default function VideoGenerationPage() {
                               : "bg-gray-100 text-gray-700 hover:bg-primary-50 hover:text-primary-600"
                           }`}
                         >
-                          {isSelected ? "已选择" : "选择模版"}
+                          {isSelected ? "已选择" : "选择"}
                         </button>
                       </div>
                     </div>
@@ -662,41 +681,11 @@ export default function VideoGenerationPage() {
             </div>
           ) : (
             <div className="py-12 text-center text-gray-500">
-              {isAuthenticated ? "该分类下暂无模版" : "登录后即可加载模版列表"}
+              {isAuthenticated ? "该分类下暂无模板" : "登录后即可加载模板列表"}
             </div>
           )}
         </section>
       </div>
-
-      {previewTemplate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="relative w-full max-w-3xl">
-            <button
-              type="button"
-              onClick={() => setPreviewTemplate(null)}
-              className="absolute right-4 top-4 z-10 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <div className="overflow-hidden rounded-2xl bg-black">
-              <video
-                src={previewTemplate.video_url || previewTemplate.video_medium_url || previewTemplate.video_low_url}
-                controls
-                autoPlay
-                className="w-full h-full object-contain"
-              />
-            </div>
-            <div className="mt-4 text-white">
-              <h3 className="text-lg font-semibold">
-                {previewTemplate.title_en_name || previewTemplate.title}
-              </h3>
-              <p className="text-sm text-white/70 mt-1">
-                {previewTemplate.thirdparty} • {previewTemplate.video_width}×{previewTemplate.video_height}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

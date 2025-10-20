@@ -24,10 +24,10 @@ export default function RootLayout({
           <div className="flex h-screen overflow-hidden bg-gray-50">
             <Sidebar />
             <main className="flex-1 flex flex-col">
-              <header className="flex items-center justify-between border-b border-gray-200 bg-white/80 backdrop-blur px-6 py-4">
+              <header className="flex items-center justify-between border-b border-gray-200 bg-white/75 backdrop-blur px-6 py-3">
                 <div>
-                  <span className="text-sm text-gray-400">欢迎使用</span>
-                  <h1 className="text-lg font-semibold text-gray-900">Creator AI Toolkit</h1>
+                  <span className="text-xs text-gray-400">欢迎使用</span>
+                  <h1 className="text-base font-semibold text-gray-900">Creator AI Toolkit</h1>
                 </div>
                 <AuthBadge />
               </header>
