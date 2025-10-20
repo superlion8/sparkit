@@ -101,41 +101,66 @@ export default function VideoGenerationPage() {
     if (!isAuthenticated || !accessToken || !userToken) {
       return;
     }
-    fetchTemplates(activeTag);
+    loadAllTemplates(activeTag);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTag, isAuthenticated, accessToken, userToken]);
 
-  async function fetchTemplates(categoryId: string) {
+  async function loadAllTemplates(categoryId: string) {
     if (!isAuthenticated || !accessToken || !userToken) {
       return;
     }
 
     setLoadingTemplates(true);
     try {
-      const response = await fetch("/api/templates/list", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-          "X-Aimovely-Token": userToken,
-        },
-        body: JSON.stringify({ category_id: categoryId }),
-      });
+      const aggregated: VideoTemplate[] = [];
+      let index = 0;
+      let pageInfo = "";
+      const pageSize = 50;
 
-      if (response.ok) {
-        const data: TemplateResponse = await response.json();
-        if (data.code === 0) {
-          const filteredTemplates = data.data.entries.filter((template) => {
-            return template.video_type === "image2video" && [1, 2, 3].includes(template.template_level || 0);
-          });
-          setTemplates(filteredTemplates);
-        } else {
-          setError(`获取模板失败: ${data.msg}`);
+      while (true) {
+        const response = await fetch("/api/templates/list", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            "X-Aimovely-Token": userToken,
+          },
+          body: JSON.stringify({
+            category_id: categoryId,
+            index,
+            size: pageSize,
+            page_info: pageInfo,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          setError(`获取模板失败: HTTP ${response.status} ${errorText}`);
+          break;
         }
-      } else {
-        const errorText = await response.text();
-        setError(`获取模板失败: HTTP ${response.status} ${errorText}`);
+
+        const data: TemplateResponse = await response.json();
+        if (data.code !== 0) {
+          setError(`获取模板失败: ${data.msg}`);
+          break;
+        }
+
+        const entries = data.data.entries || [];
+        const filtered = entries.filter((template) => {
+          const level = Number(template.template_level ?? 0);
+          return template.video_type === "image2video" && [1, 2, 3].includes(level);
+        });
+        aggregated.push(...filtered);
+
+        if (!data.data.next_page_info || entries.length === 0) {
+          break;
+        }
+
+        pageInfo = data.data.next_page_info;
+        index = data.data.next_index;
       }
+
+      setTemplates(aggregated);
     } catch (err) {
       setError(`获取模板失败: ${err}`);
     } finally {

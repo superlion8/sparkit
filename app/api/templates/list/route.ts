@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { category_id } = await request.json();
+    const { category_id, index = 0, size = 20, page_info = "" } = await request.json();
     const aimovelyToken = request.headers.get("X-Aimovely-Token");
 
     if (!category_id) {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`Fetching templates for category: ${category_id}`);
+    console.log(`Fetching templates for category: ${category_id} index=${index} size=${size}`);
 
     const response = await fetch(`${AIMOVELY_API_URL}/v1/feeds/template/list`, {
       method: "POST",
@@ -37,6 +37,9 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         category_id: category_id,
+        index,
+        size,
+        page_info,
       }),
     });
 
