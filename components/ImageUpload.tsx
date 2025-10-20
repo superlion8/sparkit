@@ -2,22 +2,24 @@
 
 import { Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
-import Image from "next/image";
 
 interface ImageUploadProps {
   maxImages?: number;
   onImagesChange: (images: File[]) => void;
   label?: string;
+  previewAspect?: string;
 }
 
 export default function ImageUpload({ 
   maxImages = 1, 
   onImagesChange,
-  label = "上传图片"
+  label = "上传图片",
+  previewAspect = "aspect-square"
 }: ImageUploadProps) {
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -125,25 +127,39 @@ export default function ImageUpload({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {previews.map((preview, index) => (
-          <div key={index} className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
+          <button
+            key={index}
+            type="button"
+            onClick={() => setLightboxIndex(index)}
+            className={`group relative ${previewAspect} bg-gray-100 rounded-lg overflow-hidden cursor-zoom-in`}
+          >
             <img
               src={preview}
               alt={`Upload ${index + 1}`}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
+              <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                点击查看大图
+              </span>
+            </div>
             <button
-              onClick={() => removeImage(index)}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                removeImage(index);
+              }}
               className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 transition-colors shadow-lg"
             >
               <X className="w-5 h-5" />
             </button>
-          </div>
+          </button>
         ))}
 
         {images.length < maxImages && (
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="aspect-square border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-all flex flex-col items-center justify-center gap-3 text-gray-500 hover:text-primary-600 min-h-[200px]"
+            className={`${previewAspect} border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-all flex flex-col items-center justify-center gap-3 text-gray-500 hover:text-primary-600 min-h-[200px]`}
           >
             <Upload className="w-12 h-12" />
             <div className="text-center">
@@ -162,7 +178,20 @@ export default function ImageUpload({
         onChange={handleFileChange}
         className="hidden"
       />
+
+      {lightboxIndex !== null && previews[lightboxIndex] && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightboxIndex(null)}
+        >
+          <img
+            src={previews[lightboxIndex]}
+            alt="图片预览"
+            className="max-h-full max-w-full object-contain rounded-xl shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
-

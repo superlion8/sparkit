@@ -417,6 +417,7 @@ export default function VideoGenerationPage() {
               onImagesChange={setUploadedImage}
               maxImages={1}
               label="选择一张图片"
+              previewAspect="aspect-[3/4] md:aspect-[9/16]"
             />
           </div>
 
