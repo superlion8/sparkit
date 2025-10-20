@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
 import { useAuth } from "@/hooks/useAuth";
-import { Video, Play, Download, Sparkles, Maximize2, X } from "lucide-react";
+import { Video, Download, Sparkles, Maximize2, X } from "lucide-react";
 
 interface VideoTemplate {
   id: string;
@@ -136,13 +136,13 @@ export default function VideoGenerationPage() {
 
         if (!response.ok) {
           const errorText = await response.text();
-          setError(`获取模板失败: HTTP ${response.status} ${errorText}`);
+          setError(`获取模版失败: HTTP ${response.status} ${errorText}`);
           break;
         }
 
         const data: TemplateResponse = await response.json();
         if (data.code !== 0) {
-          setError(`获取模板失败: ${data.msg}`);
+          setError(`获取模版失败: ${data.msg}`);
           break;
         }
 
@@ -163,7 +163,7 @@ export default function VideoGenerationPage() {
 
       setTemplates(aggregated);
     } catch (err) {
-      setError(`获取模板失败: ${err}`);
+      setError(`获取模版失败: ${err}`);
     } finally {
       setLoadingTemplates(false);
     }
@@ -176,7 +176,7 @@ export default function VideoGenerationPage() {
     }
 
     if (!selectedTemplate) {
-      setError("请选择一个视频模板");
+      setError("请选择一个视频模版");
       return;
     }
 
@@ -325,39 +325,141 @@ export default function VideoGenerationPage() {
     poll();
   };
 
+  const generateHint = !uploadedImage.length
+    ? "请先上传一张图片"
+    : !selectedTemplate
+      ? "请选择一个模版"
+      : !isAuthenticated
+        ? "登录后即可提交生成任务"
+        : "准备就绪，点击按钮开始生成";
+
+  const isGenerateDisabled = loading || !uploadedImage.length || !selectedTemplate;
+  const selectedTemplatePreview =
+    selectedTemplate?.video_medium_url || selectedTemplate?.video_low_url || selectedTemplate?.video_url;
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">视频生成</h1>
-          <p className="text-gray-600">上传图像，选择模板，生成精彩视频</p>
+          <p className="text-gray-600">上传图像，选择模版，生成精彩视频</p>
           {!authLoading && !isAuthenticated && (
             <div className="mt-4 inline-block rounded-lg border border-dashed border-primary-200 bg-primary-50 px-4 py-2 text-sm text-primary-700">
-              登录后即可开始生成视频，点击“生成视频”按钮会提示登录。
+              登录后即可开始生成视频，点击“开始生成”按钮会提示登录。
             </div>
           )}
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.8fr)]">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Video className="w-5 h-5 text-primary-600" />
-              上传图像
+              上传图片
             </h2>
-
+            <p className="text-sm text-gray-500 mb-4">
+              支持 JPG、PNG、WebP，建议 16:9 或 9:16 的高质量图片以获得更好效果。
+            </p>
             <ImageUpload
               onImagesChange={setUploadedImage}
               maxImages={1}
-              label="上传图像"
+              label="选择一张图片"
             />
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">生成结果</h2>
-                <p className="text-sm text-gray-500 mt-1">上传图像并选择模板，点击生成按钮开始创作</p>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">已选模版</h2>
+              {selectedTemplate ? (
+                <span className="inline-flex items-center rounded-full bg-primary-100 px-3 py-1 text-xs font-medium text-primary-700">
+                  已选择
+                </span>
+              ) : (
+                <span className="text-xs text-gray-400">尚未选择</span>
+              )}
+            </div>
+
+            {selectedTemplate ? (
+              <div className="space-y-4">
+                <div className="relative aspect-[9/16] overflow-hidden rounded-xl bg-gray-100">
+                  <video
+                    src={selectedTemplatePreview}
+                    className="h-full w-full object-cover"
+                    preload="metadata"
+                    muted
+                    loop
+                    playsInline
+                    autoPlay
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTemplate(selectedTemplate)}
+                    className="absolute right-3 top-3 rounded-full bg-white/90 p-2 text-gray-700 shadow transition hover:bg-white"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-base font-semibold text-gray-900">
+                    {selectedTemplate.title_en_name || selectedTemplate.title}
+                  </p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                    {selectedTemplate.thirdparty && <span>{selectedTemplate.thirdparty}</span>}
+                    <span>
+                      分辨率 {selectedTemplate.video_width}×{selectedTemplate.video_height}
+                    </span>
+                    {selectedTemplate.template_level && (
+                      <span>模版等级 {selectedTemplate.template_level}</span>
+                    )}
+                  </div>
+                  {selectedTemplate.free_trial && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
+                      免费试用
+                    </span>
+                  )}
+                </div>
               </div>
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 text-center">
+                <Sparkles className="h-10 w-10 text-primary-400 mb-2" />
+                <p className="font-medium text-gray-700">暂未选择模版</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  在下方模版浏览区域点击“选择模版”按钮，选中的模版会展示在这里。
+                </p>
+              </div>
+            )}
+
+            <div className="mt-auto space-y-3 pt-6">
+              <button
+                onClick={handleGenerate}
+                disabled={isGenerateDisabled || loading}
+                className={`w-full rounded-lg py-3 font-medium transition-colors flex items-center justify-center gap-2 ${
+                  isGenerateDisabled || loading
+                    ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                    : "bg-primary-600 text-white hover:bg-primary-700"
+                }`}
+              >
+                {loading ? (
+                  <>
+                    <Sparkles className="h-5 w-5 animate-spin" />
+                    生成中...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-5 w-5" />
+                    开始生成
+                  </>
+                )}
+              </button>
+              <p className="text-xs text-gray-500 text-center">{generateHint}</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col min-h-[420px]">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">生成结果</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                上传图片并选择模版后，点击“开始生成”，结果会在此展示。
+              </p>
             </div>
 
             {loading && (
@@ -388,11 +490,11 @@ export default function VideoGenerationPage() {
             )}
 
             {!loading && !error && !generatedVideo && (
-              <div className="flex items-center justify-center h-64 text-gray-400">
-                <div className="text-center">
-                  <Video className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>上传图像并选择模板，点击生成按钮开始创作</p>
-                  <p className="text-sm mt-2 text-primary-600">✨ 支持多种风格模板</p>
+              <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-gray-400">
+                <div className="text-center px-4 py-10">
+                  <Video className="w-16 h-16 mx-auto mb-4 opacity-40" />
+                  <p>生成完成后将在此展示结果视频</p>
+                  <p className="text-sm mt-2 text-primary-600">✨ 支持多种风格模版</p>
                 </div>
               </div>
             )}
@@ -445,9 +547,9 @@ export default function VideoGenerationPage() {
             <div>
               <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-primary-600" />
-                选择模板
+                模版浏览
               </h2>
-              <p className="text-sm text-gray-500 mt-1">浏览模板并点击选择，支持点击预览查看大图效果</p>
+              <p className="text-sm text-gray-500 mt-1">浏览模版并点击选择，支持点击预览查看大图效果。</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {TAG_CATEGORIES.map((tag) => (
@@ -468,100 +570,101 @@ export default function VideoGenerationPage() {
 
           {loadingTemplates ? (
             <div className="flex justify-center py-12">
-              <LoadingSpinner text="加载模板中..." />
+              <LoadingSpinner text="加载模版中..." />
             </div>
           ) : templates.length > 0 ? (
             <div className="mt-6 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-              {templates.map((template) => (
-                <div
-                  key={template.id}
-                  className={`group rounded-2xl border transition-all cursor-pointer ${
-                    selectedTemplate?.id === template.id
-                      ? "border-primary-500 shadow-lg shadow-primary-200/50"
-                      : "border-gray-200 hover:border-primary-400 hover:shadow-md"
-                  }`}
-                  onClick={() => setSelectedTemplate(template)}
-                >
-                  <div className="relative aspect-[9/16] overflow-hidden rounded-t-2xl bg-black">
-                    <video
-                      src={template.video_medium_url || template.video_low_url}
-                      className="h-full w-full object-cover"
-                      preload="metadata"
-                      muted
-                      loop
-                      playsInline
-                      autoPlay
-                      onMouseEnter={(event) => {
-                        event.currentTarget.play().catch(() => {
-                          /* ignore autoplay errors */
-                        });
-                      }}
-                      onMouseLeave={(event) => {
-                        event.currentTarget.pause();
-                        event.currentTarget.currentTime = 0;
-                      }}
-                    />
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent opacity-0 transition-opacity group-hover:opacity-100">
-                      <Play className="absolute bottom-3 left-3 h-5 w-5 text-white" />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setPreviewTemplate(template);
-                      }}
-                      className="absolute right-3 top-3 rounded-full bg-white/90 p-2 text-gray-700 shadow transition hover:bg-white"
-                    >
-                      <Maximize2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="p-4 space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="font-semibold text-gray-900 line-clamp-1">
-                          {template.title_en_name || template.title}
-                        </h3>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {template.thirdparty} • {template.video_width}×{template.video_height}
-                        </p>
-                      </div>
-                      {selectedTemplate?.id === template.id && (
-                        <span className="rounded-full bg-primary-100 px-2 py-1 text-xs font-medium text-primary-700">
-                          已选择
+              {templates.map((template) => {
+                const isSelected = selectedTemplate?.id === template.id;
+                const preview = template.video_medium_url || template.video_low_url || template.video_url;
+
+                return (
+                  <div
+                    key={template.id}
+                    className={`group flex flex-col rounded-2xl border transition-all cursor-pointer ${
+                      isSelected
+                        ? "border-primary-500 shadow-lg shadow-primary-200/50"
+                        : "border-gray-200 hover:border-primary-400 hover:shadow-md"
+                    }`}
+                    onClick={() => setSelectedTemplate(template)}
+                  >
+                    <div className="relative aspect-[9/16] overflow-hidden rounded-t-2xl bg-black">
+                      <video
+                        src={preview}
+                        className="h-full w-full object-cover"
+                        preload="metadata"
+                        muted
+                        loop
+                        playsInline
+                        autoPlay
+                        onMouseEnter={(event) => {
+                          event.currentTarget.play().catch(() => {
+                            /* ignore autoplay errors */
+                          });
+                        }}
+                        onMouseLeave={(event) => {
+                          event.currentTarget.pause();
+                          event.currentTarget.currentTime = 0;
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setPreviewTemplate(template);
+                        }}
+                        className="absolute right-3 top-3 rounded-full bg-white/90 p-2 text-gray-700 shadow transition hover:bg-white"
+                      >
+                        <Maximize2 className="h-4 w-4" />
+                      </button>
+                      {isSelected && (
+                        <span className="absolute left-3 top-3 rounded-full bg-primary-600/90 px-3 py-1 text-xs font-medium text-white">
+                          已选
                         </span>
                       )}
                     </div>
-                    {template.free_trial && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
-                        免费试用
-                      </span>
-                    )}
+                    <div className="flex flex-1 flex-col gap-3 p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="font-semibold text-gray-900 line-clamp-1">
+                            {template.title_en_name || template.title}
+                          </h3>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {template.thirdparty} • {template.video_width}×{template.video_height}
+                          </p>
+                        </div>
+                      </div>
+                      {template.free_trial && (
+                        <span className="inline-flex items-center gap-1 self-start rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
+                          免费试用
+                        </span>
+                      )}
+                      <div className="mt-auto">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedTemplate(template);
+                          }}
+                          className={`w-full rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                            isSelected
+                              ? "bg-primary-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-primary-50 hover:text-primary-600"
+                          }`}
+                        >
+                          {isSelected ? "已选择" : "选择模版"}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="py-12 text-center text-gray-500">
-              {isAuthenticated ? "该分类下暂无模板" : "登录后即可加载模板列表"}
+              {isAuthenticated ? "该分类下暂无模版" : "登录后即可加载模版列表"}
             </div>
           )}
-
-          <div className="mt-10 flex justify-center">
-            <button
-              onClick={handleGenerate}
-              disabled={loading || authLoading || templates.length === 0}
-              className="bg-primary-600 text-white py-4 px-8 rounded-xl font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-3 text-lg"
-            >
-              {loading ? (
-                <>生成中...</>
-              ) : (
-                <>
-                  <Sparkles className="w-6 h-6" />
-                  生成视频
-                </>
-              )}
-            </button>
-          </div>
         </section>
       </div>
 
