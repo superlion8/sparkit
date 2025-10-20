@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
 import { useAuth } from "@/hooks/useAuth";
+import { logTaskEvent } from "@/lib/clientTasks";
 import { Video, Download, Sparkles } from "lucide-react";
 
 interface VideoTemplate {
@@ -325,7 +326,7 @@ export default function VideoGenerationPage() {
             if (videoUrl) {
               setGeneratedVideo(videoUrl);
               try {
-                await logTaskRecord({
+                await logTaskEvent({
                   taskId,
                   taskType: "video_generation",
                   prompt: metadata.prompt ?? null,
@@ -384,35 +385,6 @@ export default function VideoGenerationPage() {
   const selectedTemplatePreview =
     selectedTemplate?.video_medium_url || selectedTemplate?.video_low_url || selectedTemplate?.video_url;
 
-
-  const logTaskRecord = async (payload: { taskId: string; taskType: string; prompt?: string | null; inputImageUrl?: string | null; inputVideoUrl?: string | null; outputImageUrl?: string | null; outputVideoUrl?: string | null; }) => {
-    if (!accessToken || !isAuthenticated) {
-      return;
-    }
-
-    try {
-      await fetch("/api/tasks/log", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          task_id: payload.taskId,
-          task_type: payload.taskType,
-          username: userName ?? undefined,
-          email: userEmail ?? undefined,
-          prompt: payload.prompt ?? null,
-          input_image_url: payload.inputImageUrl ?? null,
-          input_video_url: payload.inputVideoUrl ?? null,
-          output_image_url: payload.outputImageUrl ?? null,
-          output_video_url: payload.outputVideoUrl ?? null,
-        }),
-      });
-    } catch (error) {
-      console.error("记录任务失败:", error);
-    }
-  };
 
   const handleDownloadVideo = async () => {
     if (!generatedVideo || !accessToken) {

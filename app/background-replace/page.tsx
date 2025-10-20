@@ -5,6 +5,7 @@ import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
 import { useAuth } from "@/hooks/useAuth";
+import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
 import { Palette } from "lucide-react";
 
 export default function BackgroundReplacePage() {
@@ -91,6 +92,16 @@ export default function BackgroundReplacePage() {
       const data = await response.json();
       if (data.images && data.images.length > 0) {
         setGeneratedImages(data.images);
+
+        const taskId = generateClientTaskId("background_replace");
+        const outputImage = data.images[0];
+        await logTaskEvent(accessToken, {
+          taskId,
+          taskType: "background_replace",
+          prompt,
+          inputImageUrl: subjectImage[0]?.name ?? null,
+          outputImageUrl: typeof outputImage === "string" ? outputImage : null,
+        });
       } else {
         setError("API 返回成功但没有图片数据");
         setErrorDetails(data);

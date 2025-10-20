@@ -5,6 +5,7 @@ import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
 import { useAuth } from "@/hooks/useAuth";
+import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
 import { ImagePlus } from "lucide-react";
 
 type Model = "gemini" | "flux";
@@ -100,6 +101,26 @@ export default function ImageToImagePage() {
 
         const data = await response.json();
         if (data.images && data.images.length > 0) {
+          const taskType = model === "flux" ? "image_to_image_flux" : "image_to_image_gemini";
+          const baseTaskId =
+            model === "flux" && data.requestId
+              ? String(data.requestId)
+              : generateClientTaskId(taskType);
+          const inputImageRef = uploadedImages[0]?.name ?? null;
+
+          let imageIndex = 0;
+          for (const imageUrl of data.images as string[]) {
+            const taskId = data.images.length > 1 ? `${baseTaskId}-${imageIndex}` : baseTaskId;
+            await logTaskEvent(accessToken, {
+              taskId,
+              taskType,
+              prompt,
+              inputImageUrl: inputImageRef,
+              outputImageUrl: imageUrl,
+            });
+            imageIndex += 1;
+          }
+
           allImages.push(...data.images);
         }
       }

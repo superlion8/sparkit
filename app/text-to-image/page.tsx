@@ -4,6 +4,7 @@ import { useState } from "react";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { useAuth } from "@/hooks/useAuth";
+import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
 import { Sparkles } from "lucide-react";
 
 type Model = "gemini" | "flux";
@@ -90,6 +91,24 @@ export default function TextToImagePage() {
         const data = await response.json();
 
         if (data.images && data.images.length > 0) {
+          const taskType = model === "flux" ? "text_to_image_flux" : "text_to_image_gemini";
+          const baseTaskId =
+            model === "flux" && data.requestId
+              ? String(data.requestId)
+              : generateClientTaskId(taskType);
+
+          let imageIndex = 0;
+          for (const imageUrl of data.images as string[]) {
+            const taskId = data.images.length > 1 ? `${baseTaskId}-${imageIndex}` : baseTaskId;
+            await logTaskEvent(accessToken, {
+              taskId,
+              taskType,
+              prompt,
+              outputImageUrl: imageUrl,
+            });
+            imageIndex += 1;
+          }
+
           allImages.push(...data.images);
         }
       }

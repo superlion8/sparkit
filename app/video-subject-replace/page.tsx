@@ -5,6 +5,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
 import VideoUpload from "@/components/VideoUpload";
 import { useAuth } from "@/hooks/useAuth";
+import { logTaskEvent } from "@/lib/clientTasks";
 import { Replace, Download } from "lucide-react";
 
 export default function VideoSubjectReplacePage() {
@@ -133,15 +134,30 @@ export default function VideoSubjectReplacePage() {
 
         if (data.completed) {
           if (data.status === "SUCCESS") {
+            let primaryVideoUrl: string | null = null;
+
             if (data.videoUrls && data.videoUrls.length > 0) {
               setGeneratedVideos(data.videoUrls);
               setGeneratedVideo(data.videoUrls[0]);
+              primaryVideoUrl = data.videoUrls[0];
             } else if (data.videoUrl) {
               setGeneratedVideo(data.videoUrl);
               setGeneratedVideos([data.videoUrl]);
+              primaryVideoUrl = data.videoUrl;
             } else {
               setError("未找到生成的视频");
               setErrorDetails(data);
+            }
+
+            if (primaryVideoUrl) {
+              await logTaskEvent(accessToken, {
+                taskId,
+                taskType: "video_subject_replace",
+                prompt: null,
+                inputImageUrl: subjectImage[0]?.name ?? null,
+                inputVideoUrl: videoFile?.name ?? null,
+                outputVideoUrl: primaryVideoUrl,
+              });
             }
           } else {
             setError(data.error || "任务处理失败");

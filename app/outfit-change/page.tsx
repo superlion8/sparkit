@@ -5,6 +5,7 @@ import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
 import { useAuth } from "@/hooks/useAuth";
+import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
 import { Shirt } from "lucide-react";
 
 export default function OutfitChangePage() {
@@ -93,6 +94,16 @@ export default function OutfitChangePage() {
       const data = await response.json();
       if (data.images && data.images.length > 0) {
         setGeneratedImages(data.images);
+
+        const taskId = generateClientTaskId("outfit_change");
+        const outputImage = data.images[0];
+        await logTaskEvent(accessToken, {
+          taskId,
+          taskType: "outfit_change",
+          prompt,
+          inputImageUrl: modelImage[0]?.name ?? null,
+          outputImageUrl: typeof outputImage === "string" ? outputImage : null,
+        });
       } else {
         setError("API 返回成功但没有图片数据");
         setErrorDetails(data);
