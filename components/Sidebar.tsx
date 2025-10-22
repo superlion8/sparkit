@@ -2,16 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Image,
-  ImagePlus,
-  Shirt,
-  Palette,
-  Video,
+import { 
+  Image, 
+  ImagePlus, 
+  Shirt, 
+  Palette, 
+  Video, 
   Replace,
-  ClipboardList,
   Menu,
-  X,
+  X
 } from "lucide-react";
 import { useState } from "react";
 
@@ -22,7 +21,6 @@ const navigation = [
   { name: "AI换背景", href: "/background-replace", icon: Palette },
   { name: "视频生成", href: "/video-generation", icon: Video },
   { name: "视频主体替换", href: "/video-subject-replace", icon: Replace },
-  { name: "任务记录", href: "/admin/tasks", icon: ClipboardList },
 ];
 
 export default function Sidebar() {
@@ -97,3 +95,4 @@ export default function Sidebar() {
     </>
   );
 }
+
