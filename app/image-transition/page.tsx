@@ -97,14 +97,16 @@ export default function ImageTransitionPage() {
         }
         
         // Log image editing task
-        const taskId = generateClientTaskId("image_transition_edit");
-        await logTaskEvent(accessToken, {
-          taskId,
-          taskType: "image_transition_edit",
-          prompt: editPrompt,
-          inputImageUrl: originalImage[0]?.name || null,
-          outputImageUrl: imageUrl,
-        });
+        if (accessToken) {
+          const taskId = generateClientTaskId("image_transition_edit");
+          await logTaskEvent(accessToken, {
+            taskId,
+            taskType: "image_transition_edit",
+            prompt: editPrompt,
+            inputImageUrl: originalImage[0]?.name || null,
+            outputImageUrl: imageUrl,
+          });
+        }
         
         setCurrentStep("transition");
       } else {
@@ -257,14 +259,16 @@ export default function ImageTransitionPage() {
           setVideoLoading(false);
           
           // Log video generation task
-          const videoTaskId = generateClientTaskId("image_transition_video");
-          await logTaskEvent(accessToken, {
-            taskId: videoTaskId,
-            taskType: "image_transition_video",
-            prompt: transitionPrompt,
-            inputImageUrl: editedImageUrl,
-            outputVideoUrl: data.videoUrl,
-          });
+          if (accessToken) {
+            const videoTaskId = generateClientTaskId("image_transition_video");
+            await logTaskEvent(accessToken, {
+              taskId: videoTaskId,
+              taskType: "image_transition_video",
+              prompt: transitionPrompt,
+              inputImageUrl: editedImageUrl,
+              outputVideoUrl: data.videoUrl,
+            });
+          }
         } else if (data.status === "failed") {
           setVideoError("视频生成失败");
           setVideoLoading(false);
