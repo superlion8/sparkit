@@ -10,7 +10,8 @@ import {
   Video, 
   Replace,
   Menu,
-  X
+  X,
+  Film
 } from "lucide-react";
 import { useState } from "react";
 
@@ -21,6 +22,7 @@ const navigation = [
   { name: "AI换背景", href: "/background-replace", icon: Palette },
   { name: "视频生成", href: "/video-generation", icon: Video },
   { name: "视频主体替换", href: "/video-subject-replace", icon: Replace },
+  { name: "改图转场", href: "/image-transition", icon: Film },
 ];
 
 export default function Sidebar() {
