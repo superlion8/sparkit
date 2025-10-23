@@ -63,8 +63,12 @@ export async function POST(request: NextRequest) {
     ];
 
     // Call Gemini API using gemini-2.5-flash model
+    const model = "gemini-2.5-flash";
+    console.log(`使用模型: ${model}`);
+    console.log(`图片类型: startImage=${startImage.type}, endImage=${endImage.type}`);
+    
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: {
@@ -81,6 +85,8 @@ export async function POST(request: NextRequest) {
         }),
       }
     );
+    
+    console.log(`Gemini API 响应状态: ${response.status}`);
 
     if (!response.ok) {
       const error = await response.text();
@@ -94,10 +100,30 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
     console.log("Gemini API 响应:", JSON.stringify(data, null, 2));
 
+    // Check for API errors
+    if (data.error) {
+      console.error("Gemini API 返回错误:", data.error);
+      return NextResponse.json(
+        { error: `Gemini API 错误: ${data.error.message || '未知错误'}` },
+        { status: 500 }
+      );
+    }
+
     // Extract the generated text
     let transitionPrompt = "";
     if (data.candidates && data.candidates.length > 0) {
       const candidate = data.candidates[0];
+      
+      // Check if content was blocked
+      if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
+        console.error("内容被安全过滤阻止:", candidate.finishReason);
+        console.error("安全评级:", candidate.safetyRatings);
+        return NextResponse.json(
+          { error: "内容被安全过滤阻止，请尝试其他图片" },
+          { status: 400 }
+        );
+      }
+      
       if (candidate.content && candidate.content.parts) {
         for (const part of candidate.content.parts) {
           if (part.text) {
@@ -105,12 +131,21 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+      
+      // Log if no text found
+      if (!transitionPrompt) {
+        console.error("候选项中未找到文本内容");
+        console.error("候选项详情:", JSON.stringify(candidate, null, 2));
+      }
+    } else {
+      console.error("响应中没有候选项");
+      console.error("完整响应:", JSON.stringify(data, null, 2));
     }
 
     if (!transitionPrompt) {
       console.error("未找到生成的转场描述");
       return NextResponse.json(
-        { error: "Gemini 未返回有效的转场描述" },
+        { error: "Gemini 未返回有效的转场描述，请查看服务器日志" },
         { status: 500 }
       );
     }
