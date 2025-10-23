@@ -6,6 +6,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import { useAuth } from "@/hooks/useAuth";
 import { Film, Sparkles, Video, ArrowRight, Download } from "lucide-react";
 import { downloadImage, downloadVideo } from "@/lib/downloadUtils";
+import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
 
 type Step = "edit" | "transition" | "video";
 
@@ -94,6 +95,16 @@ export default function ImageTransitionPage() {
           setEditError("图片处理失败，请重试");
           return;
         }
+        
+        // Log image editing task
+        const taskId = generateClientTaskId("image_transition_edit");
+        await logTaskEvent(accessToken, {
+          taskId,
+          taskType: "image_transition_edit",
+          prompt: editPrompt,
+          inputImageUrl: originalImage[0]?.name || null,
+          outputImageUrl: imageUrl,
+        });
         
         setCurrentStep("transition");
       } else {
@@ -244,6 +255,16 @@ export default function ImageTransitionPage() {
         if (data.status === "succeed" && data.videoUrl) {
           setVideoUrl(data.videoUrl);
           setVideoLoading(false);
+          
+          // Log video generation task
+          const videoTaskId = generateClientTaskId("image_transition_video");
+          await logTaskEvent(accessToken, {
+            taskId: videoTaskId,
+            taskType: "image_transition_video",
+            prompt: transitionPrompt,
+            inputImageUrl: editedImageUrl,
+            outputVideoUrl: data.videoUrl,
+          });
         } else if (data.status === "failed") {
           setVideoError("视频生成失败");
           setVideoLoading(false);
