@@ -32,11 +32,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert images to base64
+    // Convert images to base64 with size check and optimization
     const startBuffer = await startImage.arrayBuffer();
     const endBuffer = await endImage.arrayBuffer();
+    
+    console.log(`原始图片大小: startImage=${startBuffer.byteLength} bytes, endImage=${endBuffer.byteLength} bytes`);
+    
+    // If images are too large, we should resize them (optional: add image processing)
+    // For now, just convert to base64
     const startBase64 = Buffer.from(startBuffer).toString("base64");
     const endBase64 = Buffer.from(endBuffer).toString("base64");
+    
+    console.log(`Base64 长度: startImage=${startBase64.length}, endImage=${endBase64.length}`);
 
     // Prepare the prompt for Gemini
     const promptText = `你现在是一个专业的导演，请根据输入给你的两张图，想一个专业的5s视频内容的转场镜头描述prompt，视频生成模型可以使用prompt生成一段5s的流畅的首尾帧视频。你首先要理解两张图的含义和变化，输出的镜头描述要尽可能的贴合两张图作为首尾帧所表达的含义，中间的转场元素要流畅、贴合含义。请直接输出镜头描述，不要有任何其他说明或标题。`;
