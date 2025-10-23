@@ -4,7 +4,7 @@ import { useState } from "react";
 import ImageUpload from "@/components/ImageUpload";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { useAuth } from "@/hooks/useAuth";
-import { Film, Sparkles, Video, ArrowRight } from "lucide-react";
+import { Film, Sparkles, Video, ArrowRight, Download } from "lucide-react";
 
 type Step = "edit" | "transition" | "video";
 
@@ -468,37 +468,48 @@ export default function ImageTransitionPage() {
               <LoadingSpinner text="视频生成中，预计需要 2-5 分钟..." />
             )}
 
-            {/* Show edited image only */}
-            {editedImageUrl && !videoUrl && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">改图结果</h3>
-                <img
-                  src={editedImageUrl}
-                  alt="改图结果"
-                  className="w-full rounded-lg border border-gray-200"
-                />
-              </div>
-            )}
+            {/* Show edited image and video together */}
+            <div className="space-y-6">
+              {/* Edited image */}
+              {editedImageUrl && !videoLoading && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">改图结果</h3>
+                  <img
+                    src={editedImageUrl}
+                    alt="改图结果"
+                    className="w-full rounded-lg border border-gray-200"
+                  />
+                  <a
+                    href={editedImageUrl}
+                    download="edited-image.png"
+                    className="mt-4 w-full bg-gray-600 text-white py-3 rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-5 h-5" />
+                    下载图片
+                  </a>
+                </div>
+              )}
 
-            {/* Show video */}
-            {videoUrl && (
-              <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">转场视频</h3>
-                <video
-                  src={videoUrl}
-                  controls
-                  className="w-full rounded-lg border border-gray-200"
-                />
-                <a
-                  href={videoUrl}
-                  download="transition-video.mp4"
-                  className="mt-4 w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Video className="w-5 h-5" />
-                  下载视频
-                </a>
-              </div>
-            )}
+              {/* Transition video */}
+              {videoUrl && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">转场视频</h3>
+                  <video
+                    src={videoUrl}
+                    controls
+                    className="w-full rounded-lg border border-gray-200"
+                  />
+                  <a
+                    href={videoUrl}
+                    download="transition-video.mp4"
+                    className="mt-4 w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Video className="w-5 h-5" />
+                    下载视频
+                  </a>
+                </div>
+              )}
+            </div>
 
             {!editLoading && !authLoading && !promptLoading && !videoLoading && !editedImageUrl && (
               <div className="flex items-center justify-center h-64 text-gray-400">
