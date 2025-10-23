@@ -2,6 +2,7 @@
 
 import { Download, X, ZoomIn } from "lucide-react";
 import { useState } from "react";
+import { downloadImage } from "@/lib/downloadUtils";
 
 interface ImageGridProps {
   images: string[];
@@ -16,13 +17,8 @@ export default function ImageGrid({ images, onDownload }: ImageGridProps) {
     if (onDownload) {
       onDownload(url, index);
     } else {
-      // Default download behavior
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `generated-image-${index + 1}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Use download utility to avoid opening new tab
+      await downloadImage(url, `generated-image-${index + 1}.png`);
     }
   };
 

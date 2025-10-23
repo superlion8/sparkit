@@ -5,6 +5,7 @@ import ImageUpload from "@/components/ImageUpload";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { useAuth } from "@/hooks/useAuth";
 import { Film, Sparkles, Video, ArrowRight, Download } from "lucide-react";
+import { downloadImage, downloadVideo } from "@/lib/downloadUtils";
 
 type Step = "edit" | "transition" | "video";
 
@@ -479,14 +480,13 @@ export default function ImageTransitionPage() {
                     alt="改图结果"
                     className="w-full rounded-lg border border-gray-200"
                   />
-                  <a
-                    href={editedImageUrl}
-                    download="edited-image.png"
+                  <button
+                    onClick={() => downloadImage(editedImageUrl, "edited-image.png")}
                     className="mt-4 w-full bg-gray-600 text-white py-3 rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
                   >
                     <Download className="w-5 h-5" />
                     下载图片
-                  </a>
+                  </button>
                 </div>
               )}
 
@@ -499,14 +499,13 @@ export default function ImageTransitionPage() {
                     controls
                     className="w-full rounded-lg border border-gray-200"
                   />
-                  <a
-                    href={videoUrl}
-                    download="transition-video.mp4"
+                  <button
+                    onClick={() => downloadVideo(videoUrl, "transition-video.mp4")}
                     className="mt-4 w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
                   >
                     <Video className="w-5 h-5" />
                     下载视频
-                  </a>
+                  </button>
                 </div>
               )}
             </div>
