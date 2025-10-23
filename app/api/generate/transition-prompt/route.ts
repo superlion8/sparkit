@@ -80,8 +80,15 @@ export async function POST(request: NextRequest) {
             temperature: 0.7,
             topP: 0.8,
             topK: 40,
-            maxOutputTokens: 500,
+            maxOutputTokens: 2048, // Increase to allow full response
           },
+          systemInstruction: {
+            parts: [
+              {
+                text: "你是一个专业的视频导演。请直接输出简洁的镜头描述，不要包含任何推理过程或解释。"
+              }
+            ]
+          }
         }),
       }
     );
