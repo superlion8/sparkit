@@ -9,6 +9,8 @@ const KLING_API_URL = "https://api-singapore.klingai.com/v1/videos/image2video";
  * Reference: https://app.klingai.com/global/dev/document-api/apiReference/model/imageToVideo
  */
 export async function POST(request: NextRequest) {
+  console.log("=== Kling Generate API Called ===");
+  
   const { errorResponse } = await validateRequestAuth(request);
   if (errorResponse) {
     return errorResponse;
@@ -17,6 +19,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { startImageUrl, endImageUrl, prompt } = body;
+
+    console.log("请求参数:", {
+      startImageUrl: startImageUrl?.substring(0, 100) + "...",
+      endImageUrl: endImageUrl?.substring(0, 100) + "...",
+      promptLength: prompt?.length
+    });
 
     if (!startImageUrl || !endImageUrl || !prompt) {
       return NextResponse.json(
@@ -28,6 +36,12 @@ export async function POST(request: NextRequest) {
     const accessKey = process.env.KLING_ACCESS_KEY;
     const secretKey = process.env.KLING_SECRET_KEY;
 
+    console.log("Kling 凭证检查:", {
+      hasAccessKey: !!accessKey,
+      hasSecretKey: !!secretKey,
+      accessKeyPrefix: accessKey?.substring(0, 10) + "..."
+    });
+
     if (!accessKey || !secretKey) {
       return NextResponse.json(
         { error: "Kling API 凭证未配置" },
@@ -36,6 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate JWT token for authentication
+    console.log("生成 JWT token...");
     const jwtToken = generateKlingJWT(accessKey, secretKey);
 
     // Prepare request body for Kling API
