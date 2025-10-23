@@ -15,6 +15,7 @@ export default function ImageTransitionPage() {
   const [originalImage, setOriginalImage] = useState<File[]>([]);
   const [editPrompt, setEditPrompt] = useState("");
   const [editedImageUrl, setEditedImageUrl] = useState("");
+  const [editedImageBlob, setEditedImageBlob] = useState<Blob | null>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState("");
   
@@ -75,7 +76,24 @@ export default function ImageTransitionPage() {
 
       const data = await response.json();
       if (data.images && data.images.length > 0) {
-        setEditedImageUrl(data.images[0]);
+        const imageUrl = data.images[0];
+        setEditedImageUrl(imageUrl);
+        
+        // Convert image URL to blob for later use (avoid CORS issues)
+        try {
+          const imageResponse = await fetch(imageUrl);
+          const blob = await imageResponse.blob();
+          setEditedImageBlob(blob);
+        } catch (blobError) {
+          console.error("Failed to convert image to blob:", blobError);
+          // If data URL, convert directly
+          if (imageUrl.startsWith('data:')) {
+            const base64Response = await fetch(imageUrl);
+            const blob = await base64Response.blob();
+            setEditedImageBlob(blob);
+          }
+        }
+        
         setCurrentStep("transition");
       } else {
         setEditError("未返回改图结果");
@@ -95,7 +113,7 @@ export default function ImageTransitionPage() {
       return;
     }
 
-    if (originalImage.length === 0 || !editedImageUrl) {
+    if (originalImage.length === 0 || !editedImageBlob) {
       setPromptError("需要原图和改图结果");
       return;
     }
@@ -107,9 +125,10 @@ export default function ImageTransitionPage() {
       const formData = new FormData();
       formData.append("startImage", originalImage[0]);
       
-      // Convert edited image URL to File
-      const editedImageBlob = await fetch(editedImageUrl).then(r => r.blob());
-      const editedImageFile = new File([editedImageBlob], "edited-image.png", { type: editedImageBlob.type });
+      // Use the saved blob instead of fetching (avoids CORS issues)
+      const editedImageFile = new File([editedImageBlob], "edited-image.png", { 
+        type: editedImageBlob.type || "image/png" 
+      });
       formData.append("endImage", editedImageFile);
 
       const response = await fetch("/api/generate/transition-prompt", {
@@ -364,7 +383,7 @@ export default function ImageTransitionPage() {
                 <>
                   <button
                     onClick={handleGenerateTransitionPrompt}
-                    disabled={promptLoading || !editedImageUrl}
+                    disabled={promptLoading || !editedImageBlob}
                     className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                   >
                     {promptLoading ? (
@@ -448,25 +467,15 @@ export default function ImageTransitionPage() {
               <LoadingSpinner text="视频生成中，预计需要 2-5 分钟..." />
             )}
 
-            {/* Show original and edited images */}
-            {editedImageUrl && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">原图</h3>
-                  <img
-                    src={originalImage[0] ? URL.createObjectURL(originalImage[0]) : ""}
-                    alt="原图"
-                    className="w-full rounded-lg border border-gray-200"
-                  />
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">改图结果</h3>
-                  <img
-                    src={editedImageUrl}
-                    alt="改图结果"
-                    className="w-full rounded-lg border border-gray-200"
-                  />
-                </div>
+            {/* Show edited image only */}
+            {editedImageUrl && !videoUrl && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">改图结果</h3>
+                <img
+                  src={editedImageUrl}
+                  alt="改图结果"
+                  className="w-full rounded-lg border border-gray-200"
+                />
               </div>
             )}
 
