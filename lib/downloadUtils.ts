@@ -20,8 +20,10 @@ export async function downloadImage(url: string, filename: string = 'image.png')
       return;
     }
 
-    // For external URLs, fetch and create blob
-    const response = await fetch(url);
+    // For external URLs, use proxy to avoid CORS issues
+    const proxyUrl = `/api/download?url=${encodeURIComponent(url)}`;
+    const response = await fetch(proxyUrl);
+    
     if (!response.ok) {
       throw new Error('Failed to fetch image');
     }
@@ -40,8 +42,7 @@ export async function downloadImage(url: string, filename: string = 'image.png')
     setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
   } catch (error) {
     console.error('Download failed:', error);
-    // Fallback: open in new tab
-    window.open(url, '_blank');
+    alert('下载失败，请重试');
   }
 }
 
@@ -50,7 +51,10 @@ export async function downloadImage(url: string, filename: string = 'image.png')
  */
 export async function downloadVideo(url: string, filename: string = 'video.mp4'): Promise<void> {
   try {
-    const response = await fetch(url);
+    // Use proxy to avoid CORS issues
+    const proxyUrl = `/api/download?url=${encodeURIComponent(url)}`;
+    const response = await fetch(proxyUrl);
+    
     if (!response.ok) {
       throw new Error('Failed to fetch video');
     }
@@ -69,8 +73,7 @@ export async function downloadVideo(url: string, filename: string = 'video.mp4')
     setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
   } catch (error) {
     console.error('Download failed:', error);
-    // Fallback: open in new tab
-    window.open(url, '_blank');
+    alert('下载失败，请重试');
   }
 }
 
