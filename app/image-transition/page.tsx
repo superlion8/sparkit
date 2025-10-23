@@ -79,19 +79,19 @@ export default function ImageTransitionPage() {
         const imageUrl = data.images[0];
         setEditedImageUrl(imageUrl);
         
-        // Convert image URL to blob for later use (avoid CORS issues)
+        // Use base64 image if available (avoids CORS issues)
+        const base64Image = data.base64Images?.[0] || imageUrl;
+        
         try {
-          const imageResponse = await fetch(imageUrl);
-          const blob = await imageResponse.blob();
+          // Convert base64 to blob
+          const base64Response = await fetch(base64Image);
+          const blob = await base64Response.blob();
           setEditedImageBlob(blob);
+          console.log("Successfully converted image to blob:", blob.size, "bytes");
         } catch (blobError) {
           console.error("Failed to convert image to blob:", blobError);
-          // If data URL, convert directly
-          if (imageUrl.startsWith('data:')) {
-            const base64Response = await fetch(imageUrl);
-            const blob = await base64Response.blob();
-            setEditedImageBlob(blob);
-          }
+          setEditError("图片处理失败，请重试");
+          return;
         }
         
         setCurrentStep("transition");
@@ -264,7 +264,7 @@ export default function ImageTransitionPage() {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch("/api/upload/image", {
+    const response = await fetch("/api/upload/to-aimovely", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -273,7 +273,8 @@ export default function ImageTransitionPage() {
     });
 
     if (!response.ok) {
-      throw new Error("图片上传失败");
+      const errorData = await response.json();
+      throw new Error(errorData.error || "图片上传失败");
     }
 
     const data = await response.json();

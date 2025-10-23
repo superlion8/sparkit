@@ -141,8 +141,12 @@ export async function POST(request: NextRequest) {
     }
 
     const uploadedUrls: string[] = [];
+    const base64Images: string[] = [];
+    
     for (let index = 0; index < generatedImages.length; index++) {
       const dataUrl = generatedImages[index];
+      base64Images.push(dataUrl); // Keep original base64
+      
       try {
         const result = await uploadImageToAimovely(dataUrl, aimovelyToken, index);
         if (result?.url) {
@@ -157,7 +161,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ images: uploadedUrls });
+    return NextResponse.json({ 
+      images: uploadedUrls,
+      base64Images: base64Images // Also return base64 for client-side use
+    });
   } catch (error) {
     console.error("Error in Gemini generation:", error);
     return NextResponse.json(
