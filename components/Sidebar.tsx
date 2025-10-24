@@ -11,7 +11,8 @@ import {
   Replace,
   Menu,
   X,
-  Film
+  Film,
+  History
 } from "lucide-react";
 import { useState } from "react";
 
@@ -38,6 +39,7 @@ export default function Sidebar() {
         <p className="text-sm text-gray-500 mt-1">Toolkit</p>
       </div>
 
+      {/* AI Generation Tools */}
       {navigation.map((item) => {
         const Icon = item.icon;
         const isActive = pathname === item.href;
@@ -60,6 +62,28 @@ export default function Sidebar() {
           </Link>
         );
       })}
+
+      {/* Divider */}
+      <div className="my-4 px-4">
+        <div className="h-px bg-gray-200"></div>
+      </div>
+
+      {/* History Link */}
+      <Link
+        href="/history"
+        onClick={() => setMobileMenuOpen(false)}
+        className={`
+          flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+          ${
+            pathname === "/history"
+              ? "bg-primary-100 text-primary-700 font-medium"
+              : "text-gray-700 hover:bg-gray-100"
+          }
+        `}
+      >
+        <History className="w-5 h-5" />
+        <span>生成历史</span>
+      </Link>
     </nav>
   );
 
