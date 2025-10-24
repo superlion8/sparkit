@@ -42,6 +42,48 @@ export default function OutfitChangePage() {
     setGeneratedImages([]);
 
     try {
+      // Step 1: Upload model image to Aimovely
+      const modelFormData = new FormData();
+      modelFormData.append("file", modelImage[0]);
+      
+      const modelUploadResponse = await fetch("/api/upload/to-aimovely", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: modelFormData,
+      });
+
+      if (!modelUploadResponse.ok) {
+        throw new Error("模特图片上传失败");
+      }
+
+      const modelUploadData = await modelUploadResponse.json();
+      const modelImageUrl = modelUploadData.url;
+
+      // Step 2: Upload product images to Aimovely
+      const productImageUrls: string[] = [];
+      for (const productImage of productImages) {
+        const productFormData = new FormData();
+        productFormData.append("file", productImage);
+        
+        const productUploadResponse = await fetch("/api/upload/to-aimovely", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: productFormData,
+        });
+
+        if (!productUploadResponse.ok) {
+          throw new Error("商品图片上传失败");
+        }
+
+        const productUploadData = await productUploadResponse.json();
+        productImageUrls.push(productUploadData.url);
+      }
+
+      // Step 3: Generate with Gemini
       const formData = new FormData();
 
       let prompt = "Create an image of the model wearing the product(s) shown. ";
@@ -101,7 +143,7 @@ export default function OutfitChangePage() {
           taskId,
           taskType: "outfit_change",
           prompt,
-          inputImageUrl: modelImage[0]?.name ?? null,
+          inputImageUrl: modelImageUrl,
           outputImageUrl: typeof outputImage === "string" ? outputImage : null,
         });
       } else {

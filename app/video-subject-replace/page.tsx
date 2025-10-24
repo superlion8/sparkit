@@ -45,6 +45,29 @@ export default function VideoSubjectReplacePage() {
     setTaskId("");
 
     try {
+      // Step 1: Upload subject image to Aimovely
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", subjectImage[0]);
+      
+      const uploadResponse = await fetch("/api/upload/to-aimovely", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: uploadFormData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("主体图片上传失败");
+      }
+
+      const uploadData = await uploadResponse.json();
+      const subjectImageUrl = uploadData.url;
+
+      // Store the URL for use in pollTaskStatus
+      (window as any).__uploadedSubjectImageUrl = subjectImageUrl;
+
+      // Step 2: Submit to RunningHub
       const formData = new FormData();
       formData.append("video", videoFile);
       formData.append("subjectImage", subjectImage[0]);
@@ -150,11 +173,12 @@ export default function VideoSubjectReplacePage() {
             }
 
             if (primaryVideoUrl) {
+              const uploadedSubjectImageUrl = (window as any).__uploadedSubjectImageUrl ?? null;
               await logTaskEvent(accessToken, {
                 taskId,
                 taskType: "video_subject_replace",
                 prompt: null,
-                inputImageUrl: subjectImage[0]?.name ?? null,
+                inputImageUrl: uploadedSubjectImageUrl,
                 inputVideoUrl: videoFile?.name ?? null,
                 outputVideoUrl: primaryVideoUrl,
               });

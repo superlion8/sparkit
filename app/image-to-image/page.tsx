@@ -47,6 +47,29 @@ export default function ImageToImagePage() {
     setGeneratedImages([]);
 
     try {
+      // Step 1: Upload images to Aimovely
+      const uploadedImageUrls: string[] = [];
+      for (const uploadedImage of uploadedImages) {
+        const uploadFormData = new FormData();
+        uploadFormData.append("file", uploadedImage);
+        
+        const uploadResponse = await fetch("/api/upload/to-aimovely", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: uploadFormData,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error("图片上传失败");
+        }
+
+        const uploadData = await uploadResponse.json();
+        uploadedImageUrls.push(uploadData.url);
+      }
+
+      // Step 2: Generate images
       const allImages: string[] = [];
 
       for (let i = 0; i < numImages; i++) {
@@ -106,7 +129,7 @@ export default function ImageToImagePage() {
             model === "flux" && data.requestId
               ? String(data.requestId)
               : generateClientTaskId(taskType);
-          const inputImageRef = uploadedImages[0]?.name ?? null;
+          const inputImageUrl = uploadedImageUrls[0] ?? null;
 
           let imageIndex = 0;
           for (const imageUrl of data.images as string[]) {
@@ -115,7 +138,7 @@ export default function ImageToImagePage() {
               taskId,
               taskType,
               prompt,
-              inputImageUrl: inputImageRef,
+              inputImageUrl,
               outputImageUrl: imageUrl,
             });
             imageIndex += 1;

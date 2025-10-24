@@ -42,6 +42,26 @@ export default function BackgroundReplacePage() {
     setGeneratedImages([]);
 
     try {
+      // Step 1: Upload subject image to Aimovely
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", subjectImage[0]);
+      
+      const uploadResponse = await fetch("/api/upload/to-aimovely", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: uploadFormData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("人物图片上传失败");
+      }
+
+      const uploadData = await uploadResponse.json();
+      const subjectImageUrl = uploadData.url;
+
+      // Step 2: Generate with Gemini
       const formData = new FormData();
 
       let prompt = `Place the subject in the following background: ${backgroundPrompt}. `;
@@ -99,7 +119,7 @@ export default function BackgroundReplacePage() {
           taskId,
           taskType: "background_replace",
           prompt,
-          inputImageUrl: subjectImage[0]?.name ?? null,
+          inputImageUrl: subjectImageUrl,
           outputImageUrl: typeof outputImage === "string" ? outputImage : null,
         });
       } else {
