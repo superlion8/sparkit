@@ -144,7 +144,11 @@ export default function ImageToImagePage() {
             imageIndex += 1;
           }
 
-          allImages.push(...data.images);
+          // Use base64 images for display if available (avoids CORS issues)
+          const displayImages = data.base64Images && data.base64Images.length > 0 
+            ? data.base64Images 
+            : data.images;
+          allImages.push(...displayImages);
         }
       }
 

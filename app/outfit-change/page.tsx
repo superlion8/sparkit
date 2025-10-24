@@ -135,7 +135,11 @@ export default function OutfitChangePage() {
 
       const data = await response.json();
       if (data.images && data.images.length > 0) {
-        setGeneratedImages(data.images);
+        // Use base64 images for display if available (avoids CORS issues)
+        const displayImages = data.base64Images && data.base64Images.length > 0 
+          ? data.base64Images 
+          : data.images;
+        setGeneratedImages(displayImages);
 
         const taskId = generateClientTaskId("outfit_change");
         const outputImage = data.images[0];
