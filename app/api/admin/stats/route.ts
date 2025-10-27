@@ -61,6 +61,29 @@ export async function GET(request: NextRequest) {
 
     const uniqueUsers = new Set(activeUsers?.map(u => u.email).filter(Boolean));
 
+    // 获取用户排名（按任务数量，近7天）
+    const { data: userRankingData } = await supabaseAdminClient
+      .from("generation_tasks")
+      .select("email, username")
+      .gte("created_at", weekAgo.toISOString())
+      .not("email", "is", null);
+
+    const userTaskCounts = userRankingData?.reduce((acc, task) => {
+      const email = task.email;
+      const username = task.username || email;
+      if (email) {
+        if (!acc[email]) {
+          acc[email] = { email, username, count: 0 };
+        }
+        acc[email].count += 1;
+      }
+      return acc;
+    }, {} as Record<string, { email: string; username: string; count: number }>) || {};
+
+    const userRanking = Object.values(userTaskCounts)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10); // 取前10名
+
     // 获取任务类型分布
     const { data: taskTypeStats } = await supabaseAdminClient
       .from("generation_tasks")
@@ -99,6 +122,7 @@ export async function GET(request: NextRequest) {
       activeUsers: uniqueUsers.size,
       taskTypeDistribution,
       dailyStats,
+      userRanking,
     });
   } catch (error) {
     console.error("Failed to fetch admin stats:", error);

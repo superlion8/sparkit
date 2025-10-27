@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   const taskType = searchParams.get("taskType");
   const taskId = searchParams.get("taskId");
   const email = searchParams.get("email");
-  const prompt = searchParams.get("prompt");
+  const username = searchParams.get("username");
 
   let query = supabaseAdminClient
     .from("generation_tasks")
@@ -53,10 +53,22 @@ export async function GET(request: NextRequest) {
     query = query.ilike("task_id", `%${taskId}%`);
   }
   if (email) {
-    query = query.ilike("email", `%${email}%`);
+    // 支持多个邮箱查询，逗号分隔
+    const emails = email.split(',').map(e => e.trim()).filter(e => e);
+    if (emails.length === 1) {
+      query = query.ilike("email", `%${emails[0]}%`);
+    } else if (emails.length > 1) {
+      query = query.or(emails.map(e => `email.ilike.%${e}%`).join(','));
+    }
   }
-  if (prompt) {
-    query = query.ilike("prompt", `%${prompt}%`);
+  if (username) {
+    // 支持多个用户名查询，逗号分隔
+    const usernames = username.split(',').map(u => u.trim()).filter(u => u);
+    if (usernames.length === 1) {
+      query = query.ilike("username", `%${usernames[0]}%`);
+    } else if (usernames.length > 1) {
+      query = query.or(usernames.map(u => `username.ilike.%${u}%`).join(','));
+    }
   }
 
   const { data, error, count } = await query;

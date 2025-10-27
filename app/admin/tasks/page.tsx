@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import LoadingSpinner from "../../../components/LoadingSpinner";
 import AdminDashboard from "../../../components/AdminDashboard";
 import { useAuth } from "../../../hooks/useAuth";
@@ -25,7 +26,7 @@ interface Filters {
   taskType: string;
   taskId: string;
   email: string;
-  prompt: string;
+  username: string;
   limit: number;
 }
 
@@ -66,9 +67,13 @@ const formatDateTime = (value: string) => {
 };
 
 const isImageValue = (value: string) =>
-  value.startsWith("data:image") || /\.(png|jpg|jpeg|webp|gif)$/i.test(value);
+  value.startsWith("data:image") || 
+  /\.(png|jpg|jpeg|webp|gif)$/i.test(value) ||
+  value.includes('static.aimovely.com') && !value.includes('video');
 const isVideoValue = (value: string) =>
-  value.startsWith("data:video") || /\.(mp4|mov|avi|webm)$/i.test(value);
+  value.startsWith("data:video") || 
+  /\.(mp4|mov|avi|webm)$/i.test(value) ||
+  value.includes('static.aimovely.com') && value.includes('video');
 
 export default function AdminTasksPage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin, userEmail } = useAuth();
@@ -76,7 +81,7 @@ export default function AdminTasksPage() {
     taskType: "",
     taskId: "",
     email: "",
-    prompt: "",
+    username: "",
     limit: 100,
   });
   const [offset, setOffset] = useState(0);
@@ -85,6 +90,7 @@ export default function AdminTasksPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
+  const [modalMedia, setModalMedia] = useState<{ type: 'image' | 'video'; url: string; label: string } | null>(null);
 
   const fetchTasks = useCallback(
     async (nextOffset = 0) => {
@@ -99,7 +105,7 @@ export default function AdminTasksPage() {
       if (filters.taskType) params.set("taskType", filters.taskType);
       if (filters.taskId) params.set("taskId", filters.taskId.trim());
       if (filters.email) params.set("email", filters.email.trim());
-      if (filters.prompt) params.set("prompt", filters.prompt.trim());
+      if (filters.username) params.set("username", filters.username.trim());
       params.set("limit", String(filters.limit));
       if (nextOffset > 0) params.set("offset", String(nextOffset));
 
@@ -168,7 +174,7 @@ export default function AdminTasksPage() {
       taskType: "",
       taskId: "",
       email: "",
-      prompt: "",
+      username: "",
       limit: 100,
     });
     setOffset(0);
@@ -259,18 +265,18 @@ export default function AdminTasksPage() {
               type="text"
               value={filters.email}
               onChange={(event) => setFilters((prev) => ({ ...prev, email: event.target.value }))}
-              placeholder="支持模糊查询"
+              placeholder="支持模糊查询，多个用逗号分隔"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
             />
           </div>
 
-          <div className="md:col-span-2 lg:col-span-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Prompt 关键字</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">用户名</label>
             <input
               type="text"
-              value={filters.prompt}
-              onChange={(event) => setFilters((prev) => ({ ...prev, prompt: event.target.value }))}
-              placeholder="在 prompt 中搜索关键字"
+              value={filters.username}
+              onChange={(event) => setFilters((prev) => ({ ...prev, username: event.target.value }))}
+              placeholder="支持模糊查询，多个用逗号分隔"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
             />
           </div>
@@ -420,44 +426,59 @@ export default function AdminTasksPage() {
                         {task.status || '未知'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700 max-w-xs">
+                    <td className="px-4 py-3 text-sm text-gray-700" style={{maxWidth: '300px'}}>
                       {task.prompt ? (
-                        <details>
-                          <summary className="cursor-pointer text-primary-600 text-sm">展开</summary>
-                          <pre className="mt-2 whitespace-pre-wrap break-words text-xs bg-gray-50 rounded-md p-3">
-                            {task.prompt}
-                          </pre>
-                        </details>
+                        <div className="whitespace-pre-wrap break-words text-xs bg-gray-50 rounded-md p-3 max-h-32 overflow-y-auto">
+                          {task.prompt}
+                        </div>
                       ) : (
                         <span className="text-gray-400">无</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
+                    <td className="px-4 py-3 text-sm text-gray-700" style={{minWidth: '200px'}}>
                       <div className="space-y-2">
                         {task.input_image_url ? (
-                          <MediaPreview label="图片" value={task.input_image_url} />
-                        ) : (
-                          <span className="text-gray-400 text-xs block">无图片</span>
-                        )}
+                          <DirectMediaDisplay 
+                            label="输入图片" 
+                            value={task.input_image_url} 
+                            type="image" 
+                            onExpand={() => setModalMedia({ type: 'image', url: task.input_image_url!, label: '输入图片' })}
+                          />
+                        ) : null}
                         {task.input_video_url ? (
-                          <MediaPreview label="视频" value={task.input_video_url} />
-                        ) : (
-                          <span className="text-gray-400 text-xs block">无视频</span>
-                        )}
+                          <DirectMediaDisplay 
+                            label="输入视频" 
+                            value={task.input_video_url} 
+                            type="video" 
+                            onExpand={() => setModalMedia({ type: 'video', url: task.input_video_url!, label: '输入视频' })}
+                          />
+                        ) : null}
+                        {!task.input_image_url && !task.input_video_url ? (
+                          <span className="text-gray-400 text-xs block">无输入</span>
+                        ) : null}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
+                    <td className="px-4 py-3 text-sm text-gray-700" style={{minWidth: '200px'}}>
                       <div className="space-y-2">
                         {task.output_image_url ? (
-                          <MediaPreview label="图片" value={task.output_image_url} />
-                        ) : (
-                          <span className="text-gray-400 text-xs block">无图片</span>
-                        )}
+                          <DirectMediaDisplay 
+                            label="输出图片" 
+                            value={task.output_image_url} 
+                            type="image" 
+                            onExpand={() => setModalMedia({ type: 'image', url: task.output_image_url!, label: '输出图片' })}
+                          />
+                        ) : null}
                         {task.output_video_url ? (
-                          <MediaPreview label="视频" value={task.output_video_url} />
-                        ) : (
-                          <span className="text-gray-400 text-xs block">无视频</span>
-                        )}
+                          <DirectMediaDisplay 
+                            label="输出视频" 
+                            value={task.output_video_url} 
+                            type="video" 
+                            onExpand={() => setModalMedia({ type: 'video', url: task.output_video_url!, label: '输出视频' })}
+                          />
+                        ) : null}
+                        {!task.output_image_url && !task.output_video_url ? (
+                          <span className="text-gray-400 text-xs block">无输出</span>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -467,6 +488,85 @@ export default function AdminTasksPage() {
           </div>
         )}
       </div>
+      
+      {/* 媒体放大模态框 */}
+      {modalMedia && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setModalMedia(null)}>
+          <div className="relative max-w-4xl max-h-[90vh] bg-white rounded-lg overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="absolute top-4 right-4 z-10">
+              <button
+                onClick={() => setModalMedia(null)}
+                className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">{modalMedia.label}</h3>
+              {modalMedia.type === 'image' ? (
+                <img 
+                  src={modalMedia.url} 
+                  alt={modalMedia.label} 
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                  onError={(e) => {
+                    console.error('Modal image failed to load:', modalMedia.url);
+                  }}
+                />
+              ) : (
+                <video 
+                  src={modalMedia.url} 
+                  controls 
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                  onError={(e) => {
+                    console.error('Modal video failed to load:', modalMedia.url);
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DirectMediaDisplay({ label, value, type, onExpand }: { label: string; value: string; type: 'image' | 'video'; onExpand: () => void }) {
+  if (type === 'image') {
+    return (
+      <div className="space-y-1">
+        <div className="text-xs text-gray-500">{label}</div>
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-1 cursor-pointer hover:bg-gray-100 transition-colors" onClick={onExpand}>
+          <img src={value} alt={label} className="max-h-24 w-auto rounded" onError={(e) => {
+            console.error('Image failed to load:', value);
+            (e.target as HTMLImageElement).style.display = 'none';
+          }} />
+        </div>
+        <div className="text-xs text-center text-gray-400">点击放大</div>
+      </div>
+    );
+  }
+
+  if (type === 'video') {
+    return (
+      <div className="space-y-1">
+        <div className="text-xs text-gray-500">{label}</div>
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-1 cursor-pointer hover:bg-gray-100 transition-colors" onClick={onExpand}>
+          <video src={value} className="max-h-24 w-auto rounded pointer-events-none" onError={(e) => {
+            console.error('Video failed to load:', value);
+            (e.target as HTMLVideoElement).style.display = 'none';
+          }} />
+        </div>
+        <div className="text-xs text-center text-gray-400">点击播放</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <div className="text-xs text-gray-500">{label}</div>
+      <pre className="whitespace-pre-wrap break-words text-xs bg-gray-50 rounded-md p-2 max-h-16 overflow-y-auto">
+        {value}
+      </pre>
     </div>
   );
 }
