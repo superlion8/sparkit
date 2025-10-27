@@ -514,6 +514,7 @@ export default function AdminTasksPage() {
 
 function MediaModalContent({ url, type, label }: { url: string; type: 'image' | 'video'; label: string }) {
   const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   
   if (type === 'image') {
     return (
@@ -545,12 +546,27 @@ function MediaModalContent({ url, type, label }: { url: string; type: 'image' | 
   return (
     <div className="space-y-4">
       {!hasError ? (
-        <video 
-          src={url} 
-          controls 
-          className="max-w-full max-h-[70vh] object-contain rounded-lg mx-auto"
-          onError={() => setHasError(true)}
-        />
+        <div className="relative">
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-lg">
+              <div className="flex flex-col items-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                <span className="text-sm text-gray-600">加载中...</span>
+              </div>
+            </div>
+          )}
+          <video 
+            src={url} 
+            controls 
+            className="max-w-full max-h-[70vh] object-contain rounded-lg mx-auto"
+            onLoadStart={() => setIsLoading(true)}
+            onCanPlay={() => setIsLoading(false)}
+            onError={() => {
+              setIsLoading(false);
+              setHasError(true);
+            }}
+          />
+        </div>
       ) : (
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
           <div className="text-red-600 mb-4">
@@ -558,9 +574,11 @@ function MediaModalContent({ url, type, label }: { url: string; type: 'image' | 
               <path d="M2 6a2 2 0 012-2h6l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
             </svg>
             <p className="text-lg font-medium text-red-700">视频无法加载</p>
+            <p className="text-sm text-red-600 mt-2">请检查视频URL是否有效或网络连接</p>
           </div>
           <div className="bg-gray-100 p-3 rounded text-sm text-gray-700 break-all">
-            <strong>视频URL：</strong><br/>{url}
+            <strong>视频URL：</strong><br/>
+            <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline">{url}</a>
           </div>
         </div>
       )}
@@ -606,14 +624,26 @@ function DirectMediaDisplay({ label, value, type, onExpand }: { label: string; v
         <div className="text-xs text-gray-500">{label}</div>
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-1 cursor-pointer hover:bg-gray-100 transition-colors" onClick={onExpand}>
           {!hasError ? (
-            <video 
-              src={value} 
-              className="max-h-24 w-auto rounded pointer-events-none" 
-              onError={(e) => {
-                console.error('Video failed to load:', value);
-                setHasError(true);
-              }} 
-            />
+            <div className="max-h-24 min-h-[96px] w-full flex flex-col items-center justify-center bg-blue-50 border border-blue-200 rounded text-blue-600 relative overflow-hidden">
+              {/* 视频预览缩略图 */}
+              <video 
+                src={value}
+                className="absolute inset-0 w-full h-full object-cover rounded opacity-50"
+                muted
+                preload="metadata"
+                onError={(e) => {
+                  console.error('Video failed to load:', value);
+                  setHasError(true);
+                }}
+              />
+              {/* 播放按钮覆盖 */}
+              <div className="relative z-10 flex flex-col items-center">
+                <svg className="w-8 h-8 mb-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                </svg>
+                <span className="text-xs font-medium">视频</span>
+              </div>
+            </div>
           ) : (
             <div className="max-h-24 min-h-[96px] w-full flex flex-col items-center justify-center bg-red-50 border border-red-200 rounded text-red-600">
               <div className="text-xs mb-1">视频加载失败</div>
