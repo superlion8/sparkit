@@ -25,7 +25,7 @@ interface Filters {
   taskType: string;
   taskId: string;
   email: string;
-  prompt: string;
+  username: string;
   limit: number;
 }
 
@@ -76,7 +76,7 @@ export default function AdminTasksPage() {
     taskType: "",
     taskId: "",
     email: "",
-    prompt: "",
+    username: "",
     limit: 100,
   });
   const [offset, setOffset] = useState(0);
@@ -99,7 +99,7 @@ export default function AdminTasksPage() {
       if (filters.taskType) params.set("taskType", filters.taskType);
       if (filters.taskId) params.set("taskId", filters.taskId.trim());
       if (filters.email) params.set("email", filters.email.trim());
-      if (filters.prompt) params.set("prompt", filters.prompt.trim());
+      if (filters.username) params.set("username", filters.username.trim());
       params.set("limit", String(filters.limit));
       if (nextOffset > 0) params.set("offset", String(nextOffset));
 
@@ -168,7 +168,7 @@ export default function AdminTasksPage() {
       taskType: "",
       taskId: "",
       email: "",
-      prompt: "",
+      username: "",
       limit: 100,
     });
     setOffset(0);
@@ -259,18 +259,18 @@ export default function AdminTasksPage() {
               type="text"
               value={filters.email}
               onChange={(event) => setFilters((prev) => ({ ...prev, email: event.target.value }))}
-              placeholder="支持模糊查询"
+              placeholder="支持模糊查询，多个用逗号分隔"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
             />
           </div>
 
-          <div className="md:col-span-2 lg:col-span-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Prompt 关键字</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">用户名</label>
             <input
               type="text"
-              value={filters.prompt}
-              onChange={(event) => setFilters((prev) => ({ ...prev, prompt: event.target.value }))}
-              placeholder="在 prompt 中搜索关键字"
+              value={filters.username}
+              onChange={(event) => setFilters((prev) => ({ ...prev, username: event.target.value }))}
+              placeholder="支持模糊查询，多个用逗号分隔"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
             />
           </div>

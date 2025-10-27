@@ -12,6 +12,11 @@ interface AdminStats {
     date: string;
     count: number;
   }>;
+  userRanking: Array<{
+    email: string;
+    username: string;
+    count: number;
+  }>;
 }
 
 interface AdminDashboardProps {
@@ -160,14 +165,14 @@ export default function AdminDashboard({ accessToken }: AdminDashboardProps) {
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 任务类型分布 */}
           <div>
             <h3 className="text-lg font-medium text-gray-900 mb-3">任务类型分布</h3>
             <div className="space-y-2">
               {Object.entries(stats.taskTypeDistribution)
                 .sort(([, a], [, b]) => b - a)
-                .slice(0, 8)
+                .slice(0, 6)
                 .map(([type, count]) => {
                   const percentage = ((count / stats.totalTasks) * 100).toFixed(1);
                   return (
@@ -184,35 +189,130 @@ export default function AdminDashboard({ accessToken }: AdminDashboardProps) {
             </div>
           </div>
 
-          {/* 最近7天趋势 */}
+          {/* 用户排名 (近7天) */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-3">最近7天趋势</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-3">用户排名 (近7天)</h3>
             <div className="space-y-2">
-              {stats.dailyStats.map(({ date, count }) => {
-                const maxCount = Math.max(...stats.dailyStats.map(d => d.count));
-                const width = maxCount > 0 ? (count / maxCount) * 100 : 0;
-                const isToday = date === new Date().toISOString().split('T')[0];
-                
-                return (
-                  <div key={date} className="flex items-center">
-                    <div className={`text-xs ${isToday ? 'font-semibold text-blue-700' : 'text-gray-600'} w-20`}>
-                      {new Date(date).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}
-                      {isToday && ' (今天)'}
+              {stats.userRanking.slice(0, 8).map((user, index) => (
+                <div key={user.email} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-1">
+                    <div className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${
+                      index === 0 ? 'bg-yellow-100 text-yellow-800' :
+                      index === 1 ? 'bg-gray-100 text-gray-800' :
+                      index === 2 ? 'bg-orange-100 text-orange-800' :
+                      'bg-blue-50 text-blue-700'
+                    }`}>
+                      {index + 1}
                     </div>
-                    <div className="flex-1 ml-3">
-                      <div className="h-4 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${isToday ? 'bg-blue-500' : 'bg-gray-300'} transition-all duration-300`}
-                          style={{ width: `${width}%` }}
-                        />
-                      </div>
-                    </div>
-                    <div className={`text-xs ml-3 w-8 text-right ${isToday ? 'font-semibold text-blue-700' : 'text-gray-600'}`}>
-                      {count}
+                    <div className="text-sm text-gray-700 flex-1 min-w-0">
+                      <div className="font-medium truncate">{user.username}</div>
+                      <div className="text-xs text-gray-500 truncate">{user.email}</div>
                     </div>
                   </div>
-                );
-              })}
+                  <div className="text-sm font-medium text-gray-900 ml-2">
+                    {user.count}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 最近7天趋势 - 折线图 */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-3">最近7天趋势</h3>
+            <div className="h-48 relative">
+              <svg viewBox="0 0 300 120" className="w-full h-full">
+                {/* 网格线 */}
+                <defs>
+                  <pattern id="grid" width="50" height="20" patternUnits="userSpaceOnUse">
+                    <path d="M 50 0 L 0 0 0 20" fill="none" stroke="#f3f4f6" strokeWidth="1"/>
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#grid)" />
+                
+                {/* 数据折线 */}
+                {(() => {
+                  const maxCount = Math.max(...stats.dailyStats.map(d => d.count), 1);
+                  const points = stats.dailyStats.map((data, index) => {
+                    const x = 20 + (index * 40);
+                    const y = 100 - (data.count / maxCount) * 80;
+                    return `${x},${y}`;
+                  }).join(' ');
+                  
+                  return (
+                    <>
+                      {/* 面积填充 */}
+                      <path 
+                        d={`M20,100 L${points} L260,100 Z`}
+                        fill="rgba(59, 130, 246, 0.1)" 
+                      />
+                      {/* 折线 */}
+                      <polyline
+                        fill="none"
+                        stroke="rgb(59, 130, 246)"
+                        strokeWidth="2"
+                        points={points}
+                      />
+                      {/* 数据点 */}
+                      {stats.dailyStats.map((data, index) => {
+                        const x = 20 + (index * 40);
+                        const y = 100 - (data.count / maxCount) * 80;
+                        const isToday = data.date === new Date().toISOString().split('T')[0];
+                        return (
+                          <circle
+                            key={data.date}
+                            cx={x}
+                            cy={y}
+                            r={isToday ? "4" : "3"}
+                            fill={isToday ? "rgb(239, 68, 68)" : "rgb(59, 130, 246)"}
+                            stroke="white"
+                            strokeWidth="2"
+                          />
+                        );
+                      })}
+                    </>
+                  );
+                })()}
+                
+                {/* X轴标签 */}
+                {stats.dailyStats.map((data, index) => {
+                  const x = 20 + (index * 40);
+                  return (
+                    <text
+                      key={data.date}
+                      x={x}
+                      y="115"
+                      textAnchor="middle"
+                      className="text-xs fill-gray-600"
+                      fontSize="10"
+                    >
+                      {new Date(data.date).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}
+                    </text>
+                  );
+                })}
+              </svg>
+              
+              {/* 数值标签 */}
+              <div className="absolute inset-0 pointer-events-none">
+                {stats.dailyStats.map((data, index) => {
+                  const maxCount = Math.max(...stats.dailyStats.map(d => d.count), 1);
+                  const leftPercent = (20 + (index * 40)) / 300 * 100;
+                  const topPercent = (100 - (data.count / maxCount) * 80) / 120 * 100;
+                  
+                  return (
+                    <div
+                      key={data.date}
+                      className="absolute text-xs text-gray-700 font-medium transform -translate-x-1/2 -translate-y-6"
+                      style={{ 
+                        left: `${leftPercent}%`,
+                        top: `${topPercent}%`
+                      }}
+                    >
+                      {data.count}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
