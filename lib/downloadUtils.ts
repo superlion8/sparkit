@@ -51,15 +51,33 @@ export async function downloadImage(url: string, filename: string = 'image.png')
  */
 export async function downloadVideo(url: string, filename: string = 'video.mp4'): Promise<void> {
   try {
+    console.log('Starting video download:', { url, filename });
+    
     // Use proxy to avoid CORS issues
     const proxyUrl = `/api/download?url=${encodeURIComponent(url)}`;
+    console.log('Proxy URL:', proxyUrl);
+    
     const response = await fetch(proxyUrl);
+    console.log('Proxy response:', { 
+      ok: response.ok, 
+      status: response.status, 
+      statusText: response.statusText,
+      contentType: response.headers.get('content-type')
+    });
     
     if (!response.ok) {
-      throw new Error('Failed to fetch video');
+      const errorText = await response.text();
+      console.error('Proxy response error:', errorText);
+      throw new Error(`Failed to fetch video: ${response.status} ${response.statusText}`);
     }
 
     const blob = await response.blob();
+    console.log('Video blob created:', { size: blob.size, type: blob.type });
+    
+    if (blob.size === 0) {
+      throw new Error('Downloaded video is empty');
+    }
+    
     const blobUrl = URL.createObjectURL(blob);
 
     const link = document.createElement('a');
@@ -69,11 +87,14 @@ export async function downloadVideo(url: string, filename: string = 'video.mp4')
     link.click();
     document.body.removeChild(link);
 
+    console.log('Video download triggered successfully');
+
     // Clean up blob URL
     setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
   } catch (error) {
-    console.error('Download failed:', error);
-    alert('下载失败，请重试');
+    console.error('Video download failed:', error);
+    alert(`视频下载失败: ${error instanceof Error ? error.message : String(error)}`);
+    throw error;
   }
 }
 

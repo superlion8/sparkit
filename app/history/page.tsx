@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { downloadImage, downloadVideo } from "@/lib/downloadUtils";
 
 interface GenerationTask {
@@ -45,6 +45,7 @@ export default function HistoryPage() {
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [modalMedia, setModalMedia] = useState<{ type: 'image' | 'video'; url: string; label: string } | null>(null);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
     pageSize: 20,
@@ -117,7 +118,13 @@ export default function HistoryPage() {
   };
 
   const handleDownloadVideo = async (url: string, taskId: string) => {
-    await downloadVideo(url, `video-${taskId}.mp4`);
+    try {
+      console.log('Downloading video:', url);
+      await downloadVideo(url, `video-${taskId}.mp4`);
+    } catch (error) {
+      console.error('Video download error:', error);
+      alert(`视频下载失败: ${error}`);
+    }
   };
 
   if (authLoading) {
@@ -201,18 +208,32 @@ export default function HistoryPage() {
                 {/* Preview */}
                 <div className="aspect-square bg-gray-100 relative">
                   {task.output_image_url && (
-                    <img
-                      src={task.output_image_url}
-                      alt="Generated"
-                      className="w-full h-full object-cover"
-                    />
+                    <div className="w-full h-full relative cursor-pointer group" onClick={() => setModalMedia({ type: 'image', url: task.output_image_url!, label: '生成图片' })}>
+                      <img
+                        src={task.output_image_url}
+                        alt="Generated"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
+                        <div className="text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ImageIcon className="w-8 h-8" />
+                        </div>
+                      </div>
+                    </div>
                   )}
                   {task.output_video_url && !task.output_image_url && (
-                    <video
-                      src={task.output_video_url}
-                      className="w-full h-full object-cover"
-                      controls
-                    />
+                    <div className="w-full h-full relative cursor-pointer group" onClick={() => setModalMedia({ type: 'video', url: task.output_video_url!, label: '生成视频' })}>
+                      <video
+                        src={task.output_video_url}
+                        className="w-full h-full object-cover pointer-events-none"
+                        muted
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
+                        <div className="text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Video className="w-8 h-8" />
+                        </div>
+                      </div>
+                    </div>
                   )}
                   {!task.output_image_url && !task.output_video_url && (
                     <div className="w-full h-full flex items-center justify-center">
@@ -297,6 +318,38 @@ export default function HistoryPage() {
             </div>
           )}
         </>
+      )}
+      
+      {/* 媒体放大模态框 */}
+      {modalMedia && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setModalMedia(null)}>
+          <div className="relative max-w-4xl max-h-[90vh] bg-white rounded-lg overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="absolute top-4 right-4 z-10">
+              <button
+                onClick={() => setModalMedia(null)}
+                className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">{modalMedia.label}</h3>
+              {modalMedia.type === 'image' ? (
+                <img 
+                  src={modalMedia.url} 
+                  alt={modalMedia.label} 
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg mx-auto"
+                />
+              ) : (
+                <video 
+                  src={modalMedia.url} 
+                  controls 
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg mx-auto"
+                />
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
