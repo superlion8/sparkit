@@ -247,7 +247,7 @@ export default function VideoSubjectReplacePage() {
                   <strong>文件限制：</strong>视频建议 5MB 以下，图片建议 2MB 以下，总大小不超过 10MB。
                 </p>
                 <p className="text-xs text-orange-600 mt-1">
-                  <strong>注意：</strong>如果遇到"载荷过大"错误，请使用更小的文件。
+                  <strong>注意：</strong>如果遇到&ldquo;载荷过大&rdquo;错误，请使用更小的文件。
                 </p>
               </div>
 

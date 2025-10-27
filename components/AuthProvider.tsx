@@ -23,12 +23,15 @@ export const AuthContext = createContext<AuthContextValue>({
   accessToken: null,
   isAuthenticated: false,
   loading: true,
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  promptLogin: () => {},
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  signInWithGoogle: async () => {},
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  signOut: async () => {},
+  promptLogin: () => {
+    // Default empty implementation
+  },
+  signInWithGoogle: async () => {
+    // Default empty implementation
+  },
+  signOut: async () => {
+    // Default empty implementation
+  },
   userEmail: null,
   userAvatar: null,
   userName: null,

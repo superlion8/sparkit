@@ -12,9 +12,11 @@ import {
   Menu,
   X,
   Film,
-  History
+  History,
+  Settings
 } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 const navigation = [
   { name: "图像生成", href: "/text-to-image", icon: Image },
@@ -26,9 +28,18 @@ const navigation = [
   { name: "改图转场", href: "/image-transition", icon: Film },
 ];
 
+// 管理员邮箱列表
+const isAdminEmail = (email?: string | null) => {
+  if (!email) return false;
+  const adminEmails = ["billccb.8128@gmail.com"];
+  return adminEmails.includes(email.toLowerCase());
+};
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { userEmail } = useAuth();
+  const isAdmin = isAdminEmail(userEmail);
 
   const NavContent = () => (
     <nav className="flex flex-col gap-1 p-4">
@@ -84,6 +95,35 @@ export default function Sidebar() {
         <History className="w-5 h-5" />
         <span>生成历史</span>
       </Link>
+
+      {/* Admin Section */}
+      {isAdmin && (
+        <>
+          <div className="my-4 px-4">
+            <div className="h-px bg-gray-200"></div>
+          </div>
+          
+          <div className="px-4 mb-2">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">管理功能</p>
+          </div>
+          
+          <Link
+            href="/admin/tasks"
+            onClick={() => setMobileMenuOpen(false)}
+            className={`
+              flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+              ${
+                pathname === "/admin/tasks"
+                  ? "bg-red-100 text-red-700 font-medium"
+                  : "text-gray-700 hover:bg-red-50"
+              }
+            `}
+          >
+            <Settings className="w-5 h-5" />
+            <span>管理后台</span>
+          </Link>
+        </>
+      )}
     </nav>
   );
 
