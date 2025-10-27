@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import LoadingSpinner from "../../../components/LoadingSpinner";
 import AdminDashboard from "../../../components/AdminDashboard";
 import { useAuth } from "../../../hooks/useAuth";
@@ -89,6 +90,7 @@ export default function AdminTasksPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
+  const [modalMedia, setModalMedia] = useState<{ type: 'image' | 'video'; url: string; label: string } | null>(null);
 
   const fetchTasks = useCallback(
     async (nextOffset = 0) => {
@@ -436,10 +438,20 @@ export default function AdminTasksPage() {
                     <td className="px-4 py-3 text-sm text-gray-700" style={{minWidth: '200px'}}>
                       <div className="space-y-2">
                         {task.input_image_url ? (
-                          <DirectMediaDisplay label="输入图片" value={task.input_image_url} type="image" />
+                          <DirectMediaDisplay 
+                            label="输入图片" 
+                            value={task.input_image_url} 
+                            type="image" 
+                            onExpand={() => setModalMedia({ type: 'image', url: task.input_image_url!, label: '输入图片' })}
+                          />
                         ) : null}
                         {task.input_video_url ? (
-                          <DirectMediaDisplay label="输入视频" value={task.input_video_url} type="video" />
+                          <DirectMediaDisplay 
+                            label="输入视频" 
+                            value={task.input_video_url} 
+                            type="video" 
+                            onExpand={() => setModalMedia({ type: 'video', url: task.input_video_url!, label: '输入视频' })}
+                          />
                         ) : null}
                         {!task.input_image_url && !task.input_video_url ? (
                           <span className="text-gray-400 text-xs block">无输入</span>
@@ -449,10 +461,20 @@ export default function AdminTasksPage() {
                     <td className="px-4 py-3 text-sm text-gray-700" style={{minWidth: '200px'}}>
                       <div className="space-y-2">
                         {task.output_image_url ? (
-                          <DirectMediaDisplay label="输出图片" value={task.output_image_url} type="image" />
+                          <DirectMediaDisplay 
+                            label="输出图片" 
+                            value={task.output_image_url} 
+                            type="image" 
+                            onExpand={() => setModalMedia({ type: 'image', url: task.output_image_url!, label: '输出图片' })}
+                          />
                         ) : null}
                         {task.output_video_url ? (
-                          <DirectMediaDisplay label="输出视频" value={task.output_video_url} type="video" />
+                          <DirectMediaDisplay 
+                            label="输出视频" 
+                            value={task.output_video_url} 
+                            type="video" 
+                            onExpand={() => setModalMedia({ type: 'video', url: task.output_video_url!, label: '输出视频' })}
+                          />
                         ) : null}
                         {!task.output_image_url && !task.output_video_url ? (
                           <span className="text-gray-400 text-xs block">无输出</span>
@@ -466,21 +488,60 @@ export default function AdminTasksPage() {
           </div>
         )}
       </div>
+      
+      {/* 媒体放大模态框 */}
+      {modalMedia && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setModalMedia(null)}>
+          <div className="relative max-w-4xl max-h-[90vh] bg-white rounded-lg overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="absolute top-4 right-4 z-10">
+              <button
+                onClick={() => setModalMedia(null)}
+                className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">{modalMedia.label}</h3>
+              {modalMedia.type === 'image' ? (
+                <img 
+                  src={modalMedia.url} 
+                  alt={modalMedia.label} 
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                  onError={(e) => {
+                    console.error('Modal image failed to load:', modalMedia.url);
+                  }}
+                />
+              ) : (
+                <video 
+                  src={modalMedia.url} 
+                  controls 
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                  onError={(e) => {
+                    console.error('Modal video failed to load:', modalMedia.url);
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function DirectMediaDisplay({ label, value, type }: { label: string; value: string; type: 'image' | 'video' }) {
+function DirectMediaDisplay({ label, value, type, onExpand }: { label: string; value: string; type: 'image' | 'video'; onExpand: () => void }) {
   if (type === 'image') {
     return (
       <div className="space-y-1">
         <div className="text-xs text-gray-500">{label}</div>
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-1">
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-1 cursor-pointer hover:bg-gray-100 transition-colors" onClick={onExpand}>
           <img src={value} alt={label} className="max-h-24 w-auto rounded" onError={(e) => {
             console.error('Image failed to load:', value);
             (e.target as HTMLImageElement).style.display = 'none';
           }} />
         </div>
+        <div className="text-xs text-center text-gray-400">点击放大</div>
       </div>
     );
   }
@@ -489,12 +550,13 @@ function DirectMediaDisplay({ label, value, type }: { label: string; value: stri
     return (
       <div className="space-y-1">
         <div className="text-xs text-gray-500">{label}</div>
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-1">
-          <video src={value} controls className="max-h-24 w-auto rounded" onError={(e) => {
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-1 cursor-pointer hover:bg-gray-100 transition-colors" onClick={onExpand}>
+          <video src={value} className="max-h-24 w-auto rounded pointer-events-none" onError={(e) => {
             console.error('Video failed to load:', value);
             (e.target as HTMLVideoElement).style.display = 'none';
           }} />
         </div>
+        <div className="text-xs text-center text-gray-400">点击播放</div>
       </div>
     );
   }
