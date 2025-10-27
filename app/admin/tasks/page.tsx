@@ -211,7 +211,7 @@ export default function AdminTasksPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6 lg:p-10 space-y-8">
+    <div className="w-full max-w-none mx-auto p-6 lg:p-10 space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">任务数据后台</h1>
         <p className="text-gray-600 mt-2">
@@ -420,44 +420,39 @@ export default function AdminTasksPage() {
                         {task.status || '未知'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700 max-w-xs">
+                    <td className="px-4 py-3 text-sm text-gray-700" style={{maxWidth: '300px'}}>
                       {task.prompt ? (
-                        <details>
-                          <summary className="cursor-pointer text-primary-600 text-sm">展开</summary>
-                          <pre className="mt-2 whitespace-pre-wrap break-words text-xs bg-gray-50 rounded-md p-3">
-                            {task.prompt}
-                          </pre>
-                        </details>
+                        <div className="whitespace-pre-wrap break-words text-xs bg-gray-50 rounded-md p-3 max-h-32 overflow-y-auto">
+                          {task.prompt}
+                        </div>
                       ) : (
                         <span className="text-gray-400">无</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
+                    <td className="px-4 py-3 text-sm text-gray-700" style={{minWidth: '150px'}}>
                       <div className="space-y-2">
                         {task.input_image_url ? (
-                          <MediaPreview label="图片" value={task.input_image_url} />
-                        ) : (
-                          <span className="text-gray-400 text-xs block">无图片</span>
-                        )}
+                          <DirectMediaDisplay label="输入图片" value={task.input_image_url} />
+                        ) : null}
                         {task.input_video_url ? (
-                          <MediaPreview label="视频" value={task.input_video_url} />
-                        ) : (
-                          <span className="text-gray-400 text-xs block">无视频</span>
-                        )}
+                          <DirectMediaDisplay label="输入视频" value={task.input_video_url} />
+                        ) : null}
+                        {!task.input_image_url && !task.input_video_url ? (
+                          <span className="text-gray-400 text-xs block">无输入</span>
+                        ) : null}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
+                    <td className="px-4 py-3 text-sm text-gray-700" style={{minWidth: '150px'}}>
                       <div className="space-y-2">
                         {task.output_image_url ? (
-                          <MediaPreview label="图片" value={task.output_image_url} />
-                        ) : (
-                          <span className="text-gray-400 text-xs block">无图片</span>
-                        )}
+                          <DirectMediaDisplay label="输出图片" value={task.output_image_url} />
+                        ) : null}
                         {task.output_video_url ? (
-                          <MediaPreview label="视频" value={task.output_video_url} />
-                        ) : (
-                          <span className="text-gray-400 text-xs block">无视频</span>
-                        )}
+                          <DirectMediaDisplay label="输出视频" value={task.output_video_url} />
+                        ) : null}
+                        {!task.output_image_url && !task.output_video_url ? (
+                          <span className="text-gray-400 text-xs block">无输出</span>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -467,6 +462,39 @@ export default function AdminTasksPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function DirectMediaDisplay({ label, value }: { label: string; value: string }) {
+  if (isImageValue(value)) {
+    return (
+      <div className="space-y-1">
+        <div className="text-xs text-gray-500">{label}</div>
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-1">
+          <img src={value} alt={label} className="max-h-24 w-auto rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isVideoValue(value)) {
+    return (
+      <div className="space-y-1">
+        <div className="text-xs text-gray-500">{label}</div>
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-1">
+          <video src={value} controls className="max-h-24 w-auto rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <div className="text-xs text-gray-500">{label}</div>
+      <pre className="whitespace-pre-wrap break-words text-xs bg-gray-50 rounded-md p-2 max-h-16 overflow-y-auto">
+        {value}
+      </pre>
     </div>
   );
 }
