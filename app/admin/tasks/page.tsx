@@ -66,9 +66,13 @@ const formatDateTime = (value: string) => {
 };
 
 const isImageValue = (value: string) =>
-  value.startsWith("data:image") || /\.(png|jpg|jpeg|webp|gif)$/i.test(value);
+  value.startsWith("data:image") || 
+  /\.(png|jpg|jpeg|webp|gif)$/i.test(value) ||
+  value.includes('static.aimovely.com') && !value.includes('video');
 const isVideoValue = (value: string) =>
-  value.startsWith("data:video") || /\.(mp4|mov|avi|webm)$/i.test(value);
+  value.startsWith("data:video") || 
+  /\.(mp4|mov|avi|webm)$/i.test(value) ||
+  value.includes('static.aimovely.com') && value.includes('video');
 
 export default function AdminTasksPage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin, userEmail } = useAuth();
@@ -211,7 +215,7 @@ export default function AdminTasksPage() {
   }
 
   return (
-    <div className="w-full max-w-none mx-auto p-6 lg:p-10 space-y-8">
+    <div className="max-w-7xl mx-auto p-6 lg:p-10 space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">任务数据后台</h1>
         <p className="text-gray-600 mt-2">
@@ -429,26 +433,26 @@ export default function AdminTasksPage() {
                         <span className="text-gray-400">无</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700" style={{minWidth: '150px'}}>
+                    <td className="px-4 py-3 text-sm text-gray-700" style={{minWidth: '200px'}}>
                       <div className="space-y-2">
                         {task.input_image_url ? (
-                          <DirectMediaDisplay label="输入图片" value={task.input_image_url} />
+                          <DirectMediaDisplay label="输入图片" value={task.input_image_url} type="image" />
                         ) : null}
                         {task.input_video_url ? (
-                          <DirectMediaDisplay label="输入视频" value={task.input_video_url} />
+                          <DirectMediaDisplay label="输入视频" value={task.input_video_url} type="video" />
                         ) : null}
                         {!task.input_image_url && !task.input_video_url ? (
                           <span className="text-gray-400 text-xs block">无输入</span>
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700" style={{minWidth: '150px'}}>
+                    <td className="px-4 py-3 text-sm text-gray-700" style={{minWidth: '200px'}}>
                       <div className="space-y-2">
                         {task.output_image_url ? (
-                          <DirectMediaDisplay label="输出图片" value={task.output_image_url} />
+                          <DirectMediaDisplay label="输出图片" value={task.output_image_url} type="image" />
                         ) : null}
                         {task.output_video_url ? (
-                          <DirectMediaDisplay label="输出视频" value={task.output_video_url} />
+                          <DirectMediaDisplay label="输出视频" value={task.output_video_url} type="video" />
                         ) : null}
                         {!task.output_image_url && !task.output_video_url ? (
                           <span className="text-gray-400 text-xs block">无输出</span>
@@ -466,24 +470,30 @@ export default function AdminTasksPage() {
   );
 }
 
-function DirectMediaDisplay({ label, value }: { label: string; value: string }) {
-  if (isImageValue(value)) {
+function DirectMediaDisplay({ label, value, type }: { label: string; value: string; type: 'image' | 'video' }) {
+  if (type === 'image') {
     return (
       <div className="space-y-1">
         <div className="text-xs text-gray-500">{label}</div>
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-1">
-          <img src={value} alt={label} className="max-h-24 w-auto rounded" />
+          <img src={value} alt={label} className="max-h-24 w-auto rounded" onError={(e) => {
+            console.error('Image failed to load:', value);
+            (e.target as HTMLImageElement).style.display = 'none';
+          }} />
         </div>
       </div>
     );
   }
 
-  if (isVideoValue(value)) {
+  if (type === 'video') {
     return (
       <div className="space-y-1">
         <div className="text-xs text-gray-500">{label}</div>
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-1">
-          <video src={value} controls className="max-h-24 w-auto rounded" />
+          <video src={value} controls className="max-h-24 w-auto rounded" onError={(e) => {
+            console.error('Video failed to load:', value);
+            (e.target as HTMLVideoElement).style.display = 'none';
+          }} />
         </div>
       </div>
     );
