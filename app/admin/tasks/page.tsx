@@ -503,25 +503,7 @@ export default function AdminTasksPage() {
             </div>
             <div className="p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">{modalMedia.label}</h3>
-              {modalMedia.type === 'image' ? (
-                <img 
-                  src={modalMedia.url} 
-                  alt={modalMedia.label} 
-                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
-                  onError={(e) => {
-                    console.error('Modal image failed to load:', modalMedia.url);
-                  }}
-                />
-              ) : (
-                <video 
-                  src={modalMedia.url} 
-                  controls 
-                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
-                  onError={(e) => {
-                    console.error('Modal video failed to load:', modalMedia.url);
-                  }}
-                />
-              )}
+              <MediaModalContent url={modalMedia.url} type={modalMedia.type} label={modalMedia.label} />
             </div>
           </div>
         </div>
@@ -530,18 +512,90 @@ export default function AdminTasksPage() {
   );
 }
 
+function MediaModalContent({ url, type, label }: { url: string; type: 'image' | 'video'; label: string }) {
+  const [hasError, setHasError] = useState(false);
+  
+  if (type === 'image') {
+    return (
+      <div className="space-y-4">
+        {!hasError ? (
+          <img 
+            src={url} 
+            alt={label} 
+            className="max-w-full max-h-[70vh] object-contain rounded-lg mx-auto"
+            onError={() => setHasError(true)}
+          />
+        ) : (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+            <div className="text-red-600 mb-4">
+              <svg className="w-16 h-16 mx-auto mb-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+              </svg>
+              <p className="text-lg font-medium text-red-700">图片无法加载</p>
+            </div>
+            <div className="bg-gray-100 p-3 rounded text-sm text-gray-700 break-all">
+              <strong>图片URL：</strong><br/>{url}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-4">
+      {!hasError ? (
+        <video 
+          src={url} 
+          controls 
+          className="max-w-full max-h-[70vh] object-contain rounded-lg mx-auto"
+          onError={() => setHasError(true)}
+        />
+      ) : (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <div className="text-red-600 mb-4">
+            <svg className="w-16 h-16 mx-auto mb-2" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M2 6a2 2 0 012-2h6l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+            </svg>
+            <p className="text-lg font-medium text-red-700">视频无法加载</p>
+          </div>
+          <div className="bg-gray-100 p-3 rounded text-sm text-gray-700 break-all">
+            <strong>视频URL：</strong><br/>{url}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DirectMediaDisplay({ label, value, type, onExpand }: { label: string; value: string; type: 'image' | 'video'; onExpand: () => void }) {
+  const [hasError, setHasError] = useState(false);
+  
   if (type === 'image') {
     return (
       <div className="space-y-1">
         <div className="text-xs text-gray-500">{label}</div>
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-1 cursor-pointer hover:bg-gray-100 transition-colors" onClick={onExpand}>
-          <img src={value} alt={label} className="max-h-24 w-auto rounded" onError={(e) => {
-            console.error('Image failed to load:', value);
-            (e.target as HTMLImageElement).style.display = 'none';
-          }} />
+          {!hasError ? (
+            <img 
+              src={value} 
+              alt={label} 
+              className="max-h-24 w-auto rounded" 
+              onError={(e) => {
+                console.error('Image failed to load:', value);
+                setHasError(true);
+              }} 
+            />
+          ) : (
+            <div className="max-h-24 min-h-[96px] w-full flex flex-col items-center justify-center bg-red-50 border border-red-200 rounded text-red-600">
+              <div className="text-xs mb-1">图片加载失败</div>
+              <div className="text-xs text-red-400 break-all px-2 text-center">
+                {value.length > 50 ? `${value.substring(0, 50)}...` : value}
+              </div>
+            </div>
+          )}
         </div>
-        <div className="text-xs text-center text-gray-400">点击放大</div>
+        <div className="text-xs text-center text-gray-400">{hasError ? '点击查看详细信息' : '点击放大'}</div>
       </div>
     );
   }
@@ -551,12 +605,25 @@ function DirectMediaDisplay({ label, value, type, onExpand }: { label: string; v
       <div className="space-y-1">
         <div className="text-xs text-gray-500">{label}</div>
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-1 cursor-pointer hover:bg-gray-100 transition-colors" onClick={onExpand}>
-          <video src={value} className="max-h-24 w-auto rounded pointer-events-none" onError={(e) => {
-            console.error('Video failed to load:', value);
-            (e.target as HTMLVideoElement).style.display = 'none';
-          }} />
+          {!hasError ? (
+            <video 
+              src={value} 
+              className="max-h-24 w-auto rounded pointer-events-none" 
+              onError={(e) => {
+                console.error('Video failed to load:', value);
+                setHasError(true);
+              }} 
+            />
+          ) : (
+            <div className="max-h-24 min-h-[96px] w-full flex flex-col items-center justify-center bg-red-50 border border-red-200 rounded text-red-600">
+              <div className="text-xs mb-1">视频加载失败</div>
+              <div className="text-xs text-red-400 break-all px-2 text-center">
+                {value.length > 50 ? `${value.substring(0, 50)}...` : value}
+              </div>
+            </div>
+          )}
         </div>
-        <div className="text-xs text-center text-gray-400">点击播放</div>
+        <div className="text-xs text-center text-gray-400">{hasError ? '点击查看详细信息' : '点击播放'}</div>
       </div>
     );
   }
