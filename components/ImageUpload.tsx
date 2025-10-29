@@ -40,6 +40,16 @@ export default function ImageUpload({
   
   const { accessToken, isAuthenticated } = useAuth();
 
+  // Cache for history records and image blobs
+  const [historyCache, setHistoryCache] = useState<{
+    records: HistoryRecord[];
+    timestamp: number;
+  } | null>(null);
+  const [imageBlobCache, setImageBlobCache] = useState<Map<string, Blob>>(new Map());
+  
+  // Cache duration: 5 minutes
+  const CACHE_DURATION = 5 * 60 * 1000;
+
   // Fetch history when modal opens
   const fetchHistory = async () => {
     if (!isAuthenticated || !accessToken) {
@@ -47,9 +57,16 @@ export default function ImageUpload({
       return;
     }
 
+    // Check cache first
+    if (historyCache && (Date.now() - historyCache.timestamp < CACHE_DURATION)) {
+      console.log("Using cached history records:", historyCache.records.length);
+      setHistoryRecords(historyCache.records);
+      return;
+    }
+
     setLoadingHistory(true);
     try {
-      console.log("Fetching history with token:", accessToken.substring(0, 20) + "...");
+      console.log("Fetching fresh history data...");
       const response = await fetch("/api/history?pageSize=50", {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -71,6 +88,12 @@ export default function ImageUpload({
           (record: HistoryRecord) => record.output_image_url
         );
         console.log("Records with images:", recordsWithImages.length);
+        
+        // Update cache
+        setHistoryCache({
+          records: recordsWithImages,
+          timestamp: Date.now(),
+        });
         setHistoryRecords(recordsWithImages);
       } else {
         console.error("Failed to fetch history:", response.status, response.statusText);
@@ -81,6 +104,44 @@ export default function ImageUpload({
       setLoadingHistory(false);
     }
   };
+
+  // Fetch history when modal opens
+  useEffect(() => {
+    if (showHistoryModal) {
+      fetchHistory();
+    }
+  }, [showHistoryModal]);
+
+  // Preload images when history records are loaded (for faster selection)
+  useEffect(() => {
+    if (historyRecords.length > 0) {
+      // Preload first 10 images in background
+      const preloadImages = historyRecords.slice(0, 10);
+      console.log(`Preloading ${preloadImages.length} images...`);
+      
+      preloadImages.forEach(async (record) => {
+        const imageUrl = record.output_image_url;
+        if (imageUrl && !imageBlobCache.has(imageUrl)) {
+          try {
+            const proxyUrl = `/api/download?url=${encodeURIComponent(imageUrl)}`;
+            const response = await fetch(proxyUrl);
+            if (response.ok) {
+              const blob = await response.blob();
+              setImageBlobCache(prev => {
+                const newCache = new Map(prev);
+                newCache.set(imageUrl, blob);
+                return newCache;
+              });
+              console.log(`Preloaded image: ${imageUrl.substring(0, 50)}...`);
+            }
+          } catch (error) {
+            // Silently fail preload, not critical
+            console.log(`Failed to preload image: ${imageUrl.substring(0, 50)}...`);
+          }
+        }
+      });
+    }
+  }, [historyRecords]);
 
   const handleFileChange = async (files: FileList | null) => {
     if (!files) return;
@@ -225,18 +286,35 @@ export default function ImageUpload({
     try {
       console.log("Selecting image from history:", imageUrl);
       
-      // Use proxy to avoid CORS issues
-      const proxyUrl = `/api/download?url=${encodeURIComponent(imageUrl)}`;
-      console.log("Using proxy URL:", proxyUrl);
+      let blob: Blob;
       
-      const response = await fetch(proxyUrl);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+      // Check blob cache first
+      if (imageBlobCache.has(imageUrl)) {
+        console.log("Using cached blob for image");
+        blob = imageBlobCache.get(imageUrl)!;
+      } else {
+        console.log("Downloading image...");
+        
+        // Use proxy to avoid CORS issues
+        const proxyUrl = `/api/download?url=${encodeURIComponent(imageUrl)}`;
+        
+        const response = await fetch(proxyUrl);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+        }
+        
+        blob = await response.blob();
+        console.log("Downloaded blob size:", blob.size, "type:", blob.type);
+        
+        // Cache the blob
+        setImageBlobCache(prev => {
+          const newCache = new Map(prev);
+          newCache.set(imageUrl, blob);
+          return newCache;
+        });
+        console.log("Cached blob for future use");
       }
-      
-      const blob = await response.blob();
-      console.log("Image blob size:", blob.size, "type:", blob.type);
       
       const filename = `history-image-${Date.now()}.jpg`;
       const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
