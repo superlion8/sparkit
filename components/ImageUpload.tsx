@@ -61,8 +61,13 @@ export default function ImageUpload({
       if (response.ok) {
         const data = await response.json();
         console.log("History data:", data);
+        
+        // API returns data.history OR data.data depending on endpoint
+        const historyData = data.history || data.data || [];
+        console.log("History array:", historyData);
+        
         // Filter records that have output images
-        const recordsWithImages = (data.history || []).filter(
+        const recordsWithImages = historyData.filter(
           (record: HistoryRecord) => record.output_image_url
         );
         console.log("Records with images:", recordsWithImages.length);
