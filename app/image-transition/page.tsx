@@ -210,6 +210,8 @@ export default function ImageTransitionPage() {
       return;
     }
 
+    // Clear previous video and errors
+    setVideoUrl("");
     setVideoLoading(true);
     setVideoError("");
 
@@ -578,19 +580,31 @@ export default function ImageTransitionPage() {
                 <p className="text-sm text-gray-500 italic">请先填写转场描述...</p>
               )}
 
-              {hasBothFrames && transitionPrompt.trim() && !videoLoading && !videoUrl && (
+              {hasBothFrames && transitionPrompt.trim() && !videoLoading && (
                 <button
                   onClick={handleGenerateVideo}
                   className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <Video className="w-5 h-5" />
-                  生成转场视频
+                  {videoUrl ? "重新生成视频" : "生成转场视频"}
                 </button>
+              )}
+
+              {videoLoading && (
+                <div className="bg-blue-50 border border-blue-300 rounded-lg p-3 text-sm text-blue-700">
+                  视频生成中，预计需要 2-5 分钟...
+                </div>
               )}
 
               {videoError && (
                 <div className="mt-4 bg-red-50 border border-red-300 rounded-lg p-3 text-sm text-red-700">
                   {videoError}
+                </div>
+              )}
+
+              {videoUrl && !videoLoading && (
+                <div className="mt-4 bg-green-50 border border-green-300 rounded-lg p-3 text-sm text-green-700">
+                  ✓ 视频已生成！可修改转场描述后重新生成。
                 </div>
               )}
             </div>
