@@ -30,6 +30,9 @@ export default function ImageUpload({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   
+  // Upload method selection modal
+  const [showUploadMethodModal, setShowUploadMethodModal] = useState(false);
+  
   // History selection modal
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
@@ -38,28 +41,34 @@ export default function ImageUpload({
   const { accessToken, isAuthenticated } = useAuth();
 
   // Fetch history when modal opens
-  useEffect(() => {
-    if (showHistoryModal && isAuthenticated && accessToken) {
-      fetchHistory();
-    }
-  }, [showHistoryModal, isAuthenticated, accessToken]);
-
   const fetchHistory = async () => {
+    if (!isAuthenticated || !accessToken) {
+      console.log("Not authenticated, cannot fetch history");
+      return;
+    }
+
     setLoadingHistory(true);
     try {
+      console.log("Fetching history with token:", accessToken.substring(0, 20) + "...");
       const response = await fetch("/api/history?pageSize=50", {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       });
 
+      console.log("History API response status:", response.status);
+
       if (response.ok) {
         const data = await response.json();
+        console.log("History data:", data);
         // Filter records that have output images
-        const recordsWithImages = data.history.filter(
+        const recordsWithImages = (data.history || []).filter(
           (record: HistoryRecord) => record.output_image_url
         );
+        console.log("Records with images:", recordsWithImages.length);
         setHistoryRecords(recordsWithImages);
+      } else {
+        console.error("Failed to fetch history:", response.status, response.statusText);
       }
     } catch (error) {
       console.error("Failed to fetch history:", error);
@@ -195,6 +204,17 @@ export default function ImageUpload({
     }
   };
 
+  // Handle upload area click
+  const handleUploadAreaClick = () => {
+    if (isAuthenticated) {
+      // Show method selection modal
+      setShowUploadMethodModal(true);
+    } else {
+      // Directly open file picker if not authenticated
+      fileInputRef.current?.click();
+    }
+  };
+
   // Select image from history
   const handleSelectFromHistory = async (imageUrl: string) => {
     try {
@@ -206,6 +226,7 @@ export default function ImageUpload({
       
       await processFiles([file]);
       setShowHistoryModal(false);
+      setShowUploadMethodModal(false);
     } catch (error) {
       console.error("Failed to load image from history:", error);
       alert("加载历史图片失败，请重试");
@@ -258,51 +279,30 @@ export default function ImageUpload({
         ))}
 
         {images.length < maxImages && (
-          <div
+          <button
+            type="button"
+            onClick={handleUploadAreaClick}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`${previewAspect} border-2 border-dashed rounded-lg transition-all min-h-[200px] ${
+            className={`${previewAspect} border-2 border-dashed rounded-lg transition-all min-h-[200px] flex flex-col items-center justify-center gap-3 text-gray-500 ${
               isDragging
-                ? "border-primary-500 bg-primary-50"
-                : "border-gray-300 hover:border-primary-500 hover:bg-primary-50"
+                ? "border-primary-500 bg-primary-50 text-primary-600"
+                : "border-gray-300 hover:border-primary-500 hover:bg-primary-50 hover:text-primary-600"
             }`}
           >
-            <div className="h-full flex flex-col items-center justify-center gap-3 p-4">
-              <Upload className={`w-12 h-12 transition-colors ${isDragging ? "text-primary-600" : "text-gray-400"}`} />
-              <div className="text-center">
-                <span className={`text-base font-medium block transition-colors ${isDragging ? "text-primary-600" : "text-gray-600"}`}>
-                  {isDragging ? "松开鼠标上传" : "拖拽图片到这里"}
-                </span>
-                <span className="text-xs text-gray-400 mt-1 block">或</span>
-              </div>
-              
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
-                >
-                  <ImageIcon className="w-4 h-4 mr-2" />
-                  本地上传
-                </button>
-                
-                {isAuthenticated && (
-                  <button
-                    type="button"
-                    onClick={() => setShowHistoryModal(true)}
-                    className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
-                  >
-                    <History className="w-4 h-4 mr-2" />
-                    历史记录
-                  </button>
-                )}
-              </div>
-              
-              <span className="text-xs text-gray-400">支持 JPG, PNG, WebP</span>
+            <Upload className="w-12 h-12" />
+            <div className="text-center">
+              <span className="text-base font-medium block">
+                {isDragging ? "松开鼠标上传" : "点击上传"}
+              </span>
+              <span className="text-xs text-gray-400 mt-1 block">
+                {isDragging ? "" : "或拖拽图片到这里"}
+              </span>
+              <span className="text-xs text-gray-400 mt-1 block">支持 JPG, PNG, WebP</span>
             </div>
-          </div>
+          </button>
         )}
       </div>
 
@@ -327,6 +327,60 @@ export default function ImageUpload({
             className="max-h-full max-w-full object-contain rounded-xl shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           />
+        </div>
+      )}
+
+      {/* Upload Method Selection Modal */}
+      {showUploadMethodModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">选择上传方式</h3>
+              <button
+                onClick={() => setShowUploadMethodModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-3">
+              <button
+                onClick={() => {
+                  setShowUploadMethodModal(false);
+                  fileInputRef.current?.click();
+                }}
+                className="w-full flex items-center gap-4 p-4 bg-primary-50 hover:bg-primary-100 border-2 border-primary-200 hover:border-primary-300 rounded-lg transition-all group"
+              >
+                <div className="p-3 bg-primary-100 group-hover:bg-primary-200 rounded-lg transition-colors">
+                  <ImageIcon className="w-6 h-6 text-primary-600" />
+                </div>
+                <div className="text-left flex-1">
+                  <div className="text-base font-medium text-gray-900">从本地上传</div>
+                  <div className="text-sm text-gray-500">选择设备中的图片文件</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowUploadMethodModal(false);
+                  setShowHistoryModal(true);
+                  fetchHistory();
+                }}
+                className="w-full flex items-center gap-4 p-4 bg-gray-50 hover:bg-gray-100 border-2 border-gray-200 hover:border-gray-300 rounded-lg transition-all group"
+              >
+                <div className="p-3 bg-gray-100 group-hover:bg-gray-200 rounded-lg transition-colors">
+                  <History className="w-6 h-6 text-gray-600" />
+                </div>
+                <div className="text-left flex-1">
+                  <div className="text-base font-medium text-gray-900">从历史记录</div>
+                  <div className="text-sm text-gray-500">使用之前生成的图片</div>
+                </div>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
