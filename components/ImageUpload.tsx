@@ -1,13 +1,21 @@
 "use client";
 
-import { Upload, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { Upload, X, History, Image as ImageIcon } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ImageUploadProps {
   maxImages?: number;
   onImagesChange: (images: File[]) => void;
   label?: string;
   previewAspect?: string;
+}
+
+interface HistoryRecord {
+  id: string;
+  output_image_url: string | null;
+  task_type: string;
+  task_time: string;
 }
 
 export default function ImageUpload({ 
@@ -20,10 +28,130 @@ export default function ImageUpload({
   const [previews, setPreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  
+  // Upload method selection modal
+  const [showUploadMethodModal, setShowUploadMethodModal] = useState(false);
+  
+  // History selection modal
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [downloadingImage, setDownloadingImage] = useState(false);
+  
+  const { accessToken, isAuthenticated } = useAuth();
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  // Cache for history records and image blobs
+  const [historyCache, setHistoryCache] = useState<{
+    records: HistoryRecord[];
+    timestamp: number;
+  } | null>(null);
+  const [imageBlobCache, setImageBlobCache] = useState<Map<string, Blob>>(new Map());
+  
+  // Cache duration: 5 minutes
+  const CACHE_DURATION = 5 * 60 * 1000;
+
+  // Fetch history when modal opens
+  const fetchHistory = async () => {
+    if (!isAuthenticated || !accessToken) {
+      console.log("Not authenticated, cannot fetch history");
+      return;
+    }
+
+    // Check cache first
+    if (historyCache && (Date.now() - historyCache.timestamp < CACHE_DURATION)) {
+      console.log("Using cached history records:", historyCache.records.length);
+      setHistoryRecords(historyCache.records);
+      return;
+    }
+
+    setLoadingHistory(true);
+    try {
+      console.log("Fetching fresh history data...");
+      const response = await fetch("/api/history?pageSize=50", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      console.log("History API response status:", response.status);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("History data:", data);
+        
+        // API returns data.history OR data.data depending on endpoint
+        const historyData = data.history || data.data || [];
+        console.log("History array:", historyData);
+        
+        // Filter records that have output images
+        const recordsWithImages = historyData.filter(
+          (record: HistoryRecord) => record.output_image_url
+        );
+        console.log("Records with images:", recordsWithImages.length);
+        
+        // Update cache
+        setHistoryCache({
+          records: recordsWithImages,
+          timestamp: Date.now(),
+        });
+        setHistoryRecords(recordsWithImages);
+      } else {
+        console.error("Failed to fetch history:", response.status, response.statusText);
+      }
+    } catch (error) {
+      console.error("Failed to fetch history:", error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Fetch history when modal opens
+  useEffect(() => {
+    if (showHistoryModal) {
+      fetchHistory();
+    }
+  }, [showHistoryModal]);
+
+  // Preload images when history records are loaded (for faster selection)
+  useEffect(() => {
+    if (historyRecords.length > 0) {
+      // Preload first 10 images in background
+      const preloadImages = historyRecords.slice(0, 10);
+      console.log(`Preloading ${preloadImages.length} images...`);
+      
+      preloadImages.forEach(async (record) => {
+        const imageUrl = record.output_image_url;
+        if (imageUrl && !imageBlobCache.has(imageUrl)) {
+          try {
+            const proxyUrl = `/api/download?url=${encodeURIComponent(imageUrl)}`;
+            const response = await fetch(proxyUrl);
+            if (response.ok) {
+              const blob = await response.blob();
+              setImageBlobCache(prev => {
+                const newCache = new Map(prev);
+                newCache.set(imageUrl, blob);
+                return newCache;
+              });
+              console.log(`Preloaded image: ${imageUrl.substring(0, 50)}...`);
+            }
+          } catch (error) {
+            // Silently fail preload, not critical
+            console.log(`Failed to preload image: ${imageUrl.substring(0, 50)}...`);
+          }
+        }
+      });
+    }
+  }, [historyRecords]);
+
+  const handleFileChange = async (files: FileList | null) => {
+    if (!files) return;
     
+    const fileArray = Array.from(files);
+    await processFiles(fileArray);
+  };
+
+  const processFiles = async (files: File[]) => {
     // 压缩图片文件
     const compressedFiles: File[] = [];
     for (const file of files) {
@@ -111,6 +239,105 @@ export default function ImageUpload({
     });
   };
 
+  // Drag and drop handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files).filter(file => 
+      file.type.startsWith('image/')
+    );
+    
+    if (files.length > 0) {
+      await processFiles(files);
+    }
+  };
+
+  // Handle upload area click
+  const handleUploadAreaClick = () => {
+    if (isAuthenticated) {
+      // Show method selection modal
+      setShowUploadMethodModal(true);
+    } else {
+      // Directly open file picker if not authenticated
+      fileInputRef.current?.click();
+    }
+  };
+
+  // Select image from history
+  const handleSelectFromHistory = async (imageUrl: string) => {
+    try {
+      console.log("Selecting image from history:", imageUrl);
+      
+      let blob: Blob;
+      
+      // Check blob cache first
+      if (imageBlobCache.has(imageUrl)) {
+        console.log("Using cached blob for image");
+        blob = imageBlobCache.get(imageUrl)!;
+      } else {
+        console.log("Downloading image...");
+        setDownloadingImage(true);
+        
+        try {
+          // Use proxy to avoid CORS issues
+          const proxyUrl = `/api/download?url=${encodeURIComponent(imageUrl)}`;
+          
+          const response = await fetch(proxyUrl);
+          
+          if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+          }
+          
+          blob = await response.blob();
+          console.log("Downloaded blob size:", blob.size, "type:", blob.type);
+          
+          // Cache the blob
+          setImageBlobCache(prev => {
+            const newCache = new Map(prev);
+            newCache.set(imageUrl, blob);
+            return newCache;
+          });
+          console.log("Cached blob for future use");
+        } finally {
+          setDownloadingImage(false);
+        }
+      }
+      
+      const filename = `history-image-${Date.now()}.jpg`;
+      const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
+      
+      console.log("Created file:", file.name, file.size);
+      
+      await processFiles([file]);
+      setShowHistoryModal(false);
+      setShowUploadMethodModal(false);
+      
+      console.log("Successfully loaded image from history");
+    } catch (error: any) {
+      console.error("Failed to load image from history:", error);
+      alert(`加载历史图片失败：${error.message || '请重试'}`);
+    }
+  };
+
   const removeImage = (index: number) => {
     const newImages = images.filter((_, i) => i !== index);
     const newPreviews = previews.filter((_, i) => i !== index);
@@ -158,12 +385,26 @@ export default function ImageUpload({
 
         {images.length < maxImages && (
           <button
-            onClick={() => fileInputRef.current?.click()}
-            className={`${previewAspect} border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-all flex flex-col items-center justify-center gap-3 text-gray-500 hover:text-primary-600 min-h-[200px]`}
+            type="button"
+            onClick={handleUploadAreaClick}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`${previewAspect} border-2 border-dashed rounded-lg transition-all min-h-[200px] flex flex-col items-center justify-center gap-3 text-gray-500 ${
+              isDragging
+                ? "border-primary-500 bg-primary-50 text-primary-600"
+                : "border-gray-300 hover:border-primary-500 hover:bg-primary-50 hover:text-primary-600"
+            }`}
           >
             <Upload className="w-12 h-12" />
             <div className="text-center">
-              <span className="text-base font-medium block">点击上传</span>
+              <span className="text-base font-medium block">
+                {isDragging ? "松开鼠标上传" : "点击上传"}
+              </span>
+              <span className="text-xs text-gray-400 mt-1 block">
+                {isDragging ? "" : "或拖拽图片到这里"}
+              </span>
               <span className="text-xs text-gray-400 mt-1 block">支持 JPG, PNG, WebP</span>
             </div>
           </button>
@@ -175,10 +416,11 @@ export default function ImageUpload({
         type="file"
         accept="image/*"
         multiple={maxImages > 1}
-        onChange={handleFileChange}
+        onChange={(e) => handleFileChange(e.target.files)}
         className="hidden"
       />
 
+      {/* Lightbox */}
       {lightboxIndex !== null && previews[lightboxIndex] && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
@@ -190,6 +432,127 @@ export default function ImageUpload({
             className="max-h-full max-w-full object-contain rounded-xl shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           />
+        </div>
+      )}
+
+      {/* Upload Method Selection Modal */}
+      {showUploadMethodModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">选择上传方式</h3>
+              <button
+                onClick={() => setShowUploadMethodModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-3">
+              <button
+                onClick={() => {
+                  setShowUploadMethodModal(false);
+                  fileInputRef.current?.click();
+                }}
+                className="w-full flex items-center gap-4 p-4 bg-primary-50 hover:bg-primary-100 border-2 border-primary-200 hover:border-primary-300 rounded-lg transition-all group"
+              >
+                <div className="p-3 bg-primary-100 group-hover:bg-primary-200 rounded-lg transition-colors">
+                  <ImageIcon className="w-6 h-6 text-primary-600" />
+                </div>
+                <div className="text-left flex-1">
+                  <div className="text-base font-medium text-gray-900">从本地上传</div>
+                  <div className="text-sm text-gray-500">选择设备中的图片文件</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowUploadMethodModal(false);
+                  setShowHistoryModal(true);
+                  fetchHistory();
+                }}
+                className="w-full flex items-center gap-4 p-4 bg-gray-50 hover:bg-gray-100 border-2 border-gray-200 hover:border-gray-300 rounded-lg transition-all group"
+              >
+                <div className="p-3 bg-gray-100 group-hover:bg-gray-200 rounded-lg transition-colors">
+                  <History className="w-6 h-6 text-gray-600" />
+                </div>
+                <div className="text-left flex-1">
+                  <div className="text-base font-medium text-gray-900">从历史记录</div>
+                  <div className="text-sm text-gray-500">使用之前生成的图片</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* History Modal */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">从历史记录选择图片</h3>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingHistory ? (
+                <div className="flex flex-col items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-primary-600 mb-4"></div>
+                  <div className="text-gray-600 font-medium">加载历史记录中...</div>
+                  <div className="text-gray-400 text-sm mt-2">首次加载可能需要几秒钟</div>
+                </div>
+              ) : historyRecords.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                  <History className="w-16 h-16 mb-4 opacity-50" />
+                  <p>暂无历史图片</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {historyRecords.map((record) => (
+                    <button
+                      key={record.id}
+                      onClick={() => handleSelectFromHistory(record.output_image_url!)}
+                      disabled={downloadingImage}
+                      className="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden hover:ring-2 hover:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <img
+                        src={record.output_image_url!}
+                        alt="历史图片"
+                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                        <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                          选择
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Downloading Toast */}
+      {downloadingImage && (
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 bg-white rounded-lg shadow-2xl px-6 py-4 flex items-center gap-4 border border-gray-200">
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-primary-600"></div>
+          <div>
+            <div className="text-gray-900 font-medium">下载图片中...</div>
+            <div className="text-gray-500 text-sm">首次下载需要几秒钟，之后会更快</div>
+          </div>
         </div>
       )}
     </div>
