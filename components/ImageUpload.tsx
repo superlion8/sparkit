@@ -37,6 +37,7 @@ export default function ImageUpload({
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [downloadingImage, setDownloadingImage] = useState(false);
   
   const { accessToken, isAuthenticated } = useAuth();
 
@@ -294,26 +295,31 @@ export default function ImageUpload({
         blob = imageBlobCache.get(imageUrl)!;
       } else {
         console.log("Downloading image...");
+        setDownloadingImage(true);
         
-        // Use proxy to avoid CORS issues
-        const proxyUrl = `/api/download?url=${encodeURIComponent(imageUrl)}`;
-        
-        const response = await fetch(proxyUrl);
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+        try {
+          // Use proxy to avoid CORS issues
+          const proxyUrl = `/api/download?url=${encodeURIComponent(imageUrl)}`;
+          
+          const response = await fetch(proxyUrl);
+          
+          if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+          }
+          
+          blob = await response.blob();
+          console.log("Downloaded blob size:", blob.size, "type:", blob.type);
+          
+          // Cache the blob
+          setImageBlobCache(prev => {
+            const newCache = new Map(prev);
+            newCache.set(imageUrl, blob);
+            return newCache;
+          });
+          console.log("Cached blob for future use");
+        } finally {
+          setDownloadingImage(false);
         }
-        
-        blob = await response.blob();
-        console.log("Downloaded blob size:", blob.size, "type:", blob.type);
-        
-        // Cache the blob
-        setImageBlobCache(prev => {
-          const newCache = new Map(prev);
-          newCache.set(imageUrl, blob);
-          return newCache;
-        });
-        console.log("Cached blob for future use");
       }
       
       const filename = `history-image-${Date.now()}.jpg`;
@@ -501,8 +507,10 @@ export default function ImageUpload({
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
               {loadingHistory ? (
-                <div className="flex items-center justify-center h-64">
-                  <div className="text-gray-500">加载中...</div>
+                <div className="flex flex-col items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-primary-600 mb-4"></div>
+                  <div className="text-gray-600 font-medium">加载历史记录中...</div>
+                  <div className="text-gray-400 text-sm mt-2">首次加载可能需要几秒钟</div>
                 </div>
               ) : historyRecords.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-64 text-gray-400">
@@ -515,7 +523,8 @@ export default function ImageUpload({
                     <button
                       key={record.id}
                       onClick={() => handleSelectFromHistory(record.output_image_url!)}
-                      className="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden hover:ring-2 hover:ring-primary-500 transition-all"
+                      disabled={downloadingImage}
+                      className="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden hover:ring-2 hover:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <img
                         src={record.output_image_url!}
@@ -532,6 +541,17 @@ export default function ImageUpload({
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Downloading Toast */}
+      {downloadingImage && (
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 bg-white rounded-lg shadow-2xl px-6 py-4 flex items-center gap-4 border border-gray-200">
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-primary-600"></div>
+          <div>
+            <div className="text-gray-900 font-medium">下载图片中...</div>
+            <div className="text-gray-500 text-sm">首次下载需要几秒钟，之后会更快</div>
           </div>
         </div>
       )}
