@@ -223,18 +223,34 @@ export default function ImageUpload({
   // Select image from history
   const handleSelectFromHistory = async (imageUrl: string) => {
     try {
-      // Fetch the image and convert to File
-      const response = await fetch(imageUrl);
+      console.log("Selecting image from history:", imageUrl);
+      
+      // Use proxy to avoid CORS issues
+      const proxyUrl = `/api/download?url=${encodeURIComponent(imageUrl)}`;
+      console.log("Using proxy URL:", proxyUrl);
+      
+      const response = await fetch(proxyUrl);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+      }
+      
       const blob = await response.blob();
+      console.log("Image blob size:", blob.size, "type:", blob.type);
+      
       const filename = `history-image-${Date.now()}.jpg`;
-      const file = new File([blob], filename, { type: blob.type });
+      const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
+      
+      console.log("Created file:", file.name, file.size);
       
       await processFiles([file]);
       setShowHistoryModal(false);
       setShowUploadMethodModal(false);
-    } catch (error) {
+      
+      console.log("Successfully loaded image from history");
+    } catch (error: any) {
       console.error("Failed to load image from history:", error);
-      alert("加载历史图片失败，请重试");
+      alert(`加载历史图片失败：${error.message || '请重试'}`);
     }
   };
 
