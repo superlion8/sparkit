@@ -64,12 +64,22 @@ export default function BackgroundReplacePage() {
       // Step 2: Generate with Gemini
       const formData = new FormData();
 
-      let prompt = `Place the subject in the following background: ${backgroundPrompt}. `;
+      // Build e-commerce optimized prompt
+      let prompt = "生成一张专业的电商场景拍摄出来的照片，";
+      
+      // Add background change requirement
+      prompt += `将主体放置在以下背景中：${backgroundPrompt}。`;
+      
+      // Add pose adjustment if provided
       if (posePrompt.trim()) {
-        prompt += `Adjust the pose: ${posePrompt}. `;
+        prompt += `姿势调整：${posePrompt}。`;
       }
-      prompt += "Maintain natural lighting and ensure the subject blends seamlessly with the new background. ";
-      prompt += "Keep the subject's appearance consistent.";
+      
+      // Add technical requirements
+      prompt += "保持自然的光照效果。";
+      prompt += "确保主体与新背景无缝融合。";
+      prompt += "保持主体外观的一致性。";
+      prompt += "照片应具有专业电商摄影的质感和细节。";
 
       formData.append("prompt", prompt);
       formData.append("images", subjectImage[0]);
