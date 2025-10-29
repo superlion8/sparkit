@@ -32,14 +32,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert images to base64 with size check and optimization
+    // Convert images to base64 with size check
     const startBuffer = await startImage.arrayBuffer();
     const endBuffer = await endImage.arrayBuffer();
     
-    console.log(`原始图片大小: startImage=${startBuffer.byteLength} bytes, endImage=${endBuffer.byteLength} bytes`);
+    const startSizeMB = (startBuffer.byteLength / (1024 * 1024)).toFixed(2);
+    const endSizeMB = (endBuffer.byteLength / (1024 * 1024)).toFixed(2);
     
-    // If images are too large, we should resize them (optional: add image processing)
-    // For now, just convert to base64
+    console.log(`原始图片大小: startImage=${startSizeMB}MB, endImage=${endSizeMB}MB`);
+    
+    // Check if images are too large (Gemini has limits)
+    const MAX_SIZE_MB = 20; // Gemini's limit per image
+    if (startBuffer.byteLength > MAX_SIZE_MB * 1024 * 1024 || endBuffer.byteLength > MAX_SIZE_MB * 1024 * 1024) {
+      return NextResponse.json(
+        { error: `图片过大，单张图片不能超过 ${MAX_SIZE_MB}MB。当前：首帧=${startSizeMB}MB，尾帧=${endSizeMB}MB` },
+        { status: 400 }
+      );
+    }
+    
     const startBase64 = Buffer.from(startBuffer).toString("base64");
     const endBase64 = Buffer.from(endBuffer).toString("base64");
     
@@ -158,20 +168,33 @@ export async function POST(request: NextRequest) {
 
     if (!transitionPrompt) {
       console.error("未找到生成的转场描述");
+      console.error("完整 API 响应:", JSON.stringify(data, null, 2));
+      
+      // Provide more specific error message
+      let errorMsg = "Gemini 未返回有效的转场描述";
+      if (data.candidates && data.candidates.length > 0) {
+        const candidate = data.candidates[0];
+        if (candidate.finishReason) {
+          errorMsg += `。原因: ${candidate.finishReason}`;
+        }
+      }
+      
       return NextResponse.json(
-        { error: "Gemini 未返回有效的转场描述，请查看服务器日志" },
+        { error: errorMsg },
         { status: 500 }
       );
     }
 
+    console.log("成功生成转场描述，长度:", transitionPrompt.length);
     return NextResponse.json({ 
       prompt: transitionPrompt.trim() 
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("生成转场描述时出错:", error);
+    console.error("错误堆栈:", error.stack);
     return NextResponse.json(
-      { error: "服务器内部错误" },
+      { error: error.message || "服务器内部错误" },
       { status: 500 }
     );
   }

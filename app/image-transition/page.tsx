@@ -4,62 +4,63 @@ import { useState } from "react";
 import ImageUpload from "@/components/ImageUpload";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { useAuth } from "@/hooks/useAuth";
-import { Film, Sparkles, Video, ArrowRight, Download } from "lucide-react";
+import { Film, Sparkles, Video, Upload, Download, Wand2 } from "lucide-react";
 import { downloadImage, downloadVideo } from "@/lib/downloadUtils";
 import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
-
-type Step = "edit" | "transition" | "video";
 
 export default function ImageTransitionPage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   
-  // Step 1: Image editing
-  const [originalImage, setOriginalImage] = useState<File[]>([]);
-  const [editPrompt, setEditPrompt] = useState("");
-  const [editedImageUrl, setEditedImageUrl] = useState("");
-  const [editedImageBlob, setEditedImageBlob] = useState<Blob | null>(null);
-  const [editLoading, setEditLoading] = useState(false);
-  const [editError, setEditError] = useState("");
+  // Images
+  const [startImage, setStartImage] = useState<File[]>([]);
+  const [endImage, setEndImage] = useState<File[]>([]);
+  const [endImageMode, setEndImageMode] = useState<"upload" | "generate">("upload");
   
-  // Step 2: Transition prompt generation
+  // AI Generation for end frame
+  const [editPrompt, setEditPrompt] = useState("");
+  const [generatedEndImageUrl, setGeneratedEndImageUrl] = useState("");
+  const [generatedEndImageBlob, setGeneratedEndImageBlob] = useState<Blob | null>(null);
+  const [generateLoading, setGenerateLoading] = useState(false);
+  const [generateError, setGenerateError] = useState("");
+  
+  // Transition prompt
   const [transitionPrompt, setTransitionPrompt] = useState("");
+  const [promptMode, setPromptMode] = useState<"manual" | "ai">("manual");
   const [promptLoading, setPromptLoading] = useState(false);
   const [promptError, setPromptError] = useState("");
   
-  // Step 3: Video generation
+  // Video generation
   const [videoUrl, setVideoUrl] = useState("");
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState("");
   const [taskId, setTaskId] = useState("");
-  
-  const [currentStep, setCurrentStep] = useState<Step>("edit");
 
-  // Step 1: Edit image using Nano Banana (Gemini)
-  const handleEditImage = async () => {
+  // Generate end frame using AI
+  const handleGenerateEndFrame = async () => {
     if (!editPrompt.trim()) {
-      setEditError("请输入改图描述");
+      setGenerateError("请输入改图描述");
       return;
     }
 
-    if (originalImage.length === 0) {
-      setEditError("请上传图片");
+    if (startImage.length === 0) {
+      setGenerateError("请先上传首帧图");
       return;
     }
 
     if (!isAuthenticated || !accessToken) {
-      setEditError("登录后才能使用改图功能");
+      setGenerateError("登录后才能使用AI生成功能");
       promptLogin();
       return;
     }
 
-    setEditLoading(true);
-    setEditError("");
+    setGenerateLoading(true);
+    setGenerateError("");
 
     try {
       const formData = new FormData();
       formData.append("prompt", editPrompt);
       formData.append("aspectRatio", "1:1");
-      originalImage.forEach((image) => {
+      startImage.forEach((image) => {
         formData.append("images", image);
       });
 
@@ -73,13 +74,13 @@ export default function ImageTransitionPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "改图失败");
+        throw new Error(errorData.error || "AI生成失败");
       }
 
       const data = await response.json();
       if (data.images && data.images.length > 0) {
         const imageUrl = data.images[0];
-        setEditedImageUrl(imageUrl);
+        setGeneratedEndImageUrl(imageUrl);
         
         // Use base64 image if available (avoids CORS issues)
         const base64Image = data.base64Images?.[0] || imageUrl;
@@ -88,11 +89,11 @@ export default function ImageTransitionPage() {
           // Convert base64 to blob
           const base64Response = await fetch(base64Image);
           const blob = await base64Response.blob();
-          setEditedImageBlob(blob);
+          setGeneratedEndImageBlob(blob);
           console.log("Successfully converted image to blob:", blob.size, "bytes");
         } catch (blobError) {
           console.error("Failed to convert image to blob:", blobError);
-          setEditError("图片处理失败，请重试");
+          setGenerateError("图片处理失败，请重试");
           return;
         }
         
@@ -103,23 +104,21 @@ export default function ImageTransitionPage() {
             taskId,
             taskType: "image_transition_edit",
             prompt: editPrompt,
-            inputImageUrl: originalImage[0]?.name || null,
+            inputImageUrl: startImage[0]?.name || null,
             outputImageUrl: imageUrl,
           });
         }
-        
-        setCurrentStep("transition");
       } else {
-        setEditError("未返回改图结果");
+        setGenerateError("未返回AI生成结果");
       }
     } catch (err: any) {
-      setEditError(err.message || "改图失败，请重试");
+      setGenerateError(err.message || "AI生成失败，请重试");
     } finally {
-      setEditLoading(false);
+      setGenerateLoading(false);
     }
   };
 
-  // Step 2: Generate transition prompt using Gemini
+  // Generate transition prompt using AI (Gemini)
   const handleGenerateTransitionPrompt = async () => {
     if (!isAuthenticated || !accessToken) {
       setPromptError("登录后才能使用此功能");
@@ -127,8 +126,19 @@ export default function ImageTransitionPage() {
       return;
     }
 
-    if (originalImage.length === 0 || !editedImageBlob) {
-      setPromptError("需要原图和改图结果");
+    if (startImage.length === 0) {
+      setPromptError("请上传首帧图");
+      return;
+    }
+
+    // Check end frame based on mode
+    if (endImageMode === "upload" && endImage.length === 0) {
+      setPromptError("请上传尾帧图");
+      return;
+    }
+
+    if (endImageMode === "generate" && !generatedEndImageBlob) {
+      setPromptError("请先AI生成尾帧图");
       return;
     }
 
@@ -137,13 +147,17 @@ export default function ImageTransitionPage() {
 
     try {
       const formData = new FormData();
-      formData.append("startImage", originalImage[0]);
+      formData.append("startImage", startImage[0]);
       
-      // Use the saved blob instead of fetching (avoids CORS issues)
-      const editedImageFile = new File([editedImageBlob], "edited-image.png", { 
-        type: editedImageBlob.type || "image/png" 
-      });
-      formData.append("endImage", editedImageFile);
+      // Add end image based on mode
+      if (endImageMode === "upload") {
+        formData.append("endImage", endImage[0]);
+      } else {
+        const editedImageFile = new File([generatedEndImageBlob!], "edited-image.png", { 
+          type: generatedEndImageBlob!.type || "image/png" 
+        });
+        formData.append("endImage", editedImageFile);
+      }
 
       const response = await fetch("/api/generate/transition-prompt", {
         method: "POST",
@@ -167,10 +181,10 @@ export default function ImageTransitionPage() {
     }
   };
 
-  // Step 3: Generate video using Kling
+  // Generate video using Kling
   const handleGenerateVideo = async () => {
     if (!transitionPrompt.trim()) {
-      setVideoError("请确认转场描述");
+      setVideoError("请输入转场描述");
       return;
     }
 
@@ -180,16 +194,37 @@ export default function ImageTransitionPage() {
       return;
     }
 
+    if (startImage.length === 0) {
+      setVideoError("请上传首帧图");
+      return;
+    }
+
+    // Check end frame based on mode
+    if (endImageMode === "upload" && endImage.length === 0) {
+      setVideoError("请上传尾帧图");
+      return;
+    }
+
+    if (endImageMode === "generate" && !generatedEndImageUrl) {
+      setVideoError("请先AI生成尾帧图");
+      return;
+    }
+
+    // Clear previous video and errors
+    setVideoUrl("");
     setVideoLoading(true);
     setVideoError("");
-    setCurrentStep("video");
 
     try {
-      // Get URLs for original and edited images
-      const startImageUrl = originalImage[0] 
-        ? await uploadImageToGetUrl(originalImage[0], accessToken)
-        : "";
-      const endImageUrl = editedImageUrl;
+      // Get URLs for start and end images
+      const startImageUrl = await uploadImageToGetUrl(startImage[0], accessToken);
+      
+      let endImageUrl: string;
+      if (endImageMode === "upload") {
+        endImageUrl = await uploadImageToGetUrl(endImage[0], accessToken);
+      } else {
+        endImageUrl = generatedEndImageUrl;
+      }
 
       if (!startImageUrl || !endImageUrl) {
         throw new Error("图片URL获取失败");
@@ -218,7 +253,7 @@ export default function ImageTransitionPage() {
       setTaskId(data.taskId);
 
       // Poll for video status
-      pollVideoStatus(data.taskId);
+      pollVideoStatus(data.taskId, endImageUrl);
 
     } catch (err: any) {
       setVideoError(err.message || "视频生成失败");
@@ -227,7 +262,7 @@ export default function ImageTransitionPage() {
   };
 
   // Poll video generation status
-  const pollVideoStatus = async (id: string) => {
+  const pollVideoStatus = async (id: string, endImgUrl: string) => {
     const maxAttempts = 60; // 5 minutes max (5s interval)
     let attempts = 0;
 
@@ -265,7 +300,7 @@ export default function ImageTransitionPage() {
               taskId: videoTaskId,
               taskType: "image_transition_video",
               prompt: transitionPrompt,
-              inputImageUrl: editedImageUrl,
+              inputImageUrl: endImgUrl,
               outputVideoUrl: data.videoUrl,
             });
           }
@@ -307,6 +342,23 @@ export default function ImageTransitionPage() {
     return data.url;
   };
 
+  // Check if we have both frames ready
+  const hasBothFrames = startImage.length > 0 && (
+    (endImageMode === "upload" && endImage.length > 0) ||
+    (endImageMode === "generate" && generatedEndImageUrl)
+  );
+
+  // Get the end frame image URL for display
+  const getEndFrameUrl = () => {
+    if (endImageMode === "upload" && endImage.length > 0) {
+      return URL.createObjectURL(endImage[0]);
+    }
+    if (endImageMode === "generate" && generatedEndImageUrl) {
+      return generatedEndImageUrl;
+    }
+    return "";
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-6 lg:p-8">
       <div className="mb-8">
@@ -315,7 +367,7 @@ export default function ImageTransitionPage() {
           改图转场
         </h1>
         <p className="text-gray-600 mt-2">
-          上传图片 → AI改图 → 生成转场描述 → 创作视频转场
+          准备首尾帧图 → 填写转场描述 → 生成转场视频
         </p>
         {!authLoading && !isAuthenticated && (
           <div className="mt-4 rounded-lg border border-dashed border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
@@ -324,118 +376,185 @@ export default function ImageTransitionPage() {
         )}
       </div>
 
-      {/* Progress Steps */}
-      <div className="mb-8 flex items-center justify-center gap-4">
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${currentStep === "edit" ? "bg-primary-100 text-primary-700" : "bg-gray-100 text-gray-500"}`}>
-          <Sparkles className="w-5 h-5" />
-          <span className="font-medium">1. 改图</span>
-        </div>
-        <ArrowRight className="w-5 h-5 text-gray-400" />
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${currentStep === "transition" ? "bg-primary-100 text-primary-700" : "bg-gray-100 text-gray-500"}`}>
-          <Film className="w-5 h-5" />
-          <span className="font-medium">2. 转场描述</span>
-        </div>
-        <ArrowRight className="w-5 h-5 text-gray-400" />
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${currentStep === "video" ? "bg-primary-100 text-primary-700" : "bg-gray-100 text-gray-500"}`}>
-          <Video className="w-5 h-5" />
-          <span className="font-medium">3. 生成视频</span>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left Panel: Controls */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
-            {/* Step 1: Image Editing */}
-            <div className={`p-4 rounded-lg border-2 ${currentStep === "edit" ? "border-primary-300 bg-primary-50" : "border-gray-200"}`}>
+            
+            {/* Step 1: Start Frame (首帧图) */}
+            <div className="p-4 rounded-lg border-2 border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-primary-600" />
-                步骤 1: AI 改图
+                <Upload className="w-5 h-5 text-primary-600" />
+                首帧图
               </h2>
-
               <ImageUpload
                 maxImages={1}
-                onImagesChange={setOriginalImage}
-                label="上传原图"
+                onImagesChange={setStartImage}
+                label="上传首帧图"
               />
-
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  改图描述
-                </label>
-                <textarea
-                  value={editPrompt}
-                  onChange={(e) => setEditPrompt(e.target.value)}
-                  placeholder="描述你想要如何修改图片..."
-                  rows={3}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-                  disabled={currentStep !== "edit"}
-                />
-              </div>
-
-              <button
-                onClick={handleEditImage}
-                disabled={editLoading || authLoading || !editPrompt.trim() || originalImage.length === 0 || currentStep !== "edit"}
-                className="w-full mt-4 bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-              >
-                {editLoading ? (
-                  <>生成中...</>
-                ) : (
-                  <>
-                    <Sparkles className="w-5 h-5" />
-                    生成改图
-                  </>
-                )}
-              </button>
-
-              {editError && (
-                <div className="mt-4 bg-red-50 border border-red-300 rounded-lg p-3 text-sm text-red-700">
-                  {editError}
-                </div>
-              )}
             </div>
 
-            {/* Step 2: Transition Prompt */}
-            <div className={`p-4 rounded-lg border-2 ${currentStep === "transition" ? "border-primary-300 bg-primary-50" : "border-gray-200"}`}>
+            {/* Step 2: End Frame (尾帧图) - Upload or Generate */}
+            <div className="p-4 rounded-lg border-2 border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Film className="w-5 h-5 text-primary-600" />
-                步骤 2: 生成转场描述
+                <Upload className="w-5 h-5 text-primary-600" />
+                尾帧图
               </h2>
 
-              {!editedImageUrl && (
-                <p className="text-sm text-gray-500 italic">请先完成改图...</p>
+              {/* Mode Selection */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setEndImageMode("upload")}
+                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                    endImageMode === "upload"
+                      ? "bg-primary-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  <Upload className="w-4 h-4 inline mr-2" />
+                  上传图片
+                </button>
+                <button
+                  onClick={() => setEndImageMode("generate")}
+                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                    endImageMode === "generate"
+                      ? "bg-primary-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  <Wand2 className="w-4 h-4 inline mr-2" />
+                  AI 生成
+                </button>
+              </div>
+
+              {/* Upload Mode */}
+              {endImageMode === "upload" && (
+                <ImageUpload
+                  maxImages={1}
+                  onImagesChange={setEndImage}
+                  label="上传尾帧图"
+                />
               )}
 
-              {editedImageUrl && (
-                <>
+              {/* Generate Mode */}
+              {endImageMode === "generate" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      改图描述
+                    </label>
+                    <textarea
+                      value={editPrompt}
+                      onChange={(e) => setEditPrompt(e.target.value)}
+                      placeholder="描述你想要如何修改首帧图..."
+                      rows={3}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                    />
+                  </div>
+
                   <button
-                    onClick={handleGenerateTransitionPrompt}
-                    disabled={promptLoading || !editedImageBlob}
+                    onClick={handleGenerateEndFrame}
+                    disabled={generateLoading || !editPrompt.trim() || startImage.length === 0}
                     className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                   >
-                    {promptLoading ? (
-                      <>AI 思考中...</>
+                    {generateLoading ? (
+                      <>AI 生成中...</>
                     ) : (
                       <>
                         <Sparkles className="w-5 h-5" />
-                        AI 生成转场描述
+                        AI 生成尾帧图
                       </>
                     )}
                   </button>
 
-                  {transitionPrompt && (
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        转场镜头描述（可编辑）
-                      </label>
-                      <textarea
-                        value={transitionPrompt}
-                        onChange={(e) => setTransitionPrompt(e.target.value)}
-                        rows={5}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                  {generateError && (
+                    <div className="bg-red-50 border border-red-300 rounded-lg p-3 text-sm text-red-700">
+                      {generateError}
+                    </div>
+                  )}
+
+                  {generatedEndImageUrl && (
+                    <div>
+                      <p className="text-sm text-green-600 mb-2">✓ 尾帧图已生成</p>
+                      <img
+                        src={generatedEndImageUrl}
+                        alt="AI生成的尾帧图"
+                        className="w-full rounded-lg border border-gray-200"
                       />
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+
+            {/* Step 3: Transition Prompt */}
+            <div className="p-4 rounded-lg border-2 border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Film className="w-5 h-5 text-primary-600" />
+                转场描述
+              </h2>
+
+              {!hasBothFrames && (
+                <p className="text-sm text-gray-500 italic mb-4">请先准备首尾帧图...</p>
+              )}
+
+              {hasBothFrames && (
+                <>
+                  {/* Mode Selection */}
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      onClick={() => setPromptMode("manual")}
+                      className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                        promptMode === "manual"
+                          ? "bg-primary-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      手动输入
+                    </button>
+                    <button
+                      onClick={() => setPromptMode("ai")}
+                      className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                        promptMode === "ai"
+                          ? "bg-primary-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      AI 生成
+                    </button>
+                  </div>
+
+                  {/* AI Generate Button */}
+                  {promptMode === "ai" && !transitionPrompt && (
+                    <button
+                      onClick={handleGenerateTransitionPrompt}
+                      disabled={promptLoading}
+                      className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 mb-4"
+                    >
+                      {promptLoading ? (
+                        <>AI 思考中...</>
+                      ) : (
+                        <>
+                          <Sparkles className="w-5 h-5" />
+                          AI 生成转场描述
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {/* Prompt Input */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      转场镜头描述
+                    </label>
+                    <textarea
+                      value={transitionPrompt}
+                      onChange={(e) => setTransitionPrompt(e.target.value)}
+                      placeholder="描述首尾帧之间的转场效果..."
+                      rows={5}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                    />
+                  </div>
 
                   {promptError && (
                     <div className="mt-4 bg-red-50 border border-red-300 rounded-lg p-3 text-sm text-red-700">
@@ -446,26 +565,35 @@ export default function ImageTransitionPage() {
               )}
             </div>
 
-            {/* Step 3: Video Generation */}
-            <div className={`p-4 rounded-lg border-2 ${currentStep === "video" ? "border-primary-300 bg-primary-50" : "border-gray-200"}`}>
+            {/* Step 4: Video Generation */}
+            <div className="p-4 rounded-lg border-2 border-primary-300 bg-primary-50">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Video className="w-5 h-5 text-primary-600" />
-                步骤 3: 生成转场视频
+                生成转场视频
               </h2>
 
-              {!transitionPrompt && (
-                <p className="text-sm text-gray-500 italic">请先生成转场描述...</p>
+              {!hasBothFrames && (
+                <p className="text-sm text-gray-500 italic">请先准备首尾帧图...</p>
               )}
 
-              {transitionPrompt && !videoLoading && !videoUrl && (
+              {hasBothFrames && !transitionPrompt.trim() && (
+                <p className="text-sm text-gray-500 italic">请先填写转场描述...</p>
+              )}
+
+              {hasBothFrames && transitionPrompt.trim() && !videoLoading && (
                 <button
                   onClick={handleGenerateVideo}
-                  disabled={!transitionPrompt.trim()}
-                  className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <Video className="w-5 h-5" />
-                  生成转场视频
+                  {videoUrl ? "重新生成视频" : "生成转场视频"}
                 </button>
+              )}
+
+              {videoLoading && (
+                <div className="bg-blue-50 border border-blue-300 rounded-lg p-3 text-sm text-blue-700">
+                  视频生成中，预计需要 2-5 分钟...
+                </div>
               )}
 
               {videoError && (
@@ -473,74 +601,99 @@ export default function ImageTransitionPage() {
                   {videoError}
                 </div>
               )}
+
+              {videoUrl && !videoLoading && (
+                <div className="mt-4 bg-green-50 border border-green-300 rounded-lg p-3 text-sm text-green-700">
+                  ✓ 视频已生成！可修改转场描述后重新生成。
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Right Panel: Results */}
+        {/* Right Panel: Preview & Results */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[600px]">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">生成结果</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-6">预览 & 结果</h2>
 
-            {(editLoading || authLoading) && currentStep === "edit" && (
-              <LoadingSpinner text="AI 正在改图..." />
-            )}
-
-            {promptLoading && (
-              <LoadingSpinner text="AI 正在生成转场描述..." />
+            {(generateLoading || promptLoading) && (
+              <LoadingSpinner text={generateLoading ? "AI 生成中..." : "AI 思考中..."} />
             )}
 
             {videoLoading && (
               <LoadingSpinner text="视频生成中，预计需要 2-5 分钟..." />
             )}
 
-            {/* Show edited image and video together */}
-            <div className="space-y-6">
-              {/* Edited image */}
-              {editedImageUrl && !videoLoading && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">改图结果</h3>
-                  <img
-                    src={editedImageUrl}
-                    alt="改图结果"
-                    className="w-full rounded-lg border border-gray-200"
-                  />
+            {!generateLoading && !promptLoading && !videoLoading && (
+              <div className="space-y-6">
+                {/* Frame Preview */}
+                {(startImage.length > 0 || getEndFrameUrl()) && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-3">首尾帧预览</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {startImage.length > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-500 mb-2">首帧</p>
+                          <img
+                            src={URL.createObjectURL(startImage[0])}
+                            alt="首帧"
+                            className="w-full rounded-lg border border-gray-200"
+                          />
+                        </div>
+                      )}
+                      {getEndFrameUrl() && (
+                        <div>
+                          <p className="text-xs text-gray-500 mb-2">尾帧</p>
+                          <img
+                            src={getEndFrameUrl()}
+                            alt="尾帧"
+                            className="w-full rounded-lg border border-gray-200"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Generated End Frame Download */}
+                {generatedEndImageUrl && endImageMode === "generate" && (
                   <button
-                    onClick={() => downloadImage(editedImageUrl, "edited-image.png")}
-                    className="mt-4 w-full bg-gray-600 text-white py-3 rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+                    onClick={() => downloadImage(generatedEndImageUrl, "end-frame.png")}
+                    className="w-full bg-gray-600 text-white py-3 rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
                   >
                     <Download className="w-5 h-5" />
-                    下载图片
+                    下载尾帧图
                   </button>
-                </div>
-              )}
+                )}
 
-              {/* Transition video */}
-              {videoUrl && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">转场视频</h3>
-                  <video
-                    src={videoUrl}
-                    controls
-                    className="w-full rounded-lg border border-gray-200"
-                  />
-                  <button
-                    onClick={() => downloadVideo(videoUrl, "transition-video.mp4")}
-                    className="mt-4 w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Video className="w-5 h-5" />
-                    下载视频
-                  </button>
-                </div>
-              )}
-            </div>
+                {/* Video Result */}
+                {videoUrl && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">转场视频</h3>
+                    <video
+                      src={videoUrl}
+                      controls
+                      className="w-full rounded-lg border border-gray-200"
+                    />
+                    <button
+                      onClick={() => downloadVideo(videoUrl, "transition-video.mp4")}
+                      className="mt-4 w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Video className="w-5 h-5" />
+                      下载视频
+                    </button>
+                  </div>
+                )}
 
-            {!editLoading && !authLoading && !promptLoading && !videoLoading && !editedImageUrl && (
-              <div className="flex items-center justify-center h-64 text-gray-400">
-                <div className="text-center">
-                  <Film className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>上传图片，开始创作转场视频</p>
-                </div>
+                {/* Empty State */}
+                {!startImage.length && !getEndFrameUrl() && !videoUrl && (
+                  <div className="flex items-center justify-center h-64 text-gray-400">
+                    <div className="text-center">
+                      <Film className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                      <p>准备首尾帧图，开始创作转场视频</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -549,4 +702,3 @@ export default function ImageTransitionPage() {
     </div>
   );
 }
-
