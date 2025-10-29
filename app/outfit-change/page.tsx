@@ -86,13 +86,21 @@ export default function OutfitChangePage() {
       // Step 3: Generate with Gemini
       const formData = new FormData();
 
-      let prompt = "Create an image of the model wearing the product(s) shown. ";
-      prompt += "Maintain the model's pose, lighting, and background style. ";
-      prompt += "Ensure the clothing fits naturally on the model's body. ";
-
+      // Build e-commerce optimized prompt
+      let prompt = "生成一张专业的电商场景拍摄出来的照片，";
+      
+      // Add user's custom requirements if provided
       if (additionalPrompt.trim()) {
-        prompt += additionalPrompt;
+        prompt += additionalPrompt + "。";
+      } else {
+        // Default behavior: outfit change
+        prompt += "模特穿上图片中展示的商品。";
       }
+      
+      // Add technical requirements
+      prompt += "保持模特的姿势、光照和背景风格。";
+      prompt += "确保服装自然地贴合模特身体。";
+      prompt += "照片应具有专业电商摄影的质感和细节。";
 
       formData.append("prompt", prompt);
       formData.append("images", modelImage[0]);
