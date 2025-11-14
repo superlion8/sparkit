@@ -96,11 +96,35 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
     console.log("Gemini API 响应:", JSON.stringify(data, null, 2));
     
+    // Check for API errors
+    if (data.error) {
+      console.error("Gemini API 返回错误:", data.error);
+      return NextResponse.json(
+        { error: `Gemini API 错误: ${data.error.message || '未知错误'}` },
+        { status: 500 }
+      );
+    }
+    
     // Extract generated images
     const generatedImages: string[] = [];
+    let finishReason = null;
+    let safetyRatings = null;
+    
     if (data.candidates && data.candidates.length > 0) {
       console.log("找到 candidates:", data.candidates.length);
       for (const candidate of data.candidates) {
+        // Check finish reason
+        if (candidate.finishReason) {
+          finishReason = candidate.finishReason;
+          console.log("Finish reason:", finishReason);
+        }
+        
+        // Check safety ratings
+        if (candidate.safetyRatings) {
+          safetyRatings = candidate.safetyRatings;
+          console.log("Safety ratings:", JSON.stringify(safetyRatings, null, 2));
+        }
+        
         if (candidate.content && candidate.content.parts) {
           console.log("处理 parts:", candidate.content.parts.length);
           for (const part of candidate.content.parts) {
@@ -120,50 +144,119 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("生成的图片数量:", generatedImages.length);
+    
+    // Check if generation was blocked by safety filters
+    if (finishReason === "SAFETY" || finishReason === "RECITATION") {
+      console.error("内容被安全过滤阻止:", finishReason);
+      return NextResponse.json(
+        { 
+          error: "内容被安全过滤阻止，请尝试调整提示词或图片",
+          details: {
+            finishReason,
+            safetyRatings
+          }
+        },
+        { status: 400 }
+      );
+    }
+    
+    // Check if no images were generated
+    if (generatedImages.length === 0) {
+      console.error("未生成任何图片");
+      console.error("API 响应详情:", JSON.stringify(data, null, 2));
+      
+      let errorMessage = "未生成任何图片";
+      let errorDetails: any = {
+        finishReason,
+        safetyRatings,
+      };
+      
+      if (finishReason) {
+        if (finishReason === "STOP") {
+          errorMessage += "。API 返回成功但未生成图片，可能是提示词或图片不合适";
+        } else if (finishReason === "MAX_TOKENS") {
+          errorMessage += "。达到最大令牌数限制";
+        } else {
+          errorMessage += `。原因: ${finishReason}`;
+        }
+      } else {
+        errorMessage += "。请检查提示词和图片内容，或稍后重试";
+      }
+      
+      if (safetyRatings && Array.isArray(safetyRatings)) {
+        const blockedCategories = safetyRatings.filter((rating: any) => 
+          rating.probability === "HIGH" || rating.probability === "MEDIUM"
+        ).map((rating: any) => rating.category);
+        if (blockedCategories.length > 0) {
+          errorMessage += `。可能触发了安全过滤: ${blockedCategories.join(", ")}`;
+        }
+      }
+      
+      // Add candidates info for debugging
+      if (data.candidates && data.candidates.length > 0) {
+        errorDetails.candidates = data.candidates.map((c: any) => ({
+          finishReason: c.finishReason,
+          safetyRatings: c.safetyRatings,
+          hasContent: !!c.content,
+          partsCount: c.content?.parts?.length || 0
+        }));
+      }
+      
+      return NextResponse.json(
+        { 
+          error: errorMessage,
+          details: errorDetails
+        },
+        { status: 500 }
+      );
+    }
 
+    // Prepare base64 images for return
+    const base64Images: string[] = [...generatedImages];
+    
+    // Try to upload to Aimovely if credentials are available
     const aimovelyEmail = process.env.AIMOVELY_EMAIL;
     const aimovelyVcode = process.env.AIMOVELY_VCODE;
 
-    if (!aimovelyEmail || !aimovelyVcode) {
-      console.error("Aimovely credentials missing");
-      return NextResponse.json(
-        { error: "Aimovely credentials not configured" },
-        { status: 500 }
-      );
-    }
-
-    const aimovelyToken = await fetchAimovelyToken(aimovelyEmail, aimovelyVcode);
-    if (!aimovelyToken) {
-      return NextResponse.json(
-        { error: "Failed to acquire Aimovely token" },
-        { status: 500 }
-      );
-    }
-
-    const uploadedUrls: string[] = [];
-    const base64Images: string[] = [];
+    let uploadedUrls: string[] = [];
     
-    for (let index = 0; index < generatedImages.length; index++) {
-      const dataUrl = generatedImages[index];
-      base64Images.push(dataUrl); // Keep original base64
-      
+    if (aimovelyEmail && aimovelyVcode) {
       try {
-        const result = await uploadImageToAimovely(dataUrl, aimovelyToken, index);
-        if (result?.url) {
-          uploadedUrls.push(result.url);
+        const aimovelyToken = await fetchAimovelyToken(aimovelyEmail, aimovelyVcode);
+        if (aimovelyToken) {
+          // Upload images to Aimovely
+          for (let index = 0; index < generatedImages.length; index++) {
+            const dataUrl = generatedImages[index];
+            
+            try {
+              const result = await uploadImageToAimovely(dataUrl, aimovelyToken, index);
+              if (result?.url) {
+                uploadedUrls.push(result.url);
+              } else {
+                console.warn("Upload result missing URL, keeping base64 fallback");
+                uploadedUrls.push(dataUrl);
+              }
+            } catch (uploadError) {
+              console.error("上传生成图片失败:", uploadError);
+              uploadedUrls.push(dataUrl);
+            }
+          }
         } else {
-          console.warn("Upload result missing URL, keeping base64 fallback");
-          uploadedUrls.push(dataUrl);
+          console.warn("Failed to acquire Aimovely token, using base64 images");
+          uploadedUrls = [...generatedImages];
         }
       } catch (uploadError) {
-        console.error("上传生成图片失败:", uploadError);
-        uploadedUrls.push(dataUrl);
+        console.error("Aimovely upload error:", uploadError);
+        uploadedUrls = [...generatedImages];
       }
+    } else {
+      console.warn("Aimovely credentials not configured, using base64 images");
+      uploadedUrls = [...generatedImages];
     }
 
     return NextResponse.json({ 
-      images: uploadedUrls,
-      base64Images: base64Images // Also return base64 for client-side use
+      images: uploadedUrls.length > 0 ? uploadedUrls : base64Images,
+      base64Images: base64Images // Always return base64 for client-side use
     });
   } catch (error) {
     console.error("Error in Gemini generation:", error);
