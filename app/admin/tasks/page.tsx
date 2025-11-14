@@ -76,6 +76,25 @@ const isVideoValue = (value: string) =>
   /\.(mp4|mov|avi|webm)$/i.test(value) ||
   value.includes('static.aimovely.com') && value.includes('video');
 
+// Parse JSON format image URLs (for Mimic tasks)
+const parseImageUrls = (url: string | null): { type: 'single' | 'mimic'; urls: any } | null => {
+  if (!url) return null;
+  
+  // Try to parse as JSON
+  try {
+    const parsed = JSON.parse(url);
+    // Check if it's a Mimic format
+    if (typeof parsed === 'object' && (parsed.reference || parsed.character || parsed.background || parsed.final)) {
+      return { type: 'mimic', urls: parsed };
+    }
+  } catch {
+    // Not JSON, treat as single URL
+  }
+  
+  // Single URL
+  return { type: 'single', urls: url };
+};
+
 export default function AdminTasksPage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin, userEmail } = useAuth();
   const [filters, setFilters] = useState<Filters>({
@@ -438,14 +457,45 @@ export default function AdminTasksPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700" style={{minWidth: '200px'}}>
                       <div className="space-y-2">
-                        {task.input_image_url ? (
-                          <DirectMediaDisplay 
-                            label="输入图片" 
-                            value={task.input_image_url} 
-                            type="image" 
-                            onExpand={() => setModalMedia({ type: 'image', url: task.input_image_url!, label: '输入图片' })}
-                          />
-                        ) : null}
+                        {(() => {
+                          const inputUrls = parseImageUrls(task.input_image_url);
+                          if (inputUrls) {
+                            if (inputUrls.type === 'mimic') {
+                              // Mimic task: show reference and character images
+                              return (
+                                <>
+                                  {inputUrls.urls.reference && (
+                                    <DirectMediaDisplay 
+                                      label="参考图" 
+                                      value={inputUrls.urls.reference} 
+                                      type="image" 
+                                      onExpand={() => setModalMedia({ type: 'image', url: inputUrls.urls.reference, label: '参考图' })}
+                                    />
+                                  )}
+                                  {inputUrls.urls.character && (
+                                    <DirectMediaDisplay 
+                                      label="角色图" 
+                                      value={inputUrls.urls.character} 
+                                      type="image" 
+                                      onExpand={() => setModalMedia({ type: 'image', url: inputUrls.urls.character, label: '角色图' })}
+                                    />
+                                  )}
+                                </>
+                              );
+                            } else {
+                              // Single image
+                              return (
+                                <DirectMediaDisplay 
+                                  label="输入图片" 
+                                  value={inputUrls.urls} 
+                                  type="image" 
+                                  onExpand={() => setModalMedia({ type: 'image', url: inputUrls.urls, label: '输入图片' })}
+                                />
+                              );
+                            }
+                          }
+                          return null;
+                        })()}
                         {task.input_video_url ? (
                           <DirectMediaDisplay 
                             label="输入视频" 
@@ -461,14 +511,50 @@ export default function AdminTasksPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700" style={{minWidth: '200px'}}>
                       <div className="space-y-2">
-                        {task.output_image_url ? (
-                          <DirectMediaDisplay 
-                            label="输出图片" 
-                            value={task.output_image_url} 
-                            type="image" 
-                            onExpand={() => setModalMedia({ type: 'image', url: task.output_image_url!, label: '输出图片' })}
-                          />
-                        ) : null}
+                        {(() => {
+                          const outputUrls = parseImageUrls(task.output_image_url);
+                          if (outputUrls) {
+                            if (outputUrls.type === 'mimic') {
+                              // Mimic task: show background and final images
+                              return (
+                                <>
+                                  {outputUrls.urls.background && (
+                                    <DirectMediaDisplay 
+                                      label="背景图" 
+                                      value={outputUrls.urls.background} 
+                                      type="image" 
+                                      onExpand={() => setModalMedia({ type: 'image', url: outputUrls.urls.background, label: '背景图' })}
+                                    />
+                                  )}
+                                  {Array.isArray(outputUrls.urls.final) && outputUrls.urls.final.length > 0 && (
+                                    <div className="space-y-1">
+                                      {outputUrls.urls.final.map((url: string, idx: number) => (
+                                        <DirectMediaDisplay 
+                                          key={idx}
+                                          label={`最终图 ${idx + 1}`} 
+                                          value={url} 
+                                          type="image" 
+                                          onExpand={() => setModalMedia({ type: 'image', url: url, label: `最终图 ${idx + 1}` })}
+                                        />
+                                      ))}
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            } else {
+                              // Single image
+                              return (
+                                <DirectMediaDisplay 
+                                  label="输出图片" 
+                                  value={outputUrls.urls} 
+                                  type="image" 
+                                  onExpand={() => setModalMedia({ type: 'image', url: outputUrls.urls, label: '输出图片' })}
+                                />
+                              );
+                            }
+                          }
+                          return null;
+                        })()}
                         {task.output_video_url ? (
                           <DirectMediaDisplay 
                             label="输出视频" 
