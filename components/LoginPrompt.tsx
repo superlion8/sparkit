@@ -14,7 +14,7 @@ export default function LoginPrompt({ onLogin, loading = false }: LoginPromptPro
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">请先登录</h2>
         <p className="text-gray-600 max-w-xs">
-          登录 Google 账号后即可使用 Creator AI Toolkit 的全部生成功能。
+          登录 Google 账号后即可使用 Sparkit 的全部生成功能。
         </p>
       </div>
       <button

@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "任务数据面板",
-  description: "Creator AI Toolkit 生成任务后台",
+  description: "Sparkit 生成任务后台",
 };
 
 export default function RootLayout({
