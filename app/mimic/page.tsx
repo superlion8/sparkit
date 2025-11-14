@@ -107,25 +107,63 @@ export default function MimicPage() {
       const displayBackgroundImage =
         data.backgroundImageBase64 && data.backgroundImageBase64.length > 0
           ? data.backgroundImageBase64
-          : data.backgroundImage;
+          : data.backgroundImageUrl || data.backgroundImage;
       setBackgroundImage(displayBackgroundImage);
 
+      // Use finalImageUrls if available, otherwise fallback to base64
       const displayFinalImages =
-        data.finalImagesBase64 && data.finalImagesBase64.length > 0
+        data.finalImageUrls && data.finalImageUrls.length > 0
+          ? data.finalImageUrls
+          : data.finalImagesBase64 && data.finalImagesBase64.length > 0
           ? data.finalImagesBase64
-          : data.finalImages;
+          : data.finalImages || [];
       setFinalImages(displayFinalImages);
 
-      // Log task event
+      // Log task event with all image URLs
       if (accessToken && displayFinalImages.length > 0) {
         const taskId = generateClientTaskId("mimic");
+        
+        // Store all image URLs as JSON string
+        // Input images: {"reference": "url1", "character": "url2"}
+        // Output images: {"background": "url1", "final": ["url2", "url3", ...]}
+        const inputImageUrls = {
+          reference: data.referenceImageUrl || null,
+          character: data.characterImageUrl || null,
+        };
+        const outputImageUrls = {
+          background: data.backgroundImageUrl || null,
+          final: data.finalImageUrls || displayFinalImages,
+        };
+        
+        // Store as JSON string in the existing fields
+        // For compatibility, we'll store the first output image URL directly
+        // and store all URLs as JSON in a comment or separate field
+        const inputImageUrlJson = JSON.stringify(inputImageUrls);
+        const outputImageUrlJson = JSON.stringify(outputImageUrls);
+        
+        // Store the first output image URL directly for compatibility
+        const firstOutputImageUrl = Array.isArray(displayFinalImages) && displayFinalImages.length > 0
+          ? displayFinalImages[0]
+          : null;
+        
         await logTaskEvent(accessToken, {
           taskId,
           taskType: "mimic",
           prompt: data.captionPrompt,
-          inputImageUrl: referenceImage[0]?.name || null,
-          outputImageUrl: typeof displayFinalImages[0] === "string" ? displayFinalImages[0] : null,
+          // Store JSON in the URL fields (we'll parse this in admin dashboard)
+          inputImageUrl: inputImageUrlJson,
+          outputImageUrl: outputImageUrlJson,
         });
+      }
+
+      // Show generation stats if available
+      if (data.generatedCount !== undefined && data.requestedCount !== undefined) {
+        if (data.generatedCount < data.requestedCount) {
+          console.warn(`部分图片生成成功: ${data.generatedCount}/${data.requestedCount}`);
+          if (data.errors && data.errors.length > 0) {
+            console.warn("生成错误:", data.errors);
+          }
+        }
       }
 
       setCurrentStep("");

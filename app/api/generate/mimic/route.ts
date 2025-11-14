@@ -39,6 +39,49 @@ export async function POST(request: NextRequest) {
 
     console.log("=== Mimic Generation Started ===");
 
+    // Upload input images to Aimovely first
+    const aimovelyEmail = process.env.AIMOVELY_EMAIL;
+    const aimovelyVcode = process.env.AIMOVELY_VCODE;
+    let aimovelyToken: string | null = null;
+    let uploadedReferenceImageUrl: string | null = null;
+    let uploadedCharacterImageUrl: string | null = null;
+
+    if (aimovelyEmail && aimovelyVcode) {
+      try {
+        aimovelyToken = await fetchAimovelyToken(aimovelyEmail, aimovelyVcode);
+        if (aimovelyToken) {
+          console.log("开始上传输入图片到 Aimovely...");
+          
+          // Upload reference image
+          const referenceDataUrl = `data:${referenceImage.type};base64,${referenceBase64}`;
+          const referenceUploadResult = await uploadImageToAimovely(
+            referenceDataUrl,
+            aimovelyToken,
+            "reference"
+          );
+          if (referenceUploadResult?.url) {
+            uploadedReferenceImageUrl = referenceUploadResult.url;
+            console.log("参考图上传成功:", uploadedReferenceImageUrl);
+          }
+
+          // Upload character image
+          const characterDataUrl = `data:${characterImage.type};base64,${characterBase64}`;
+          const characterUploadResult = await uploadImageToAimovely(
+            characterDataUrl,
+            aimovelyToken,
+            "character"
+          );
+          if (characterUploadResult?.url) {
+            uploadedCharacterImageUrl = characterUploadResult.url;
+            console.log("角色图上传成功:", uploadedCharacterImageUrl);
+          }
+        }
+      } catch (uploadError) {
+        console.error("上传输入图片到 Aimovely 失败:", uploadError);
+        // Continue with generation even if upload fails
+      }
+    }
+
     // Step 1: 反推提示词（使用 gemini-2.5-flash 文本模型）
     console.log("Step 1: 反推提示词...");
     const captionPrompt = await reverseCaptionPrompt(
@@ -61,9 +104,12 @@ export async function POST(request: NextRequest) {
     // Step 3: 生成最终图片（使用 gemini-2.5-flash-image 图像生成模型）
     console.log("Step 3: 生成最终图片...");
     const finalImages: string[] = [];
+    const finalImageErrors: string[] = [];
 
+    // 生成多张图片，成功几张就输出几张
     for (let i = 0; i < numImages; i++) {
       try {
+        console.log(`正在生成第 ${i + 1}/${numImages} 张图片...`);
         const finalImage = await generateFinalImage(
           characterBase64,
           characterImage.type,
@@ -73,75 +119,93 @@ export async function POST(request: NextRequest) {
           apiKey
         );
         finalImages.push(finalImage);
+        console.log(`第 ${i + 1} 张图片生成成功`);
       } catch (error: any) {
         console.error(`生成第 ${i + 1} 张图片失败:`, error);
-        // If this is the first image and it fails, throw error
-        // Otherwise, continue with successfully generated images
-        if (i === 0 && finalImages.length === 0) {
-          throw new Error(`生成最终图片失败: ${error.message}`);
-        }
-        // Log warning for subsequent failures
-        console.warn(`跳过第 ${i + 1} 张图片，继续处理已生成的图片`);
+        finalImageErrors.push(`第 ${i + 1} 张: ${error.message}`);
+        // 继续生成其他图片，不中断流程
+        console.warn(`跳过第 ${i + 1} 张图片，继续生成剩余图片`);
       }
     }
 
-    // Check if we have at least one final image
+    // 检查是否至少生成了一张图片
     if (finalImages.length === 0) {
       throw new Error("所有图片生成都失败，请重试");
     }
 
+    console.log(`成功生成 ${finalImages.length}/${numImages} 张图片`);
+    if (finalImageErrors.length > 0) {
+      console.warn("部分图片生成失败:", finalImageErrors);
+    }
+
     console.log("=== Mimic Generation Completed ===");
 
-    // Upload images to Aimovely if configured
-    const aimovelyEmail = process.env.AIMOVELY_EMAIL;
-    const aimovelyVcode = process.env.AIMOVELY_VCODE;
+    // Upload generated images to Aimovely
+    let uploadedBackgroundImageUrl: string | null = null;
+    const uploadedFinalImageUrls: string[] = [];
 
-    let uploadedBackgroundImage = backgroundImage;
-    const uploadedFinalImages: string[] = [];
-
-    if (aimovelyEmail && aimovelyVcode) {
+    if (aimovelyToken) {
       try {
-        const aimovelyToken = await fetchAimovelyToken(aimovelyEmail, aimovelyVcode);
-        if (aimovelyToken) {
-          // Upload background image
-          const bgUploadResult = await uploadImageToAimovely(
-            backgroundImage,
-            aimovelyToken,
-            "background"
-          );
-          if (bgUploadResult?.url) {
-            uploadedBackgroundImage = bgUploadResult.url;
-          }
+        console.log("开始上传生成的图片到 Aimovely...");
+        
+        // Upload background image
+        const bgUploadResult = await uploadImageToAimovely(
+          backgroundImage,
+          aimovelyToken,
+          "background"
+        );
+        if (bgUploadResult?.url) {
+          uploadedBackgroundImageUrl = bgUploadResult.url;
+          console.log("背景图上传成功:", uploadedBackgroundImageUrl);
+        }
 
-          // Upload final images
-          for (const finalImage of finalImages) {
+        // Upload final images
+        for (let i = 0; i < finalImages.length; i++) {
+          try {
             const finalUploadResult = await uploadImageToAimovely(
-              finalImage,
+              finalImages[i],
               aimovelyToken,
-              "final"
+              `final-${i}`
             );
             if (finalUploadResult?.url) {
-              uploadedFinalImages.push(finalUploadResult.url);
+              uploadedFinalImageUrls.push(finalUploadResult.url);
+              console.log(`最终图片 ${i + 1} 上传成功:`, finalUploadResult.url);
             } else {
-              uploadedFinalImages.push(finalImage);
+              // Fallback to base64 if upload fails
+              uploadedFinalImageUrls.push(finalImages[i]);
+              console.warn(`最终图片 ${i + 1} 上传失败，使用 base64`);
             }
+          } catch (uploadError) {
+            console.error(`上传最终图片 ${i + 1} 失败:`, uploadError);
+            // Fallback to base64
+            uploadedFinalImageUrls.push(finalImages[i]);
           }
         }
       } catch (uploadError) {
-        console.error("上传到 Aimovely 失败:", uploadError);
+        console.error("上传生成的图片到 Aimovely 失败:", uploadError);
         // Fallback to base64 images
-        uploadedFinalImages.push(...finalImages);
+        uploadedFinalImageUrls.push(...finalImages);
       }
     } else {
-      uploadedFinalImages.push(...finalImages);
+      // No Aimovely token, use base64
+      uploadedFinalImageUrls.push(...finalImages);
     }
 
     return NextResponse.json({
       captionPrompt,
-      backgroundImage: uploadedBackgroundImage,
-      finalImages: uploadedFinalImages.length > 0 ? uploadedFinalImages : finalImages,
-      backgroundImageBase64: backgroundImage, // Also return base64 for display
-      finalImagesBase64: finalImages, // Also return base64 for display
+      // Input image URLs
+      referenceImageUrl: uploadedReferenceImageUrl,
+      characterImageUrl: uploadedCharacterImageUrl,
+      // Generated image URLs
+      backgroundImageUrl: uploadedBackgroundImageUrl,
+      finalImageUrls: uploadedFinalImageUrls,
+      // Base64 images for display (fallback)
+      backgroundImageBase64: backgroundImage,
+      finalImagesBase64: finalImages,
+      // Generation stats
+      generatedCount: finalImages.length,
+      requestedCount: numImages,
+      errors: finalImageErrors.length > 0 ? finalImageErrors : undefined,
     });
   } catch (error: any) {
     console.error("Error in Mimic generation:", error);
