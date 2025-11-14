@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
@@ -27,8 +27,18 @@ export default function PhotoBoothPage() {
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState<string>("");
+  
+  // Use ref to prevent duplicate requests
+  const isGeneratingRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleGenerate = async () => {
+    // Prevent duplicate requests
+    if (isGeneratingRef.current || loading) {
+      console.warn("请求正在进行中，忽略重复请求");
+      return;
+    }
+
     if (image.length === 0) {
       setError("请上传图片");
       return;
@@ -40,6 +50,9 @@ export default function PhotoBoothPage() {
       promptLogin();
       return;
     }
+
+    // Set flag to prevent duplicate requests
+    isGeneratingRef.current = true;
 
     setLoading(true);
     setError("");
@@ -53,12 +66,23 @@ export default function PhotoBoothPage() {
       formData.append("image", image[0]);
       formData.append("aspectRatio", aspectRatio);
 
+      // Cancel previous request if exists
+      if (abortControllerRef.current) {
+        console.log("取消之前的请求");
+        abortControllerRef.current.abort();
+      }
+
       // Create an AbortController for timeout handling
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout
+      abortControllerRef.current = controller;
+      const timeoutId = setTimeout(() => {
+        console.warn("请求超时，正在取消...");
+        controller.abort();
+      }, 300000); // 5 minutes timeout
 
       let response: Response;
       try {
+        console.log("发起 PhotoBooth 生成请求...");
         response = await fetch("/api/generate/photobooth", {
           method: "POST",
           headers: {
@@ -192,6 +216,10 @@ export default function PhotoBoothPage() {
       setCurrentStep("");
     } finally {
       setLoading(false);
+      // Reset flag to allow new requests
+      isGeneratingRef.current = false;
+      abortControllerRef.current = null;
+      console.log("请求完成，重置状态");
     }
   };
 
