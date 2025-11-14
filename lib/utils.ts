@@ -1,5 +1,5 @@
 /**
- * Utility functions for the Creator AI Toolkit
+ * Utility functions for Sparkit
  */
 
 /**

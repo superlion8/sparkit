@@ -14,7 +14,7 @@ export default function LoginPrompt({ onLogin, loading = false }: LoginPromptPro
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">请先登录</h2>
         <p className="text-gray-600 max-w-xs">
-          登录管理员账户后即可查看 Creator AI Toolkit 的生成任务数据。
+          登录管理员账户后即可查看 Sparkit 的生成任务数据。
         </p>
       </div>
       <button
