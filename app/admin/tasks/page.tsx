@@ -46,6 +46,7 @@ const TASK_TYPES = [
   "image_to_image_flux",
   "outfit_change",
   "background_replace",
+  "mimic",
   "video_generation",
   "video_subject_replace",
   "image_transition",
