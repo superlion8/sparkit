@@ -35,6 +35,7 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   outfit_change: "AI换装",
   background_replace: "背景替换",
   mimic: "Mimic角色替换",
+  photobooth: "PhotoBooth写真组图",
   video_generation: "视频生成",
   video_subject_replace: "视频主体替换",
   image_transition_edit: "改图转场 - 图片编辑",
