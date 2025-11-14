@@ -43,11 +43,14 @@ export default function Sidebar() {
 
   const NavContent = () => (
     <nav className="flex flex-col gap-1 p-4">
-      <div className="mb-8 px-4">
-        <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent">
-          Creator AI
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">Toolkit</p>
+      <div className="mb-8 px-4 flex items-center gap-3">
+        <img src="/sparkit.png" alt="Sparkit" className="h-10 w-10 object-contain" />
+        <div>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent">
+            Sparkit
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">AI Toolkit</p>
+        </div>
       </div>
 
       {/* AI Generation Tools */}

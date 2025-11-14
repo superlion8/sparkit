@@ -1,6 +1,6 @@
 # 部署指南
 
-本文档说明如何将 Creator AI Toolkit 部署到 Vercel。
+本文档说明如何将 Sparkit 部署到 Vercel。
 
 ## 前置准备
 

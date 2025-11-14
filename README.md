@@ -1,4 +1,4 @@
-# Creator AI Toolkit
+# Sparkit
 
 AI-powered image and video generation and editing toolkit built with Next.js and React.
 

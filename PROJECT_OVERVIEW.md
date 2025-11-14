@@ -1,8 +1,8 @@
-# Creator AI Toolkit - 项目总览
+# Sparkit - 项目总览
 
 ## 🎨 项目简介
 
-Creator AI Toolkit 是一个强大的 AI 驱动的图像和视频生成编辑工具集，基于 Next.js 14 和 React 18 构建，集成了 Google Gemini 和 BFL Flux API。
+Sparkit 是一个强大的 AI 驱动的图像和视频生成编辑工具集，基于 Next.js 14 和 React 18 构建，集成了 Google Gemini 和 BFL Flux API。
 
 ## ✨ 核心功能
 
