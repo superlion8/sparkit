@@ -63,17 +63,31 @@ export async function POST(request: NextRequest) {
     const finalImages: string[] = [];
 
     for (let i = 0; i < numImages; i++) {
-      const finalImage = await generateFinalImage(
-        characterBase64,
-        characterImage.type,
-        backgroundImage,
-        captionPrompt,
-        aspectRatio,
-        apiKey
-      );
-      if (finalImage) {
+      try {
+        const finalImage = await generateFinalImage(
+          characterBase64,
+          characterImage.type,
+          backgroundImage,
+          captionPrompt,
+          aspectRatio,
+          apiKey
+        );
         finalImages.push(finalImage);
+      } catch (error: any) {
+        console.error(`生成第 ${i + 1} 张图片失败:`, error);
+        // If this is the first image and it fails, throw error
+        // Otherwise, continue with successfully generated images
+        if (i === 0 && finalImages.length === 0) {
+          throw new Error(`生成最终图片失败: ${error.message}`);
+        }
+        // Log warning for subsequent failures
+        console.warn(`跳过第 ${i + 1} 张图片，继续处理已生成的图片`);
       }
+    }
+
+    // Check if we have at least one final image
+    if (finalImages.length === 0) {
+      throw new Error("所有图片生成都失败，请重试");
     }
 
     console.log("=== Mimic Generation Completed ===");
@@ -131,9 +145,22 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("Error in Mimic generation:", error);
+    console.error("Error stack:", error.stack);
+    
+    // Determine status code based on error type
+    let statusCode = 500;
+    if (error.message?.includes("安全过滤") || error.message?.includes("SAFETY")) {
+      statusCode = 400;
+    } else if (error.message?.includes("未找到") || error.message?.includes("未返回")) {
+      statusCode = 500;
+    }
+    
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
+      { 
+        error: error.message || "Internal server error",
+        details: error.details || null
+      },
+      { status: statusCode }
     );
   }
 }
@@ -188,20 +215,111 @@ async function reverseCaptionPrompt(
   const data = await response.json();
   console.log("Gemini API 响应 (reverse caption):", JSON.stringify(data, null, 2));
 
-  if (data.candidates && data.candidates.length > 0) {
-    const candidate = data.candidates[0];
-    if (candidate.content && candidate.content.parts) {
-      let text = "";
-      for (const part of candidate.content.parts) {
-        if (part.text) {
-          text += part.text;
-        }
-      }
-      return text.trim();
+  // Check for API errors
+  if (data.error) {
+    console.error("Gemini API 返回错误:", data.error);
+    throw new Error(`Gemini API 错误: ${data.error.message || '未知错误'}`);
+  }
+
+  // Check for candidates
+  if (!data.candidates || data.candidates.length === 0) {
+    console.error("没有 candidates 或为空");
+    console.error("完整 API 响应:", JSON.stringify(data, null, 2));
+    const error: any = new Error("API 未返回候选结果，请稍后重试");
+    error.details = { response: data };
+    throw error;
+  }
+
+  const candidate = data.candidates[0];
+  
+  // Check finish reason first (before checking content)
+  if (candidate.finishReason) {
+    if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
+      console.error("内容被安全过滤阻止:", candidate.finishReason);
+      console.error("安全评级:", candidate.safetyRatings);
+      const error: any = new Error("内容被安全过滤阻止，请尝试其他图片");
+      error.details = {
+        finishReason: candidate.finishReason,
+        safetyRatings: candidate.safetyRatings
+      };
+      throw error;
+    }
+    
+    // Other finish reasons like "STOP" usually mean success
+    console.log("Finish reason:", candidate.finishReason);
+  }
+
+  // Check for content
+  if (!candidate.content || !candidate.content.parts) {
+    console.error("候选结果中没有 content 或 parts");
+    console.error("候选结果详情:", JSON.stringify(candidate, null, 2));
+    let errorMsg = "未找到反推的提示词";
+    if (candidate.finishReason && candidate.finishReason !== "STOP") {
+      errorMsg += `。原因: ${candidate.finishReason}`;
+    }
+    const error: any = new Error(errorMsg);
+    error.details = {
+      finishReason: candidate.finishReason,
+      safetyRatings: candidate.safetyRatings,
+      candidate: candidate
+    };
+    throw error;
+  }
+
+  // Extract text from parts
+  let text = "";
+  for (const part of candidate.content.parts) {
+    if (part.text) {
+      text += part.text;
+    } else {
+      console.log("部分内容不是文本:", part);
     }
   }
 
-  throw new Error("未找到反推的提示词");
+  const trimmedText = text.trim();
+  
+  if (!trimmedText) {
+    console.error("提取的文本为空");
+    console.error("所有 parts:", JSON.stringify(candidate.content.parts, null, 2));
+    console.error("Finish reason:", candidate.finishReason);
+    console.error("Safety ratings:", candidate.safetyRatings);
+    
+    let errorMsg = "未找到反推的提示词";
+    
+    // Check finish reason
+    if (candidate.finishReason) {
+      if (candidate.finishReason === "STOP") {
+        // STOP usually means success, but we got no text
+        errorMsg += "。API 返回成功但未生成文本内容";
+      } else if (candidate.finishReason === "MAX_TOKENS") {
+        errorMsg += "。达到最大令牌数限制";
+      } else {
+        errorMsg += `。原因: ${candidate.finishReason}`;
+      }
+    }
+    
+    // Check safety ratings
+    if (candidate.safetyRatings && Array.isArray(candidate.safetyRatings)) {
+      const blockedCategories = candidate.safetyRatings
+        .filter((rating: any) => rating.probability === "HIGH" || rating.probability === "MEDIUM")
+        .map((rating: any) => rating.category);
+      if (blockedCategories.length > 0) {
+        errorMsg += `。可能触发了安全过滤: ${blockedCategories.join(", ")}`;
+      }
+    }
+    
+    const error: any = new Error(errorMsg);
+    error.details = {
+      finishReason: candidate.finishReason,
+      safetyRatings: candidate.safetyRatings,
+      parts: candidate.content.parts,
+      fullCandidate: candidate
+    };
+    throw error;
+  }
+
+  console.log("成功提取反推的提示词，长度:", trimmedText.length);
+  return trimmedText;
 }
 
 // Step 2: 去掉人物（使用 gemini-2.5-flash-image 图像生成模型）
@@ -260,21 +378,46 @@ async function removeCharacter(
   const data = await response.json();
   console.log("Gemini API 响应 (remove character):", JSON.stringify(data, null, 2));
 
-  // Extract generated image
-  if (data.candidates && data.candidates.length > 0) {
-    for (const candidate of data.candidates) {
-      if (candidate.content && candidate.content.parts) {
-        for (const part of candidate.content.parts) {
-          if (part.inlineData) {
-            const dataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-            return dataUrl;
-          }
+  // Check for API errors
+  if (data.error) {
+    console.error("Gemini API 返回错误:", data.error);
+    throw new Error(`Gemini API 错误: ${data.error.message || '未知错误'}`);
+  }
+
+  // Check for candidates
+  if (!data.candidates || data.candidates.length === 0) {
+    console.error("没有 candidates 或为空");
+    throw new Error("API 未返回候选结果，请稍后重试");
+  }
+
+  // Extract generated image and check finish reason
+  for (const candidate of data.candidates) {
+    // Check finish reason
+    if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
+      console.error("内容被安全过滤阻止:", candidate.finishReason);
+      throw new Error("内容被安全过滤阻止，请尝试其他图片");
+    }
+
+    if (candidate.content && candidate.content.parts) {
+      for (const part of candidate.content.parts) {
+        if (part.inlineData) {
+          const dataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+          return dataUrl;
         }
       }
     }
   }
 
-  throw new Error("未找到生成的背景图");
+  // No image found
+  let errorMsg = "未找到生成的背景图";
+  const candidate = data.candidates[0];
+  if (candidate.finishReason) {
+    errorMsg += `。原因: ${candidate.finishReason}`;
+  }
+  if (candidate.safetyRatings) {
+    errorMsg += `。安全评级: ${JSON.stringify(candidate.safetyRatings)}`;
+  }
+  throw new Error(errorMsg);
 }
 
 // Step 3: 生成最终图片（使用 gemini-2.5-flash-image 图像生成模型）
@@ -285,7 +428,7 @@ async function generateFinalImage(
   captionPrompt: string,
   aspectRatio: string | null,
   apiKey: string
-): Promise<string | null> {
+): Promise<string> {
   // Convert background image (data URL) back to base64 if needed
   let backgroundBase64 = backgroundImage;
   let backgroundMimeType = "image/png";
@@ -357,21 +500,46 @@ async function generateFinalImage(
   const data = await response.json();
   console.log("Gemini API 响应 (generate final):", JSON.stringify(data, null, 2));
 
-  // Extract generated image
-  if (data.candidates && data.candidates.length > 0) {
-    for (const candidate of data.candidates) {
-      if (candidate.content && candidate.content.parts) {
-        for (const part of candidate.content.parts) {
-          if (part.inlineData) {
-            const dataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-            return dataUrl;
-          }
+  // Check for API errors
+  if (data.error) {
+    console.error("Gemini API 返回错误:", data.error);
+    throw new Error(`Gemini API 错误: ${data.error.message || '未知错误'}`);
+  }
+
+  // Check for candidates
+  if (!data.candidates || data.candidates.length === 0) {
+    console.error("没有 candidates 或为空");
+    throw new Error("API 未返回候选结果，请稍后重试");
+  }
+
+  // Extract generated image and check finish reason
+  for (const candidate of data.candidates) {
+    // Check finish reason
+    if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
+      console.error("内容被安全过滤阻止:", candidate.finishReason);
+      throw new Error("内容被安全过滤阻止，请尝试调整提示词或图片");
+    }
+
+    if (candidate.content && candidate.content.parts) {
+      for (const part of candidate.content.parts) {
+        if (part.inlineData) {
+          const dataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+          return dataUrl;
         }
       }
     }
   }
 
-  return null;
+  // No image found
+  let errorMsg = "未找到生成的最终图片";
+  const candidate = data.candidates[0];
+  if (candidate.finishReason) {
+    errorMsg += `。原因: ${candidate.finishReason}`;
+  }
+  if (candidate.safetyRatings) {
+    errorMsg += `。安全评级: ${JSON.stringify(candidate.safetyRatings)}`;
+  }
+  throw new Error(errorMsg);
 }
 
 // Helper functions for Aimovely integration
