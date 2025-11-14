@@ -198,38 +198,88 @@ export async function POST(request: NextRequest) {
     };
 
     // Log response size for debugging
-    const responseJson = JSON.stringify(responseData);
-    const responseSizeKB = (responseJson.length / 1024).toFixed(2);
-    console.log(`响应数据大小: ${responseSizeKB} KB`);
-    console.log(`生成的图片数量: ${uploadedImageUrls.length}`);
-    console.log(`Pose 描述数量: ${poseDescriptions.length}`);
+    try {
+      const responseJson = JSON.stringify(responseData);
+      const responseSizeKB = (responseJson.length / 1024).toFixed(2);
+      console.log(`响应数据大小: ${responseSizeKB} KB`);
+      console.log(`生成的图片数量: ${uploadedImageUrls.length}`);
+      console.log(`Pose 描述数量: ${poseDescriptions.length}`);
+      console.log(`输入图片 URL: ${uploadedImageUrl || 'null'}`);
+      
+      // Log first few URLs for debugging
+      if (uploadedImageUrls.length > 0) {
+        console.log(`生成的图片 URLs (前3个):`, uploadedImageUrls.slice(0, 3));
+      }
+    } catch (logError) {
+      console.error("记录响应日志失败:", logError);
+    }
 
     // Return response with proper headers
-    return NextResponse.json(responseData, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache',
-      },
-    });
+    try {
+      const response = NextResponse.json(responseData, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      });
+      console.log("响应准备完成，开始返回...");
+      return response;
+    } catch (responseError) {
+      console.error("创建响应失败:", responseError);
+      throw new Error(`创建响应失败: ${responseError instanceof Error ? responseError.message : '未知错误'}`);
+    }
   } catch (error: any) {
-    console.error("Error in PhotoBooth generation:", error);
+    console.error("=== PhotoBooth Generation Error ===");
+    console.error("Error message:", error.message);
     console.error("Error stack:", error.stack);
+    console.error("Error name:", error.name);
+    console.error("Error details:", error.details);
     
     // Determine status code based on error type
     let statusCode = 500;
+    let errorMessage = error.message || "Internal server error";
+    
     if (error.message?.includes("安全过滤") || error.message?.includes("SAFETY")) {
       statusCode = 400;
     } else if (error.message?.includes("未找到") || error.message?.includes("未返回")) {
       statusCode = 500;
+    } else if (error.message?.includes("超时") || error.message?.includes("timeout")) {
+      statusCode = 504;
+      errorMessage = "请求超时，请稍后重试";
+    } else if (error.message?.includes("上传")) {
+      statusCode = 500;
     }
     
-    return NextResponse.json(
-      { 
-        error: error.message || "Internal server error",
-        details: error.details || null
-      },
-      { status: statusCode }
-    );
+    try {
+      const errorResponse = NextResponse.json(
+        { 
+          error: errorMessage,
+          details: error.details || null,
+          timestamp: new Date().toISOString(),
+        },
+        { 
+          status: statusCode,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
+          },
+        }
+      );
+      console.log("错误响应准备完成，状态码:", statusCode);
+      return errorResponse;
+    } catch (responseError) {
+      console.error("创建错误响应失败:", responseError);
+      // Last resort: return a simple text response
+      return new NextResponse(
+        JSON.stringify({ error: "服务器内部错误", details: null }),
+        { 
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
   }
 }
 

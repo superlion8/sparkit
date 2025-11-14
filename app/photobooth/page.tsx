@@ -70,12 +70,27 @@ export default function PhotoBoothPage() {
         clearTimeout(timeoutId);
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
+        
+        // Handle different types of fetch errors
+        let errorMessage = "请求失败";
         if (fetchError.name === 'AbortError') {
-          throw new Error("请求超时，请稍后重试。生成图片需要较长时间，请耐心等待。");
+          errorMessage = "请求超时，请稍后重试。生成图片需要较长时间，请耐心等待。";
+        } else if (fetchError.message?.includes('Failed to fetch')) {
+          errorMessage = "网络请求失败，可能是服务器响应超时或网络连接问题。请检查网络连接后重试。";
+        } else if (fetchError.message) {
+          errorMessage = fetchError.message;
         }
-        throw fetchError;
+        
+        setErrorDetails({
+          message: errorMessage,
+          name: fetchError.name,
+          stack: fetchError.stack,
+          originalError: fetchError.message,
+        });
+        throw new Error(errorMessage);
       }
 
+      // Check response status
       if (!response.ok) {
         let errorData: any;
         const contentType = response.headers.get("content-type");
@@ -87,7 +102,7 @@ export default function PhotoBoothPage() {
             errorData = {
               status: response.status,
               statusText: response.statusText,
-              error: errorText,
+              error: errorText || `HTTP ${response.status}: ${response.statusText}`,
               contentType,
             };
           }
@@ -95,12 +110,13 @@ export default function PhotoBoothPage() {
           errorData = {
             status: response.status,
             statusText: response.statusText,
-            error: "无法解析错误响应",
+            error: `HTTP ${response.status}: ${response.statusText}`,
+            parseError: parseError instanceof Error ? parseError.message : "无法解析错误响应",
           };
         }
 
         setErrorDetails(errorData);
-        throw new Error(errorData.error || errorData.statusText || "生成失败");
+        throw new Error(errorData.error || errorData.statusText || `生成失败 (HTTP ${response.status})`);
       }
 
       setCurrentStep("正在根据pose描述生成图片...");
