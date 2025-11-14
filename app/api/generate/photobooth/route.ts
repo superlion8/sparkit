@@ -423,9 +423,10 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
   
   // Try multiple parsing strategies
   // Strategy 1: Parse format with numbered poses (Pose1, Pose2, etc.)
-  const poseRegex = /(?:^|\n)\s*[-*]?\s*Pose\s*(\d+)\s*:?\s*(.+?)(?=\n\s*[-*]?\s*(?:Pose|Camera|Composition)\s*\d+|$)/gis;
-  const cameraRegex = /(?:^|\n)\s*[-*]?\s*Camera\s*Position\s*(\d+)\s*:?\s*(.+?)(?=\n\s*[-*]?\s*(?:Pose|Camera|Composition)\s*\d+|$)/gis;
-  const compositionRegex = /(?:^|\n)\s*[-*]?\s*Composition\s*(\d+)\s*:?\s*(.+?)(?=\n\s*[-*]?\s*(?:Pose|Camera|Composition)\s*\d+|$)/gis;
+  // Use [\s\S] instead of . with s flag for ES5 compatibility
+  const poseRegex = /(?:^|\n)\s*[-*]?\s*Pose\s*(\d+)\s*:?\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:Pose|Camera|Composition)\s*\d+|$)/gi;
+  const cameraRegex = /(?:^|\n)\s*[-*]?\s*Camera\s*Position\s*(\d+)\s*:?\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:Pose|Camera|Composition)\s*\d+|$)/gi;
+  const compositionRegex = /(?:^|\n)\s*[-*]?\s*Composition\s*(\d+)\s*:?\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:Pose|Camera|Composition)\s*\d+|$)/gi;
   
   // Extract all matches
   const poseMatches = Array.from(text.matchAll(poseRegex));
