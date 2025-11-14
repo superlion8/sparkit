@@ -14,7 +14,8 @@ import {
   Film,
   History,
   Settings,
-  User
+  User,
+  Camera
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,6 +26,7 @@ const navigation = [
   { name: "AI换装", href: "/outfit-change", icon: Shirt },
   { name: "AI换背景", href: "/background-replace", icon: Palette },
   { name: "Mimic角色替换", href: "/mimic", icon: User },
+  { name: "PhotoBooth", href: "/photobooth", icon: Camera },
   { name: "视频生成", href: "/video-generation", icon: Video },
   { name: "视频主体替换", href: "/video-subject-replace", icon: Replace },
   { name: "改图转场", href: "/image-transition", icon: Film },

@@ -47,6 +47,7 @@ const TASK_TYPES = [
   "outfit_change",
   "background_replace",
   "mimic",
+  "photobooth",
   "video_generation",
   "video_subject_replace",
   "image_transition",
@@ -76,8 +77,8 @@ const isVideoValue = (value: string) =>
   /\.(mp4|mov|avi|webm)$/i.test(value) ||
   value.includes('static.aimovely.com') && value.includes('video');
 
-// Parse JSON format image URLs (for Mimic tasks)
-const parseImageUrls = (url: string | null): { type: 'single' | 'mimic'; urls: any } | null => {
+// Parse JSON format image URLs (for Mimic and PhotoBooth tasks)
+const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photobooth'; urls: any } | null => {
   if (!url) return null;
   
   // Try to parse as JSON
@@ -86,6 +87,10 @@ const parseImageUrls = (url: string | null): { type: 'single' | 'mimic'; urls: a
     // Check if it's a Mimic format
     if (typeof parsed === 'object' && (parsed.reference || parsed.character || parsed.background || parsed.final)) {
       return { type: 'mimic', urls: parsed };
+    }
+    // Check if it's a PhotoBooth format
+    if (typeof parsed === 'object' && (parsed.input || parsed.poses)) {
+      return { type: 'photobooth', urls: parsed };
     }
   } catch {
     // Not JSON, treat as single URL
@@ -482,6 +487,20 @@ export default function AdminTasksPage() {
                                   )}
                                 </>
                               );
+                            } else if (inputUrls.type === 'photobooth') {
+                              // PhotoBooth task: show input image
+                              return (
+                                <>
+                                  {inputUrls.urls.input && (
+                                    <DirectMediaDisplay 
+                                      label="输入图片" 
+                                      value={inputUrls.urls.input} 
+                                      type="image" 
+                                      onExpand={() => setModalMedia({ type: 'image', url: inputUrls.urls.input, label: '输入图片' })}
+                                    />
+                                  )}
+                                </>
+                              );
                             } else {
                               // Single image
                               return (
@@ -535,6 +554,25 @@ export default function AdminTasksPage() {
                                           value={url} 
                                           type="image" 
                                           onExpand={() => setModalMedia({ type: 'image', url: url, label: `最终图 ${idx + 1}` })}
+                                        />
+                                      ))}
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            } else if (outputUrls.type === 'photobooth') {
+                              // PhotoBooth task: show pose images
+                              return (
+                                <>
+                                  {Array.isArray(outputUrls.urls.poses) && outputUrls.urls.poses.length > 0 && (
+                                    <div className="space-y-1">
+                                      {outputUrls.urls.poses.map((url: string, idx: number) => (
+                                        <DirectMediaDisplay 
+                                          key={idx}
+                                          label={`Pose ${idx + 1}`} 
+                                          value={url} 
+                                          type="image" 
+                                          onExpand={() => setModalMedia({ type: 'image', url: url, label: `Pose ${idx + 1}` })}
                                         />
                                       ))}
                                     </div>
