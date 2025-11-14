@@ -235,8 +235,8 @@ async function reverseCaptionPrompt(
   mimeType: string,
   apiKey: string
 ): Promise<string> {
-  // 用英文反推提示词，包含环境和氛围、镜头和构图、人物姿势/穿着/神态等，但不描述身材和长相
-  const prompt = "用英文反推下这张图片的提示词，包含环境和氛围的描述，镜头和构图的描述，人物姿势、穿着、神态的描述等影像信息，不要描述身材和长相。";
+  // 用英文反推提示词，包含环境、氛围、光影、场景信息、色调的描述，镜头和构图的描述，人物姿势、穿着、神态的描述，但不描述身材、长相、发型等和人物外貌相关的信息
+  const prompt = "用英文反推下这张图片的提示词，包含环境、氛围、光影、场景信息、色调的描述，镜头和构图的描述，人物姿势、穿着、神态的描述。请不要描述身材、长相、发型等和人物外貌相关的信息。请直接输出英文反推词。";
 
   const contents = [
     {
@@ -529,9 +529,8 @@ async function generateFinalImage(
     }
   }
 
-  // Build prompt combining caption and character instruction
-  // 将角色图中的角色替换到背景图中，保持背景场景不变，角色应该自然地融入背景
-  const prompt = `根据以下描述生成图片：${captionPrompt}。将提供的角色图替换到背景图中，保持背景场景和风格不变，确保角色自然地融入背景环境。`;
+  // Build final prompt: take autentic photo of the character, use instagram friendly composition, scene setup from caption prompt
+  const finalPrompt = `take autentic photo of the character, use instagram friendly composition. scene setup: ${captionPrompt}`;
 
   const contents = [
     {
@@ -548,7 +547,7 @@ async function generateFinalImage(
             data: backgroundBase64,
           },
         },
-        { text: prompt },
+        { text: finalPrompt },
       ],
     },
   ];
