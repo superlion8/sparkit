@@ -243,18 +243,25 @@ export async function POST(request: NextRequest) {
 
     // Return response with proper headers
     try {
+      console.log("开始创建响应对象...");
       const response = NextResponse.json(responseData, {
+        status: 200,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',
           'Expires': '0',
+          'Connection': 'keep-alive',
+          'X-Response-Time': `${totalTime}s`,
         },
       });
+      console.log("响应对象创建成功");
       console.log("响应准备完成，开始返回...");
+      console.log(`总耗时: ${totalTime} 秒，将在 ${((Date.now() - startTime) / 1000).toFixed(2)} 秒内返回`);
       return response;
     } catch (responseError) {
-      console.error("创建响应失败:", responseError);
+      const createResponseTime = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.error(`创建响应失败（总耗时: ${createResponseTime} 秒）:`, responseError);
       throw new Error(`创建响应失败: ${responseError instanceof Error ? responseError.message : '未知错误'}`);
     }
   } catch (error: any) {
