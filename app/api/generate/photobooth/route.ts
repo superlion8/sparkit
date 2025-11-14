@@ -444,6 +444,7 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
     if (!block || block.trim().length === 0) continue;
     
     console.log(`处理 Pose ${poseNumber} 区块，长度: ${block.length}`);
+    console.log(`区块内容预览: ${block.substring(0, 300)}`);
     
     const poseData: Partial<PoseDescription> = {};
     
@@ -473,16 +474,29 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
     // If we didn't find pose field, try Action field without ** markers or Pose without markers
     if (!poseData.pose) {
       // Try **Action:** (already handled above, but also try without **)
-      const actionWithoutMarkers = block.match(/(?:^|\n)\s*[-*]?\s*Action\s*:?\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:Camera\s*Position|Composition|Pose|Action)\s*\d*:?|$)/i);
+      const actionWithoutMarkers = block.match(/(?:^|\n)\s*[-*]?\s*Action\s*:?\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:Camera\s*Position|Composition|Pose|Action)\s*\d*\s*:?|$)/i);
       if (actionWithoutMarkers && actionWithoutMarkers[1]) {
         poseData.pose = actionWithoutMarkers[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
         console.log(`找到 Action: 字段（无标记）: ${poseData.pose.substring(0, 50)}...`);
       } else {
         // Try format: Pose: content (without **)
-        const poseWithoutMarkers = block.match(/(?:^|\n)\s*[-*]?\s*Pose\s*:?\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:Camera\s*Position|Composition|Pose|Action)\s*\d*:?|$)/i);
+        const poseWithoutMarkers = block.match(/(?:^|\n)\s*[-*]?\s*Pose\s*:?\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:Camera\s*Position|Composition|Pose|Action)\s*\d*\s*:?|$)/i);
         if (poseWithoutMarkers && poseWithoutMarkers[1]) {
           poseData.pose = poseWithoutMarkers[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
           console.log(`找到 Pose: 字段（无标记）: ${poseData.pose.substring(0, 50)}...`);
+        } else {
+          // If still not found, the block might start directly with pose content (after Pose1:)
+          // Check if block starts with content (not a field marker like Camera Position or Composition)
+          const trimmedBlock = block.trim();
+          // If block doesn't start with Camera Position or Composition, treat the first part as pose
+          if (!trimmedBlock.match(/^(?:[-*]?\s*)?(?:Camera\s*Position|Composition)/i)) {
+            // Extract content until the first Camera Position or Composition field
+            const poseContentMatch = trimmedBlock.match(/^([\s\S]+?)(?=\n\s*[-*]?\s*(?:Camera\s*Position|Composition)\s*\d*\s*:?|$)/i);
+            if (poseContentMatch && poseContentMatch[1]) {
+              poseData.pose = poseContentMatch[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+              console.log(`找到 Pose 字段（块开头）: ${poseData.pose.substring(0, 50)}...`);
+            }
+          }
         }
       }
     }
@@ -497,15 +511,19 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
       } else {
         // Try without ** markers (may have number like Camera Position1:)
         // Match Camera Position followed by optional number and colon
-        const cameraWithoutMarkers = block.match(/(?:^|\n)\s*[-*]?\s*Camera\s*Position\s*\d*\s*:?\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:Composition|Pose|Action|Camera\s*Position)\s*\d*\s*:?|$)/i);
-        if (cameraWithoutMarkers && cameraWithoutMarkers[1]) {
-          const value = cameraWithoutMarkers[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-          // Filter out the number if it's part of the value
-          const cleanValue = value.replace(/^\d+\s*:?\s*/, '').trim();
-          if (cleanValue.length > 5) {
-            poseData.cameraPosition = cleanValue;
-            console.log(`找到 Camera Position: 字段（块内，无标记）: ${poseData.cameraPosition.substring(0, 50)}...`);
+        // More flexible regex to handle various formats
+        const cameraRegex = /(?:^|\n)\s*[-*]?\s*Camera\s*Position\s*(\d+)?\s*:?\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:Composition|Pose|Action|Camera\s*Position)\s*(?:\d+)?\s*:?|$)/i;
+        const cameraWithoutMarkers = block.match(cameraRegex);
+        if (cameraWithoutMarkers && cameraWithoutMarkers[2]) {
+          const value = cameraWithoutMarkers[2].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+          if (value.length > 5) {
+            poseData.cameraPosition = value;
+            console.log(`找到 Camera Position: 字段（块内，无标记，数字: ${cameraWithoutMarkers[1] || '无'}）: ${poseData.cameraPosition.substring(0, 50)}...`);
+          } else {
+            console.warn(`Camera Position 字段长度不足: ${value.length}`);
           }
+        } else {
+          console.warn(`未找到 Camera Position 字段，块内容预览: ${block.substring(0, 200)}`);
         }
       }
     }
@@ -519,15 +537,19 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
       } else {
         // Try without ** markers (may have number like Composition1:)
         // Match Composition followed by optional number and colon
-        const compositionWithoutMarkers = block.match(/(?:^|\n)\s*[-*]?\s*Composition\s*\d*\s*:?\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:Camera\s*Position|Pose|Action|Composition)\s*\d*\s*:?|$)/i);
-        if (compositionWithoutMarkers && compositionWithoutMarkers[1]) {
-          const value = compositionWithoutMarkers[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-          // Filter out the number if it's part of the value
-          const cleanValue = value.replace(/^\d+\s*:?\s*/, '').trim();
-          if (cleanValue.length > 5) {
-            poseData.composition = cleanValue;
-            console.log(`找到 Composition: 字段（块内，无标记）: ${poseData.composition.substring(0, 50)}...`);
+        // More flexible regex to handle various formats
+        const compositionRegex = /(?:^|\n)\s*[-*]?\s*Composition\s*(\d+)?\s*:?\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:Camera\s*Position|Pose|Action|Composition)\s*(?:\d+)?\s*:?|$)/i;
+        const compositionWithoutMarkers = block.match(compositionRegex);
+        if (compositionWithoutMarkers && compositionWithoutMarkers[2]) {
+          const value = compositionWithoutMarkers[2].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+          if (value.length > 5) {
+            poseData.composition = value;
+            console.log(`找到 Composition: 字段（块内，无标记，数字: ${compositionWithoutMarkers[1] || '无'}）: ${poseData.composition.substring(0, 50)}...`);
+          } else {
+            console.warn(`Composition 字段长度不足: ${value.length}`);
           }
+        } else {
+          console.warn(`未找到 Composition 字段，块内容预览: ${block.substring(0, 200)}`);
         }
       }
     }
@@ -601,11 +623,13 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
   }
   
   // Strategy 2: Find numbered fields in the full text (Camera Position1:, Composition1:, etc.)
-  // This handles formats where fields are outside the pose block
+  // This handles formats where fields are outside the pose block or in the block but not yet found
   console.log("在全文查找带数字的字段...");
-  const cameraPositionRegex = /(?:^|\n)\s*[-*]?\s*Camera\s*Position\s*(\d+)\s*:?\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*(?:Camera\s*Position|Composition|Pose)\s*\d+\s*:?|$)/gi;
+  
+  // Improved regex to match Camera Position1: format more reliably
+  const cameraPositionRegex = /(?:^|\n)\s*[-*]?\s*Camera\s*Position\s*(\d+)\s*:?\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*(?:Camera\s*Position|Composition|Pose)\s*(?:\d+)?\s*:?|$)/gi;
   const cameraPositionMatches = Array.from(text.matchAll(cameraPositionRegex));
-  console.log(`找到 ${cameraPositionMatches.length} 个Camera Position字段`);
+  console.log(`找到 ${cameraPositionMatches.length} 个Camera Position字段（全文查找）`);
   
   for (const match of cameraPositionMatches) {
     const number = parseInt(match[1]);
@@ -613,15 +637,22 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
     if (value && value.length > 5) {
       if (!poseMap.has(number)) {
         poseMap.set(number, {});
+        console.log(`创建新的 Pose ${number} 条目`);
       }
-      poseMap.get(number)!.cameraPosition = value;
-      console.log(`匹配 Camera Position${number}: ${value.substring(0, 50)}...`);
+      // Only set if not already found in block
+      if (!poseMap.get(number)!.cameraPosition) {
+        poseMap.get(number)!.cameraPosition = value;
+        console.log(`匹配 Camera Position${number}（全文查找）: ${value.substring(0, 50)}...`);
+      } else {
+        console.log(`Pose ${number} 已有 Camera Position，跳过全文查找结果`);
+      }
     }
   }
   
-  const compositionRegex = /(?:^|\n)\s*[-*]?\s*Composition\s*(\d+)\s*:?\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*(?:Camera\s*Position|Composition|Pose)\s*\d+\s*:?|$)/gi;
+  // Improved regex to match Composition1: format more reliably
+  const compositionRegex = /(?:^|\n)\s*[-*]?\s*Composition\s*(\d+)\s*:?\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*(?:Camera\s*Position|Composition|Pose)\s*(?:\d+)?\s*:?|$)/gi;
   const compositionMatches = Array.from(text.matchAll(compositionRegex));
-  console.log(`找到 ${compositionMatches.length} 个Composition字段`);
+  console.log(`找到 ${compositionMatches.length} 个Composition字段（全文查找）`);
   
   for (const match of compositionMatches) {
     const number = parseInt(match[1]);
@@ -629,9 +660,15 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
     if (value && value.length > 5) {
       if (!poseMap.has(number)) {
         poseMap.set(number, {});
+        console.log(`创建新的 Pose ${number} 条目`);
       }
-      poseMap.get(number)!.composition = value;
-      console.log(`匹配 Composition${number}: ${value.substring(0, 50)}...`);
+      // Only set if not already found in block
+      if (!poseMap.get(number)!.composition) {
+        poseMap.get(number)!.composition = value;
+        console.log(`匹配 Composition${number}（全文查找）: ${value.substring(0, 50)}...`);
+      } else {
+        console.log(`Pose ${number} 已有 Composition，跳过全文查找结果`);
+      }
     }
   }
   
