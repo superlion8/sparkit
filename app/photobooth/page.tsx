@@ -53,13 +53,28 @@ export default function PhotoBoothPage() {
       formData.append("image", image[0]);
       formData.append("aspectRatio", aspectRatio);
 
-      const response = await fetch("/api/generate/photobooth", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: formData,
-      });
+      // Create an AbortController for timeout handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout
+
+      let response: Response;
+      try {
+        response = await fetch("/api/generate/photobooth", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          throw new Error("请求超时，请稍后重试。生成图片需要较长时间，请耐心等待。");
+        }
+        throw fetchError;
+      }
 
       if (!response.ok) {
         let errorData: any;
@@ -90,7 +105,22 @@ export default function PhotoBoothPage() {
 
       setCurrentStep("正在根据pose描述生成图片...");
 
-      const data = await response.json();
+      let data: any;
+      try {
+        const responseText = await response.text();
+        if (!responseText) {
+          throw new Error("服务器返回空响应");
+        }
+        try {
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error("JSON 解析失败，响应文本:", responseText.substring(0, 500));
+          throw new Error(`响应解析失败: ${parseError instanceof Error ? parseError.message : '未知错误'}`);
+        }
+      } catch (parseError: any) {
+        console.error("读取响应失败:", parseError);
+        throw new Error(`读取服务器响应失败: ${parseError.message || '未知错误'}`);
+      }
 
       if (data.poseDescriptions) {
         setPoseDescriptions(data.poseDescriptions);

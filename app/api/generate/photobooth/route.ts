@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateRequestAuth } from "@/lib/auth";
 
+// Set max duration to 5 minutes for Vercel Serverless Functions
+export const maxDuration = 300;
+
 const AIMOVELY_API_URL = "https://dev.aimovely.com";
 
 interface PoseDescription {
@@ -180,7 +183,8 @@ export async function POST(request: NextRequest) {
     // Combine generation errors and upload errors
     const allErrors = [...generatedImageErrors, ...uploadErrors];
 
-    return NextResponse.json({
+    // Prepare response data
+    const responseData = {
       // Input image URL
       inputImageUrl: uploadedImageUrl,
       // Pose descriptions
@@ -191,6 +195,21 @@ export async function POST(request: NextRequest) {
       generatedCount: uploadedImageUrls.length,
       requestedCount: poseDescriptions.length, // Use actual parsed pose count
       errors: allErrors.length > 0 ? allErrors : undefined,
+    };
+
+    // Log response size for debugging
+    const responseJson = JSON.stringify(responseData);
+    const responseSizeKB = (responseJson.length / 1024).toFixed(2);
+    console.log(`响应数据大小: ${responseSizeKB} KB`);
+    console.log(`生成的图片数量: ${uploadedImageUrls.length}`);
+    console.log(`Pose 描述数量: ${poseDescriptions.length}`);
+
+    // Return response with proper headers
+    return NextResponse.json(responseData, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
+      },
     });
   } catch (error: any) {
     console.error("Error in PhotoBooth generation:", error);
