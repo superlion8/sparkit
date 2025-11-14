@@ -128,6 +128,7 @@ export async function POST(request: NextRequest) {
 
     // Upload generated images to Aimovely
     const uploadedImageUrls: string[] = [];
+    const uploadErrors: string[] = [];
 
     if (aimovelyToken) {
       try {
@@ -145,39 +146,51 @@ export async function POST(request: NextRequest) {
               uploadedImageUrls.push(uploadResult.url);
               console.log(`图片 ${i + 1} 上传成功:`, uploadResult.url);
             } else {
-              // Fallback to base64 if upload fails
-              uploadedImageUrls.push(generatedImages[i]);
-              console.warn(`图片 ${i + 1} 上传失败，使用 base64`);
+              // Upload failed, add to errors
+              uploadErrors.push(`图片 ${i + 1} 上传失败：无法获取 URL`);
+              console.warn(`图片 ${i + 1} 上传失败，无法获取 URL`);
             }
-          } catch (uploadError) {
+          } catch (uploadError: any) {
             console.error(`上传图片 ${i + 1} 失败:`, uploadError);
-            // Fallback to base64
-            uploadedImageUrls.push(generatedImages[i]);
+            uploadErrors.push(`图片 ${i + 1} 上传失败：${uploadError.message || "未知错误"}`);
           }
         }
-      } catch (uploadError) {
+        
+        // Check if all uploads failed
+        if (uploadedImageUrls.length === 0 && generatedImages.length > 0) {
+          console.error("所有图片上传都失败");
+          throw new Error("所有图片上传都失败，请稍后重试");
+        }
+        
+        // Warn if some uploads failed
+        if (uploadErrors.length > 0) {
+          console.warn(`部分图片上传失败: ${uploadErrors.length}/${generatedImages.length}`);
+        }
+      } catch (uploadError: any) {
         console.error("上传生成的图片到 Aimovely 失败:", uploadError);
-        // Fallback to base64 images
-        uploadedImageUrls.push(...generatedImages);
+        // If all uploads failed, throw error instead of returning base64
+        throw new Error(`图片上传失败：${uploadError.message || "未知错误"}`);
       }
     } else {
-      // No Aimovely token, use base64
-      uploadedImageUrls.push(...generatedImages);
+      // No Aimovely token, throw error
+      console.error("未配置 Aimovely token，无法上传图片");
+      throw new Error("未配置图片上传服务，请联系管理员");
     }
+
+    // Combine generation errors and upload errors
+    const allErrors = [...generatedImageErrors, ...uploadErrors];
 
     return NextResponse.json({
       // Input image URL
       inputImageUrl: uploadedImageUrl,
       // Pose descriptions
       poseDescriptions: poseDescriptions,
-      // Generated image URLs
+      // Generated image URLs (only URLs, no base64)
       generatedImageUrls: uploadedImageUrls,
-      // Base64 images for display (fallback)
-      generatedImagesBase64: generatedImages,
       // Generation stats
-      generatedCount: generatedImages.length,
+      generatedCount: uploadedImageUrls.length,
       requestedCount: poseDescriptions.length, // Use actual parsed pose count
-      errors: generatedImageErrors.length > 0 ? generatedImageErrors : undefined,
+      errors: allErrors.length > 0 ? allErrors : undefined,
     });
   } catch (error: any) {
     console.error("Error in PhotoBooth generation:", error);

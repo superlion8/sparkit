@@ -96,13 +96,8 @@ export default function PhotoBoothPage() {
         setPoseDescriptions(data.poseDescriptions);
       }
 
-      // Use generatedImageUrls if available, otherwise fallback to base64
-      const displayImages =
-        data.generatedImageUrls && data.generatedImageUrls.length > 0
-          ? data.generatedImageUrls
-          : data.generatedImagesBase64 && data.generatedImagesBase64.length > 0
-          ? data.generatedImagesBase64
-          : data.generatedImages || [];
+      // Use generatedImageUrls (only URLs, no base64)
+      const displayImages = data.generatedImageUrls || [];
       setGeneratedImages(displayImages);
 
       // Log task event with all image URLs
@@ -116,7 +111,7 @@ export default function PhotoBoothPage() {
           input: data.inputImageUrl || null,
         };
         const outputImageUrls = {
-          poses: data.generatedImageUrls || displayImages,
+          poses: data.generatedImageUrls || [],
         };
         
         // Store as JSON string in the existing fields
