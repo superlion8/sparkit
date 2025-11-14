@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
     const imageBase64 = Buffer.from(imageBuffer).toString("base64");
 
     console.log("=== PhotoBooth Generation Started ===");
+    const startTime = Date.now();
 
     // Upload input image to Aimovely first
     const aimovelyEmail = process.env.AIMOVELY_EMAIL;
@@ -76,11 +77,14 @@ export async function POST(request: NextRequest) {
 
     // Step 1: 生成5个pose描述（使用 gemini-2.5-flash 文本模型）
     console.log("Step 1: 生成pose描述...");
+    const step1Start = Date.now();
     const poseDescriptions = await generatePoseDescriptions(
       imageBase64,
       image.type,
       apiKey
     );
+    const step1Time = ((Date.now() - step1Start) / 1000).toFixed(2);
+    console.log(`Step 1 完成，耗时: ${step1Time} 秒`);
     
     if (poseDescriptions.length === 0) {
       throw new Error("未能解析任何pose描述，请重试");
@@ -94,10 +98,12 @@ export async function POST(request: NextRequest) {
 
     // Step 2: 根据pose描述生成图片（使用 gemini-2.5-flash-image 图像生成模型）
     console.log(`Step 2: 根据 ${poseDescriptions.length} 个pose描述生成图片...`);
+    const step2Start = Date.now();
     const generatedImages: string[] = [];
     const generatedImageErrors: string[] = [];
 
     for (let i = 0; i < poseDescriptions.length; i++) {
+      const imageStart = Date.now();
       try {
         console.log(`正在生成第 ${i + 1}/${poseDescriptions.length} 张图片...`);
         const generatedImage = await generatePoseImage(
@@ -107,15 +113,20 @@ export async function POST(request: NextRequest) {
           aspectRatio,
           apiKey
         );
+        const imageTime = ((Date.now() - imageStart) / 1000).toFixed(2);
         generatedImages.push(generatedImage);
-        console.log(`第 ${i + 1} 张图片生成成功`);
+        console.log(`第 ${i + 1} 张图片生成成功，耗时: ${imageTime} 秒`);
       } catch (error: any) {
-        console.error(`生成第 ${i + 1} 张图片失败:`, error);
+        const imageTime = ((Date.now() - imageStart) / 1000).toFixed(2);
+        console.error(`生成第 ${i + 1} 张图片失败（耗时: ${imageTime} 秒）:`, error);
         generatedImageErrors.push(`第 ${i + 1} 张: ${error.message}`);
         // Continue generating other images
         console.warn(`跳过第 ${i + 1} 张图片，继续生成剩余图片`);
       }
     }
+
+    const step2Time = ((Date.now() - step2Start) / 1000).toFixed(2);
+    console.log(`Step 2 完成，总耗时: ${step2Time} 秒`);
 
     // Check if we have at least one generated image
     if (generatedImages.length === 0) {
@@ -130,34 +141,40 @@ export async function POST(request: NextRequest) {
     console.log("=== PhotoBooth Generation Completed ===");
 
     // Upload generated images to Aimovely
+    console.log("开始上传生成的图片到 Aimovely...");
+    const uploadStart = Date.now();
     const uploadedImageUrls: string[] = [];
     const uploadErrors: string[] = [];
 
     if (aimovelyToken) {
       try {
-        console.log("开始上传生成的图片到 Aimovely...");
-        
         // Upload generated images
         for (let i = 0; i < generatedImages.length; i++) {
+          const uploadImageStart = Date.now();
           try {
             const uploadResult = await uploadImageToAimovely(
               generatedImages[i],
               aimovelyToken,
               `photobooth-${i}`
             );
+            const uploadImageTime = ((Date.now() - uploadImageStart) / 1000).toFixed(2);
             if (uploadResult?.url) {
               uploadedImageUrls.push(uploadResult.url);
-              console.log(`图片 ${i + 1} 上传成功:`, uploadResult.url);
+              console.log(`图片 ${i + 1} 上传成功（耗时: ${uploadImageTime} 秒）:`, uploadResult.url);
             } else {
               // Upload failed, add to errors
               uploadErrors.push(`图片 ${i + 1} 上传失败：无法获取 URL`);
-              console.warn(`图片 ${i + 1} 上传失败，无法获取 URL`);
+              console.warn(`图片 ${i + 1} 上传失败（耗时: ${uploadImageTime} 秒），无法获取 URL`);
             }
           } catch (uploadError: any) {
-            console.error(`上传图片 ${i + 1} 失败:`, uploadError);
+            const uploadImageTime = ((Date.now() - uploadImageStart) / 1000).toFixed(2);
+            console.error(`上传图片 ${i + 1} 失败（耗时: ${uploadImageTime} 秒）:`, uploadError);
             uploadErrors.push(`图片 ${i + 1} 上传失败：${uploadError.message || "未知错误"}`);
           }
         }
+        
+        const uploadTime = ((Date.now() - uploadStart) / 1000).toFixed(2);
+        console.log(`图片上传完成，总耗时: ${uploadTime} 秒`);
         
         // Check if all uploads failed
         if (uploadedImageUrls.length === 0 && generatedImages.length > 0) {
@@ -170,7 +187,8 @@ export async function POST(request: NextRequest) {
           console.warn(`部分图片上传失败: ${uploadErrors.length}/${generatedImages.length}`);
         }
       } catch (uploadError: any) {
-        console.error("上传生成的图片到 Aimovely 失败:", uploadError);
+        const uploadTime = ((Date.now() - uploadStart) / 1000).toFixed(2);
+        console.error(`上传生成的图片到 Aimovely 失败（总耗时: ${uploadTime} 秒）:`, uploadError);
         // If all uploads failed, throw error instead of returning base64
         throw new Error(`图片上传失败：${uploadError.message || "未知错误"}`);
       }
@@ -197,6 +215,10 @@ export async function POST(request: NextRequest) {
       errors: allErrors.length > 0 ? allErrors : undefined,
     };
 
+    // Calculate total execution time
+    const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`=== PhotoBooth 总执行时间: ${totalTime} 秒 ===`);
+
     // Log response size for debugging
     try {
       const responseJson = JSON.stringify(responseData);
@@ -209,6 +231,11 @@ export async function POST(request: NextRequest) {
       // Log first few URLs for debugging
       if (uploadedImageUrls.length > 0) {
         console.log(`生成的图片 URLs (前3个):`, uploadedImageUrls.slice(0, 3));
+      }
+      
+      // Check if total time is approaching limit (warn if > 250 seconds)
+      if (parseFloat(totalTime) > 250) {
+        console.warn(`⚠️ 总执行时间接近超时限制 (${totalTime} 秒 > 250 秒)`);
       }
     } catch (logError) {
       console.error("记录响应日志失败:", logError);
