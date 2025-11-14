@@ -171,8 +171,8 @@ async function reverseCaptionPrompt(
   mimeType: string,
   apiKey: string
 ): Promise<string> {
-  // 优化 prompt，要求简洁的描述，只包含场景、环境、风格等，不包含人物
-  const prompt = "请简洁地反推这张图片的提示词，只描述场景、环境、风格、色调、构图等，不要包含人物信息。请控制在200字以内。";
+  // 用英文反推提示词，包含环境和氛围、镜头和构图、人物姿势/穿着/神态等，但不描述身材和长相
+  const prompt = "用英文反推下这张图片的提示词，包含环境和氛围的描述，镜头和构图的描述，人物姿势、穿着、神态的描述等影像信息，不要描述身材和长相。";
 
   const contents = [
     {
