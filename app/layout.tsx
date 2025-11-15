@@ -1,18 +1,80 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
-import AuthBadge from "@/components/AuthBadge";
+import LandingLayout from "@/components/LandingLayout";
 import { Providers } from "./providers";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Sparkit",
-  description: "AI-powered image and video generation toolkit",
+  title: "Sparkit - AI 驱动的创意工具包 | 图像生成、视频制作、AI创作工具",
+  description: "Sparkit 提供强大的 AI 图像生成、视频制作和创意工具。包括文生图、图像编辑、Mimic角色替换、PhotoBooth组图、Snapshot、Photo to Live、视频生成等功能。免费开始使用，轻松创作专业级视觉内容。",
+  keywords: [
+    "AI图像生成",
+    "AI视频生成",
+    "文生图",
+    "图像编辑",
+    "视频制作",
+    "AI工具",
+    "创意工具",
+    "人工智能",
+    "图像处理",
+    "视频编辑",
+    "Mimic",
+    "PhotoBooth",
+    "Snapshot",
+    "Photo to Live",
+    "AI换装",
+    "AI换背景"
+  ],
+  authors: [{ name: "Sparkit Team" }],
+  creator: "Sparkit",
+  publisher: "Sparkit",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://creator-ai-toolkit.vercel.app"),
+  openGraph: {
+    title: "Sparkit - AI 驱动的创意工具包",
+    description: "强大的 AI 图像生成、视频制作和创意工具。轻松创作专业级视觉内容。",
+    url: "/",
+    siteName: "Sparkit",
+    locale: "zh_CN",
+    type: "website",
+    images: [
+      {
+        url: "/sparkit.png",
+        width: 1200,
+        height: 630,
+        alt: "Sparkit - AI 驱动的创意工具包",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Sparkit - AI 驱动的创意工具包",
+    description: "强大的 AI 图像生成、视频制作和创意工具。轻松创作专业级视觉内容。",
+    images: ["/sparkit.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   icons: {
     icon: "/sparkit.png",
     apple: "/sparkit.png",
+  },
+  alternates: {
+    canonical: "/",
   },
 };
 
@@ -25,24 +87,9 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body className={inter.className}>
         <Providers>
-          <div className="flex h-screen overflow-hidden bg-gray-50">
-            <Sidebar />
-            <main className="flex-1 flex flex-col">
-              <header className="flex items-center justify-between border-b border-gray-200 bg-white/75 backdrop-blur px-6 py-3">
-                <div className="flex items-center gap-3">
-                  <img src="/sparkit.png" alt="Sparkit" className="h-8 w-8 object-contain" />
-                  <div>
-                    <span className="text-xs text-gray-400">欢迎使用</span>
-                    <h1 className="text-base font-semibold text-gray-900">Sparkit</h1>
-                  </div>
-                </div>
-                <AuthBadge />
-              </header>
-              <div className="flex-1 overflow-y-auto">
-                {children}
-              </div>
-            </main>
-          </div>
+          <LandingLayout>
+            {children}
+          </LandingLayout>
         </Providers>
       </body>
     </html>
