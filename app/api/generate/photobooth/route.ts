@@ -1319,7 +1319,14 @@ async function generatePoseImage(
   apiKey: string
 ): Promise<string> {
   // Build prompt combining pose, camera position, and composition
-  const prompt = `Change the pose to: ${poseDescription.pose}. Camera position: ${poseDescription.cameraPosition}. Composition: ${poseDescription.composition}. Keep the same environment, lighting, and overall style.`;
+  // Format: base instruction + pose + camera_position + composition
+  const prompt = `take autentic photo of the character, use instagram friendly composition. Shot on the character should have identical face, features, skin tone, hairstyle, body proportions, and vibe. 
+
+pose:${poseDescription.pose}
+
+camera_position:${poseDescription.cameraPosition}
+
+composition:${poseDescription.composition}`;
 
   const contents = [
     {
