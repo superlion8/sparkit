@@ -60,11 +60,16 @@ export async function POST(request: NextRequest) {
     );
     console.log(`成功转换 ${imageParts.length} 张图片`);
 
+    // Add negatives to prompt
+    const promptWithNegatives = `${prompt}
+
+negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorted anatomy, fake portrait-mode blur, CGI/illustration look`;
+
     // Build request body
     const contents = [
       {
         parts: [
-          { text: prompt },
+          { text: promptWithNegatives },
           ...imageParts,
         ],
       },
