@@ -55,7 +55,10 @@ export default function MimicPage() {
     try {
       const formData = new FormData();
       formData.append("referenceImage", referenceImage[0]);
-      formData.append("characterImage", characterImage[0]);
+      // Append all character images
+      for (const charImage of characterImage) {
+        formData.append("characterImage", charImage);
+      }
       formData.append("aspectRatio", aspectRatio);
       formData.append("numImages", numImages.toString());
       formData.append("keepBackground", keepBackground.toString());
@@ -130,7 +133,7 @@ export default function MimicPage() {
         // Output images: {"background": "url1", "final": ["url2", "url3", ...]}
         const inputImageUrls = {
           reference: data.referenceImageUrl || null,
-          character: data.characterImageUrl || null,
+          character: data.characterImageUrls || [], // Now an array
         };
         const outputImageUrls = {
           background: data.backgroundImageUrl || null,
@@ -210,9 +213,9 @@ export default function MimicPage() {
               />
 
               <ImageUpload
-                maxImages={1}
+                maxImages={10}
                 onImagesChange={setCharacterImage}
-                label="上传角色图"
+                label="上传角色图 (可多张)"
               />
 
               <div>

@@ -12,14 +12,14 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const referenceImage = formData.get("referenceImage") as File;
-    const characterImage = formData.get("characterImage") as File;
+    const characterImages = formData.getAll("characterImage") as File[];
     const aspectRatio = formData.get("aspectRatio") as string;
     const numImages = parseInt(formData.get("numImages") as string) || 1;
     const keepBackground = formData.get("keepBackground") === "true";
 
-    if (!referenceImage || !characterImage) {
+    if (!referenceImage || !characterImages || characterImages.length === 0) {
       return NextResponse.json(
-        { error: "需要提供参考图和角色图" },
+        { error: "需要提供参考图和至少一张角色图" },
         { status: 400 }
       );
     }
@@ -32,11 +32,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert images to base64
+    // Convert reference image to base64
     const referenceBuffer = await referenceImage.arrayBuffer();
     const referenceBase64 = Buffer.from(referenceBuffer).toString("base64");
-    const characterBuffer = await characterImage.arrayBuffer();
-    const characterBase64 = Buffer.from(characterBuffer).toString("base64");
+
+    // Convert all character images to base64
+    const characterImagesData: Array<{ base64: string; mimeType: string; file: File }> = [];
+    for (const characterImage of characterImages) {
+      const characterBuffer = await characterImage.arrayBuffer();
+      const characterBase64 = Buffer.from(characterBuffer).toString("base64");
+      characterImagesData.push({
+        base64: characterBase64,
+        mimeType: characterImage.type,
+        file: characterImage,
+      });
+    }
+    
+    console.log(`收到 ${characterImagesData.length} 张角色图`);
 
     console.log("=== Mimic Generation Started ===");
 
@@ -45,7 +57,7 @@ export async function POST(request: NextRequest) {
     const aimovelyVcode = process.env.AIMOVELY_VCODE;
     let aimovelyToken: string | null = null;
     let uploadedReferenceImageUrl: string | null = null;
-    let uploadedCharacterImageUrl: string | null = null;
+    const uploadedCharacterImageUrls: string[] = [];
 
     if (aimovelyEmail && aimovelyVcode) {
       try {
@@ -65,16 +77,19 @@ export async function POST(request: NextRequest) {
             console.log("参考图上传成功:", uploadedReferenceImageUrl);
           }
 
-          // Upload character image
-          const characterDataUrl = `data:${characterImage.type};base64,${characterBase64}`;
-          const characterUploadResult = await uploadImageToAimovely(
-            characterDataUrl,
-            aimovelyToken,
-            "character"
-          );
-          if (characterUploadResult?.url) {
-            uploadedCharacterImageUrl = characterUploadResult.url;
-            console.log("角色图上传成功:", uploadedCharacterImageUrl);
+          // Upload all character images
+          for (let i = 0; i < characterImagesData.length; i++) {
+            const characterImageData = characterImagesData[i];
+            const characterDataUrl = `data:${characterImageData.mimeType};base64,${characterImageData.base64}`;
+            const characterUploadResult = await uploadImageToAimovely(
+              characterDataUrl,
+              aimovelyToken,
+              `character-${i}`
+            );
+            if (characterUploadResult?.url) {
+              uploadedCharacterImageUrls.push(characterUploadResult.url);
+              console.log(`角色图 ${i + 1}/${characterImagesData.length} 上传成功:`, characterUploadResult.url);
+            }
           }
         }
       } catch (uploadError) {
@@ -119,8 +134,7 @@ export async function POST(request: NextRequest) {
       try {
         console.log(`正在生成第 ${i + 1}/${numImages} 张图片...`);
         const finalImage = await generateFinalImage(
-          characterBase64,
-          characterImage.type,
+          characterImagesData, // Pass all character images
           keepBackground ? backgroundImage : null,
           captionPrompt,
           aspectRatio,
@@ -207,7 +221,7 @@ export async function POST(request: NextRequest) {
       captionPrompt,
       // Input image URLs
       referenceImageUrl: uploadedReferenceImageUrl,
-      characterImageUrl: uploadedCharacterImageUrl,
+      characterImageUrls: uploadedCharacterImageUrls,
       // Generated image URLs
       backgroundImageUrl: uploadedBackgroundImageUrl,
       finalImageUrls: uploadedFinalImageUrls,
@@ -520,8 +534,7 @@ async function removeCharacter(
 
 // Step 3: 生成最终图片（使用 gemini-2.5-flash-image 图像生成模型）
 async function generateFinalImage(
-  characterBase64: string,
-  characterMimeType: string,
+  characterImagesData: Array<{ base64: string; mimeType: string; file: File }>,
   backgroundImage: string | null,
   captionPrompt: string,
   aspectRatio: string | null,
@@ -532,15 +545,18 @@ async function generateFinalImage(
 
 scene setup: ${captionPrompt}`;
 
-  // Build contents array - include background image only if provided
-  const parts: any[] = [
-    {
+  // Build contents array - include all character images first
+  const parts: any[] = [];
+  
+  // Add all character images
+  for (const characterImageData of characterImagesData) {
+    parts.push({
       inlineData: {
-        mimeType: characterMimeType,
-        data: characterBase64,
+        mimeType: characterImageData.mimeType,
+        data: characterImageData.base64,
       },
-    },
-  ];
+    });
+  }
 
   // Add background image only if keepBackground is true
   if (backgroundImage) {
