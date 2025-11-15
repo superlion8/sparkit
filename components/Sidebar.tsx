@@ -16,23 +16,30 @@ import {
   Settings,
   User,
   Camera,
-  PlayCircle
+  PlayCircle,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
-const navigation = [
-  { name: "图像生成", href: "/text-to-image", icon: Image },
+const imageTools = [
+  { name: "文生图", href: "/text-to-image", icon: Image },
   { name: "图像编辑", href: "/image-to-image", icon: ImagePlus },
+  { name: "Mimic(洗稿)", href: "/mimic", icon: User },
+  { name: "PhotoBooth(组图)", href: "/photobooth", icon: Camera },
+];
+
+const videoTools = [
+  { name: "Photo to Live", href: "/photo-to-live", icon: PlayCircle },
+  { name: "改图首尾帧", href: "/image-transition", icon: Film },
+  { name: "模板视频生成", href: "/video-generation", icon: Video },
+  { name: "视频主体替换(animate)", href: "/video-subject-replace", icon: Replace },
+];
+
+const otherTools = [
   { name: "AI换装", href: "/outfit-change", icon: Shirt },
   { name: "AI换背景", href: "/background-replace", icon: Palette },
-  { name: "Mimic角色替换", href: "/mimic", icon: User },
-  { name: "PhotoBooth", href: "/photobooth", icon: Camera },
-  { name: "Snapshot", href: "/snapshot", icon: Camera },
-  { name: "视频生成", href: "/video-generation", icon: Video },
-  { name: "视频主体替换", href: "/video-subject-replace", icon: Replace },
-  { name: "改图转场", href: "/image-transition", icon: Film },
-  { name: "Photo to Live", href: "/photo-to-live", icon: PlayCircle },
 ];
 
 // 管理员邮箱列表
@@ -45,6 +52,7 @@ const isAdminEmail = (email?: string | null) => {
 export default function Sidebar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [otherToolsExpanded, setOtherToolsExpanded] = useState(false);
   const { userEmail } = useAuth();
   const isAdmin = isAdminEmail(userEmail);
 
@@ -60,29 +68,106 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* AI Generation Tools */}
-      {navigation.map((item) => {
-        const Icon = item.icon;
-        const isActive = pathname === item.href;
-        return (
-          <Link
-            key={item.name}
-            href={item.href}
-            onClick={() => setMobileMenuOpen(false)}
-            className={`
-              flex items-center gap-3 px-4 py-3 rounded-lg transition-all
-              ${
-                isActive
-                  ? "bg-primary-100 text-primary-700 font-medium"
-                  : "text-gray-700 hover:bg-gray-100"
-              }
-            `}
-          >
-            <Icon className="w-5 h-5" />
-            <span>{item.name}</span>
-          </Link>
-        );
-      })}
+      {/* Image Tools Section */}
+      <div className="mb-4">
+        <div className="px-4 mb-2">
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Image</p>
+        </div>
+        {imageTools.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              onClick={() => setMobileMenuOpen(false)}
+              className={`
+                flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+                ${
+                  isActive
+                    ? "bg-primary-100 text-primary-700 font-medium"
+                    : "text-gray-700 hover:bg-gray-100"
+                }
+              `}
+            >
+              <Icon className="w-5 h-5" />
+              <span>{item.name}</span>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Video Tools Section */}
+      <div className="mb-4">
+        <div className="px-4 mb-2">
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Video</p>
+        </div>
+        {videoTools.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              onClick={() => setMobileMenuOpen(false)}
+              className={`
+                flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+                ${
+                  isActive
+                    ? "bg-primary-100 text-primary-700 font-medium"
+                    : "text-gray-700 hover:bg-gray-100"
+                }
+              `}
+            >
+              <Icon className="w-5 h-5" />
+              <span>{item.name}</span>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Other Tools Section - Collapsible */}
+      <div className="mb-4">
+        <button
+          onClick={() => setOtherToolsExpanded(!otherToolsExpanded)}
+          className="w-full flex items-center justify-between px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-all"
+        >
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Other Tools</p>
+          </div>
+          {otherToolsExpanded ? (
+            <ChevronUp className="w-4 h-4 text-gray-500" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-gray-500" />
+          )}
+        </button>
+        {otherToolsExpanded && (
+          <div className="mt-1">
+            {otherTools.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`
+                    flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+                    ${
+                      isActive
+                        ? "bg-primary-100 text-primary-700 font-medium"
+                        : "text-gray-700 hover:bg-gray-100"
+                    }
+                  `}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Divider */}
       <div className="my-4 px-4">
