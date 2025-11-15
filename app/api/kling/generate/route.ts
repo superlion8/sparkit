@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     // Prepare request body for Kling API
     const requestBody = {
-      model_name: "kling-v2-1",
+      model_name: "kling-v2-5-turbo",
       mode: "pro",
       duration: "5",
       image: startImageUrl,
