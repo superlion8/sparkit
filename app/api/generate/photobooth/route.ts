@@ -146,20 +146,45 @@ export async function POST(request: NextRequest) {
     // IMPORTANT: This function removes problematic characters that could break JSON parsing
     // Note: We do NOT escape quotes/backslashes here because JSON.stringify() will handle that
     // Escaping here would cause double-escaping
+    // This function ensures strings are safe for JSON serialization by removing/replacing
+    // characters that can cause JSON parsing errors, even when properly escaped
     const sanitizeString = (str: string | null | undefined): string => {
       if (!str) return "";
+      
+      // Convert to string if not already
       let sanitized = String(str);
-      // Replace unescaped newlines with spaces (these can break JSON strings if not escaped)
+      
+      // Step 1: Replace line breaks with spaces (these can break JSON if not properly handled)
       sanitized = sanitized.replace(/\r\n/g, " ").replace(/\n/g, " ").replace(/\r/g, " ");
-      // Remove null bytes and control characters (except normal whitespace: space, tab, LF, CR)
+      
+      // Step 2: Remove null bytes and control characters (except space, tab)
       // These characters can break JSON strings even if escaped
-      sanitized = sanitized.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, " ");
-      // Normalize whitespace (multiple spaces to single space)
-      sanitized = sanitized.replace(/\s+/g, " ").trim();
-      // Limit length to prevent extremely long strings
+      // Remove: null (\x00), start of heading (\x01), start of text (\x02), etc.
+      // Keep: space (0x20), tab (0x09) - but we'll normalize whitespace later
+      sanitized = sanitized.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, " ");
+      
+      // Step 3: Remove or replace problematic Unicode characters that might cause issues
+      // This includes various Unicode control characters and formatting characters
+      sanitized = sanitized.replace(/[\u200B-\u200F\u2028-\u202F\u205F-\u206F\uFEFF]/g, " ");
+      
+      // Step 4: Normalize whitespace (multiple spaces/tabs to single space)
+      sanitized = sanitized.replace(/[\s\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]+/g, " ");
+      
+      // Step 5: Trim leading/trailing whitespace
+      sanitized = sanitized.trim();
+      
+      // Step 6: Limit length to prevent extremely long strings that might cause issues
       if (sanitized.length > 1000) {
         sanitized = sanitized.substring(0, 997) + "...";
       }
+      
+      // Step 7: Final check - ensure the result is a valid non-empty string
+      // If somehow we ended up with an empty string, return a placeholder
+      if (sanitized.length === 0 && str) {
+        console.warn("sanitizeString: 字符串被清理后为空，使用占位符");
+        return "[内容已清理]";
+      }
+      
       return sanitized;
     };
     
@@ -433,42 +458,103 @@ export async function POST(request: NextRequest) {
       // Use a try-catch to handle any JSON serialization errors
       let responseJsonString: string;
       try {
-        // Validate response data before serialization
+        // Systematically sanitize ALL string fields before JSON serialization
+        // This includes URLs, pose descriptions, error messages, etc.
         const validatedData = {
-          inputImageUrl: responseData.inputImageUrl || null,
-          poseDescriptions: (responseData.poseDescriptions || []).map((pose: PoseDescription) => ({
-            pose: sanitizeString(pose.pose),
-            cameraPosition: sanitizeString(pose.cameraPosition),
-            composition: sanitizeString(pose.composition),
-          })),
-          generatedImageUrls: (responseData.generatedImageUrls || []).filter((url: string) => url && typeof url === 'string'),
+          inputImageUrl: responseData.inputImageUrl ? sanitizeString(responseData.inputImageUrl) : null,
+          poseDescriptions: (responseData.poseDescriptions || []).map((pose: PoseDescription) => {
+            // Triple-check: sanitize again even though already sanitized
+            return {
+              pose: sanitizeString(pose.pose || ''),
+              cameraPosition: sanitizeString(pose.cameraPosition || ''),
+              composition: sanitizeString(pose.composition || ''),
+            };
+          }),
+          generatedImageUrls: (responseData.generatedImageUrls || [])
+            .filter((url: any) => url && typeof url === 'string')
+            .map((url: string) => sanitizeString(url)), // Sanitize URLs too (though they should be safe)
           generatedCount: Number(responseData.generatedCount) || 0,
           requestedCount: Number(responseData.requestedCount) || 0,
           ...(responseData.errors && responseData.errors.length > 0 ? {
-            errors: (responseData.errors || []).map((err: string) => sanitizeString(err))
+            errors: (responseData.errors || []).map((err: any) => {
+              // Triple-check: sanitize error messages again
+              return sanitizeString(typeof err === 'string' ? err : String(err || ''));
+            })
           } : {})
         };
         
+        // Log data structure before serialization for debugging
+        console.log("准备序列化响应数据:", {
+          inputImageUrl: validatedData.inputImageUrl ? `${validatedData.inputImageUrl.substring(0, 50)}...` : null,
+          poseDescriptionsCount: validatedData.poseDescriptions.length,
+          generatedImageUrlsCount: validatedData.generatedImageUrls.length,
+          errorsCount: validatedData.errors?.length || 0,
+        });
+        
+        // Attempt JSON serialization
         responseJsonString = JSON.stringify(validatedData);
         
         // Test parsing to ensure valid JSON
-        JSON.parse(responseJsonString);
+        const parsedTest = JSON.parse(responseJsonString);
+        console.log("✅ JSON 序列化和解析测试通过");
       } catch (jsonError: any) {
-        console.error("JSON 序列化失败:", jsonError);
+        console.error("❌ JSON 序列化失败:", jsonError);
         console.error("错误详情:", {
           message: jsonError.message,
           name: jsonError.name,
           stack: jsonError.stack,
         });
-        console.error("响应数据结构:", {
+        
+        // Try to identify which field is causing the issue by serializing one at a time
+        console.error("尝试定位问题字段...");
+        try {
+          const testFields: Record<string, any> = {
+            inputImageUrl: responseData.inputImageUrl ? sanitizeString(responseData.inputImageUrl) : null,
+            poseDescriptions: responseData.poseDescriptions || [],
+            generatedImageUrls: responseData.generatedImageUrls || [],
+            errors: responseData.errors || [],
+          };
+          
+          for (const [fieldName, fieldValue] of Object.entries(testFields)) {
+            try {
+              JSON.stringify({ [fieldName]: fieldValue });
+              console.log(`✅ ${fieldName} 序列化成功`);
+            } catch (fieldError: any) {
+              console.error(`❌ ${fieldName} 序列化失败:`, fieldError.message);
+              // If it's poseDescriptions, try each one individually
+              if (fieldName === 'poseDescriptions' && Array.isArray(fieldValue)) {
+                fieldValue.forEach((pose: any, index: number) => {
+                  try {
+                    JSON.stringify({ test: pose });
+                    console.log(`  ✅ Pose ${index + 1} 序列化成功`);
+                  } catch (poseError: any) {
+                    console.error(`  ❌ Pose ${index + 1} 序列化失败:`, poseError.message);
+                    console.error(`  Pose 内容预览:`, {
+                      pose: pose?.pose?.substring(0, 50),
+                      cameraPosition: pose?.cameraPosition?.substring(0, 50),
+                      composition: pose?.composition?.substring(0, 50),
+                    });
+                  }
+                });
+              }
+            }
+          }
+        } catch (testError) {
+          console.error("定位问题字段时出错:", testError);
+        }
+        
+        console.error("原始响应数据结构:", {
           inputImageUrl: typeof responseData.inputImageUrl,
+          inputImageUrlLength: responseData.inputImageUrl ? String(responseData.inputImageUrl).length : 0,
           poseDescriptionsCount: responseData.poseDescriptions?.length,
           generatedImageUrlsCount: responseData.generatedImageUrls?.length,
           hasErrors: !!responseData.errors,
+          errorsCount: responseData.errors?.length || 0,
         });
         
         // Try to create a safe response with minimal data
-        const safeResponseData = {
+        // Only include successfully processed data that we know is safe
+        const safeResponseData: any = {
           inputImageUrl: null,
           poseDescriptions: [],
           generatedImageUrls: [],
@@ -477,15 +563,43 @@ export async function POST(request: NextRequest) {
           errors: [`响应序列化失败: ${sanitizeString(jsonError.message || '未知错误')}`],
         };
         
+        // Try to include at least the successfully generated images if possible
+        // But sanitize everything very carefully
         try {
+          if (successfulImageUrls.length > 0) {
+            // Try to include successfully generated images with very careful sanitization
+            const safeUrls: string[] = [];
+            for (const url of successfulImageUrls) {
+              try {
+                const sanitizedUrl = sanitizeString(url);
+                // Test if this URL can be serialized
+                JSON.stringify({ test: sanitizedUrl });
+                safeUrls.push(sanitizedUrl);
+              } catch (urlError) {
+                console.error("URL 序列化失败，跳过:", url?.substring(0, 50));
+              }
+            }
+            if (safeUrls.length > 0) {
+              safeResponseData.generatedImageUrls = safeUrls;
+              safeResponseData.generatedCount = safeUrls.length;
+            }
+          }
+          
           responseJsonString = JSON.stringify(safeResponseData);
           // Verify it's valid JSON
-          JSON.parse(responseJsonString);
-        } catch (safeError) {
-          console.error("创建安全响应也失败:", safeError);
-          // Last resort: return a simple error message
+          const parsedSafe = JSON.parse(responseJsonString);
+          console.log("✅ 安全响应创建成功，包含数据:", {
+            generatedCount: parsedSafe.generatedCount,
+            errorsCount: parsedSafe.errors?.length || 0,
+          });
+        } catch (safeError: any) {
+          console.error("❌ 创建安全响应也失败:", safeError);
+          console.error("安全响应错误详情:", safeError.message);
+          // Last resort: return a minimal error message (guaranteed to be valid JSON)
           responseJsonString = JSON.stringify({
             error: "服务器响应序列化失败",
+            generatedCount: 0,
+            requestedCount: poseDescriptions.length,
             details: null,
           });
         }
