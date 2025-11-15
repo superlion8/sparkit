@@ -509,11 +509,24 @@ async function removeCharacter(
       console.error("内容被安全过滤阻止:", candidate.finishReason);
       throw new Error("内容被安全过滤阻止，请尝试其他图片");
     }
+    
+    // Handle NO_IMAGE finish reason specifically
+    if (candidate.finishReason === "NO_IMAGE") {
+      console.error("未生成背景图，原因: NO_IMAGE");
+      console.error("Candidate details:", JSON.stringify({
+        finishReason: candidate.finishReason,
+        safetyRatings: candidate.safetyRatings,
+        hasContent: !!candidate.content,
+        partsCount: candidate.content?.parts?.length || 0,
+      }, null, 2));
+      throw new Error("未找到生成的背景图。原因: NO_IMAGE - 可能是输入图片无法识别人物或模型无法去除人物");
+    }
 
     if (candidate.content && candidate.content.parts) {
       for (const part of candidate.content.parts) {
         if (part.inlineData) {
           const dataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+          console.log("成功生成背景图（从参考图去除人物）");
           return dataUrl;
         }
       }
@@ -525,10 +538,23 @@ async function removeCharacter(
   const candidate = data.candidates[0];
   if (candidate.finishReason) {
     errorMsg += `。原因: ${candidate.finishReason}`;
+    console.error(`背景图生成失败，finishReason: ${candidate.finishReason}`);
   }
   if (candidate.safetyRatings) {
-    errorMsg += `。安全评级: ${JSON.stringify(candidate.safetyRatings)}`;
+    const ratings = candidate.safetyRatings.map((r: any) => {
+      return r.category ? `${r.category}:${r.probability || r.blocked || 'unknown'}` : '';
+    }).filter((r: string) => r).join(', ');
+    if (ratings) {
+      errorMsg += `。安全评级: ${ratings}`;
+      console.error(`背景图生成安全评级: ${ratings}`);
+    }
   }
+  console.error("背景图生成失败详情:", JSON.stringify({
+    finishReason: candidate.finishReason,
+    safetyRatings: candidate.safetyRatings,
+    hasContent: !!candidate.content,
+    partsCount: candidate.content?.parts?.length || 0,
+  }, null, 2));
   throw new Error(errorMsg);
 }
 
@@ -546,20 +572,25 @@ async function generateFinalImage(
 scene setup: ${captionPrompt}`;
 
   // Build contents array - include all character images first
+  // Order: 1. All character images, 2. Background image (if provided), 3. Final prompt
   const parts: any[] = [];
   
-  // Add all character images
-  for (const characterImageData of characterImagesData) {
+  // Add all character images (multiple character images support)
+  console.log(`添加 ${characterImagesData.length} 张角色图到最终生成请求`);
+  for (let i = 0; i < characterImagesData.length; i++) {
+    const characterImageData = characterImagesData[i];
     parts.push({
       inlineData: {
         mimeType: characterImageData.mimeType,
         data: characterImageData.base64,
       },
     });
+    console.log(`  角色图 ${i + 1}/${characterImagesData.length}: ${characterImageData.mimeType}, 大小: ${(characterImageData.base64.length / 1024).toFixed(2)} KB`);
   }
 
-  // Add background image only if keepBackground is true
+  // Add background image only if provided (keepBackground is true)
   if (backgroundImage) {
+    console.log("添加背景图到最终生成请求（从参考图去除人物后的背景图）");
     // Convert background image (data URL) back to base64 if needed
     let backgroundBase64 = backgroundImage;
     let backgroundMimeType = "image/png";
@@ -580,9 +611,17 @@ scene setup: ${captionPrompt}`;
         data: backgroundBase64,
       },
     });
+    console.log(`  背景图: ${backgroundMimeType}, 大小: ${(backgroundBase64.length / 1024).toFixed(2)} KB`);
+  } else {
+    console.log("不添加背景图（用户选择不保留背景或背景图生成失败）");
   }
 
+  // Add final prompt
   parts.push({ text: finalPrompt });
+  console.log(`添加最终 prompt，长度: ${finalPrompt.length} 字符`);
+  
+  // Log final request structure
+  console.log(`最终生成请求包含: ${characterImagesData.length} 张角色图, ${backgroundImage ? '1 张' : '0 张'} 背景图, 1 个 prompt`);
 
   const contents = [
     {
