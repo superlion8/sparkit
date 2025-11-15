@@ -569,7 +569,9 @@ async function generateFinalImage(
   // Build final prompt: take autentic photo of the character, use instagram friendly composition, scene setup from caption prompt
   const finalPrompt = `take autentic photo of the character, use instagram friendly composition. Shot on the character should have identical face, features, skin tone, hairstyle, body proportions, and vibe. 
 
-scene setup: ${captionPrompt}`;
+scene setup: ${captionPrompt}
+
+negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorted anatomy, fake portrait-mode blur, CGI/illustration look`;
 
   // Build contents array - include all character images first
   // Order: 1. All character images, 2. Background image (if provided), 3. Final prompt

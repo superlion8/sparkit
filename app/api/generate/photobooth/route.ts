@@ -1327,7 +1327,9 @@ pose:${poseDescription.pose}
 
 camera_position:${poseDescription.cameraPosition}
 
-composition:${poseDescription.composition}`;
+composition:${poseDescription.composition}
+
+negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorted anatomy, fake portrait-mode blur, CGI/illustration look`;
 
   const contents = [
     {

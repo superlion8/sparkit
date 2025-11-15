@@ -682,7 +682,9 @@ async function generateFinalSnapshotImage(
   }
 
   const finalPrompt = `take autentic photo of the character, use instagram friendly composition. Shot on the character should have identical face, features, skin tone, hairstyle, body proportions, and vibe. 
-setup：${snapshotPrompt}`;
+setup：${snapshotPrompt}
+
+negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorted anatomy, fake portrait-mode blur, CGI/illustration look`;
 
   const contents = [
     {
