@@ -202,10 +202,11 @@ export async function POST(request: NextRequest) {
     const allErrors = [...generatedImageErrors, ...uploadErrors];
 
     // Prepare response data - only include necessary fields, remove undefined
+    // IMPORTANT: Do NOT include base64 image data in response, only URLs
     const responseData: any = {
       inputImageUrl: uploadedImageUrl || null,
-      poseDescriptions: poseDescriptions,
-      generatedImageUrls: uploadedImageUrls,
+      poseDescriptions: poseDescriptions, // Keep original full-length descriptions
+      generatedImageUrls: uploadedImageUrls, // Only URLs, no base64 data
       generatedCount: uploadedImageUrls.length,
       requestedCount: poseDescriptions.length,
     };
@@ -222,25 +223,38 @@ export async function POST(request: NextRequest) {
     // Log response size for debugging
     let responseSizeKB = "0";
     try {
-      const responseJson = JSON.stringify(responseData);
-      responseSizeKB = (responseJson.length / 1024).toFixed(2);
-      console.log(`响应数据大小: ${responseSizeKB} KB`);
+      // Verify response does not contain base64 image data
+      const responseJsonString = JSON.stringify(responseData);
+      
+      // Check if response accidentally contains base64 data URLs
+      if (responseJsonString.includes('data:image/') || responseJsonString.includes('iVBORw0KGgo')) {
+        console.error("⚠️ 警告：响应中检测到base64图片数据！这会导致响应过大！");
+        console.error("请检查 responseData 是否意外包含了 generatedImages 数组");
+      }
+      
+      responseSizeKB = (responseJsonString.length / 1024).toFixed(2);
+      
       console.log(`生成的图片数量: ${uploadedImageUrls.length}`);
       console.log(`Pose 描述数量: ${poseDescriptions.length}`);
       console.log(`输入图片 URL: ${uploadedImageUrl || 'null'}`);
       
-      // Log first few URLs for debugging
+      // Log first few URLs for debugging (only first 50 chars to avoid long URLs)
       if (uploadedImageUrls.length > 0) {
-        console.log(`生成的图片 URLs (前3个):`, uploadedImageUrls.slice(0, 3));
+        const urlPreview = uploadedImageUrls.slice(0, 3).map(url => 
+          url.length > 50 ? url.substring(0, 50) + '...' : url
+        );
+        console.log(`生成的图片 URLs (前3个):`, urlPreview);
       }
       
-      // Check if response is too large (Vercel may have issues with > 4.5MB)
+      // Check if response is too large (Vercel may have issues with > 4MB uncompressed)
       const responseSizeMB = parseFloat(responseSizeKB) / 1024;
       if (responseSizeMB > 4) {
         console.error(`⚠️ 响应体过大: ${responseSizeMB.toFixed(2)} MB (> 4 MB)`);
-        console.error("这可能导致响应传输失败，考虑减少返回的数据");
+        console.error("这可能导致响应传输失败，请检查是否意外包含了base64图片数据");
       } else if (responseSizeMB > 1) {
         console.warn(`⚠️ 响应体较大: ${responseSizeMB.toFixed(2)} MB，可能影响传输速度`);
+      } else {
+        console.log(`✅ 响应体大小正常: ${responseSizeMB.toFixed(2)} MB`);
       }
       
       // Check if total time is approaching limit (warn if > 250 seconds)
@@ -279,36 +293,57 @@ export async function POST(request: NextRequest) {
       const responseCreateStart = Date.now();
       console.log("开始创建响应对象...");
       
-      // Create response using pre-serialized JSON size
-      const response = NextResponse.json(responseData, {
+      // Pre-serialize JSON to check final size and avoid double serialization
+      const responseJsonString = JSON.stringify(responseData);
+      const finalResponseSizeKB = (responseJsonString.length / 1024).toFixed(2);
+      const finalResponseSizeMB = parseFloat(finalResponseSizeKB) / 1024;
+      
+      console.log(`最终响应体大小: ${finalResponseSizeKB} KB (${finalResponseSizeMB.toFixed(2)} MB)`);
+      
+      // Warn if response is still large after optimization
+      if (finalResponseSizeMB > 1.5) {
+        console.warn(`⚠️ 响应体仍然较大 (${finalResponseSizeMB.toFixed(2)} MB)，可能影响传输`);
+      }
+      
+      // Create response - use pre-serialized JSON string to avoid double serialization
+      const response = new NextResponse(responseJsonString, {
         status: 200,
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
+          'Content-Length': responseJsonString.length.toString(),
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',
           'Expires': '0',
-          'Connection': 'keep-alive',
           'X-Response-Time': `${totalTime}s`,
-          'X-Content-Size': `${responseSizeKB}KB`,
+          'X-Content-Size': `${finalResponseSizeKB}KB`,
+          'X-Execution-Time': `${totalTime}s`,
+          'X-Generated-Count': uploadedImageUrls.length.toString(),
+          'X-Requested-Count': poseDescriptions.length.toString(),
         },
       });
       
       const responseCreateTime = ((Date.now() - responseCreateStart) / 1000).toFixed(3);
       console.log(`响应对象创建成功（耗时: ${responseCreateTime} 秒）`);
-      console.log(`响应体大小: ${responseSizeKB} KB`);
+      console.log(`响应体大小: ${finalResponseSizeKB} KB`);
       console.log("响应准备完成，开始返回...");
       
       const totalTimeActual = ((Date.now() - startTime) / 1000).toFixed(2);
       console.log(`总耗时: ${totalTimeActual} 秒（执行: ${totalTime} 秒，响应创建: ${responseCreateTime} 秒）`);
       
+      // Log a final checkpoint before returning
+      console.log(`[${new Date().toISOString()}] 开始返回响应...`);
+      console.log(`响应体大小: ${finalResponseSizeKB} KB, Content-Length: ${responseJsonString.length}`);
+      
       return response;
     } catch (responseError) {
       const createResponseTime = ((Date.now() - startTime) / 1000).toFixed(2);
       console.error(`创建响应失败（总耗时: ${createResponseTime} 秒）:`, responseError);
+      const responseDataSize = responseSizeKB || "未知";
       console.error("响应错误详情:", {
         message: responseError instanceof Error ? responseError.message : String(responseError),
         stack: responseError instanceof Error ? responseError.stack : undefined,
-        responseDataSize: responseSizeKB + ' KB',
+        name: responseError instanceof Error ? responseError.name : undefined,
+        responseDataSize: responseDataSize + ' KB',
         poseDescriptionsCount: poseDescriptions.length,
         generatedImageUrlsCount: uploadedImageUrls.length,
       });
@@ -1015,7 +1050,18 @@ async function generatePoseImage(
   }
 
   const data = await response.json();
-  console.log("Gemini API 响应 (generate pose image):", JSON.stringify(data, null, 2));
+  
+  // Log API response summary (DO NOT log full base64 image data)
+  console.log("Gemini API 响应 (generate pose image):", {
+    hasCandidates: !!data.candidates,
+    candidatesCount: data.candidates?.length || 0,
+    hasError: !!data.error,
+    error: data.error || null,
+    firstCandidateFinishReason: data.candidates?.[0]?.finishReason || null,
+    firstCandidateHasInlineData: !!data.candidates?.[0]?.content?.parts?.[0]?.inlineData,
+    // Log data length instead of full data
+    firstCandidateDataLength: data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data?.length || 0,
+  });
 
   // Check for API errors
   if (data.error) {
