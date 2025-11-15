@@ -96,37 +96,64 @@ export async function POST(request: NextRequest) {
       console.log(`成功解析 ${poseDescriptions.length} 个pose描述`);
     }
 
-    // Step 2: 根据pose描述生成图片（使用 gemini-2.5-flash-image 图像生成模型）
-    console.log(`Step 2: 根据 ${poseDescriptions.length} 个pose描述生成图片...`);
+    // Step 2: 根据pose描述并行生成图片（使用 gemini-2.5-flash-image 图像生成模型）
+    console.log(`Step 2: 根据 ${poseDescriptions.length} 个pose描述并行生成图片...`);
     const step2Start = Date.now();
+    
+    // 并行生成所有图片
+    const imagePromises = poseDescriptions.map((poseDesc, index) => {
+      const imageStart = Date.now();
+      console.log(`启动第 ${index + 1}/${poseDescriptions.length} 张图片的生成任务...`);
+      
+      return generatePoseImage(
+        imageBase64,
+        image.type,
+        poseDesc,
+        aspectRatio,
+        apiKey
+      )
+        .then((generatedImage) => {
+          const imageTime = ((Date.now() - imageStart) / 1000).toFixed(2);
+          console.log(`第 ${index + 1} 张图片生成成功，耗时: ${imageTime} 秒`);
+          return {
+            index,
+            success: true,
+            image: generatedImage,
+            time: imageTime,
+          };
+        })
+        .catch((error: any) => {
+          const imageTime = ((Date.now() - imageStart) / 1000).toFixed(2);
+          console.error(`第 ${index + 1} 张图片生成失败（耗时: ${imageTime} 秒）:`, error);
+          return {
+            index,
+            success: false,
+            error: error.message || "未知错误",
+            time: imageTime,
+          };
+        });
+    });
+
+    // 等待所有图片生成完成（并行）
+    console.log(`等待 ${imagePromises.length} 个图片生成任务完成（并行执行）...`);
+    const imageResults = await Promise.all(imagePromises);
+
+    // 处理结果：收集成功和失败的图片
     const generatedImages: string[] = [];
     const generatedImageErrors: string[] = [];
-
-    for (let i = 0; i < poseDescriptions.length; i++) {
-      const imageStart = Date.now();
-      try {
-        console.log(`正在生成第 ${i + 1}/${poseDescriptions.length} 张图片...`);
-        const generatedImage = await generatePoseImage(
-          imageBase64,
-          image.type,
-          poseDescriptions[i],
-          aspectRatio,
-          apiKey
-        );
-        const imageTime = ((Date.now() - imageStart) / 1000).toFixed(2);
-        generatedImages.push(generatedImage);
-        console.log(`第 ${i + 1} 张图片生成成功，耗时: ${imageTime} 秒`);
-      } catch (error: any) {
-        const imageTime = ((Date.now() - imageStart) / 1000).toFixed(2);
-        console.error(`生成第 ${i + 1} 张图片失败（耗时: ${imageTime} 秒）:`, error);
-        generatedImageErrors.push(`第 ${i + 1} 张: ${error.message}`);
-        // Continue generating other images
-        console.warn(`跳过第 ${i + 1} 张图片，继续生成剩余图片`);
+    
+    // 按照原始顺序排序结果（Promise.all保持顺序）
+    imageResults.forEach((result) => {
+      if (result.success && 'image' in result) {
+        generatedImages.push(result.image);
+      } else if (!result.success && 'error' in result) {
+        generatedImageErrors.push(`第 ${result.index + 1} 张: ${result.error}`);
       }
-    }
+    });
 
     const step2Time = ((Date.now() - step2Start) / 1000).toFixed(2);
-    console.log(`Step 2 完成，总耗时: ${step2Time} 秒`);
+    console.log(`Step 2 完成，总耗时: ${step2Time} 秒（并行生成 ${poseDescriptions.length} 张图片）`);
+    console.log(`成功: ${generatedImages.length} 张，失败: ${generatedImageErrors.length} 张`);
 
     // Check if we have at least one generated image
     if (generatedImages.length === 0) {
@@ -140,41 +167,71 @@ export async function POST(request: NextRequest) {
 
     console.log("=== PhotoBooth Generation Completed ===");
 
-    // Upload generated images to Aimovely
-    console.log("开始上传生成的图片到 Aimovely...");
+    // Upload generated images to Aimovely (parallel upload)
+    console.log("开始并行上传生成的图片到 Aimovely...");
     const uploadStart = Date.now();
     const uploadedImageUrls: string[] = [];
     const uploadErrors: string[] = [];
 
     if (aimovelyToken) {
       try {
-        // Upload generated images
-        for (let i = 0; i < generatedImages.length; i++) {
+        // 并行上传所有图片
+        const uploadPromises = generatedImages.map((imageData, index) => {
           const uploadImageStart = Date.now();
-          try {
-            const uploadResult = await uploadImageToAimovely(
-              generatedImages[i],
-              aimovelyToken,
-              `photobooth-${i}`
-            );
-            const uploadImageTime = ((Date.now() - uploadImageStart) / 1000).toFixed(2);
-            if (uploadResult?.url) {
-              uploadedImageUrls.push(uploadResult.url);
-              console.log(`图片 ${i + 1} 上传成功（耗时: ${uploadImageTime} 秒）:`, uploadResult.url);
-            } else {
-              // Upload failed, add to errors
-              uploadErrors.push(`图片 ${i + 1} 上传失败：无法获取 URL`);
-              console.warn(`图片 ${i + 1} 上传失败（耗时: ${uploadImageTime} 秒），无法获取 URL`);
-            }
-          } catch (uploadError: any) {
-            const uploadImageTime = ((Date.now() - uploadImageStart) / 1000).toFixed(2);
-            console.error(`上传图片 ${i + 1} 失败（耗时: ${uploadImageTime} 秒）:`, uploadError);
-            uploadErrors.push(`图片 ${i + 1} 上传失败：${uploadError.message || "未知错误"}`);
+          console.log(`启动第 ${index + 1}/${generatedImages.length} 张图片的上传任务...`);
+          
+          return uploadImageToAimovely(
+            imageData,
+            aimovelyToken,
+            `photobooth-${index}`
+          )
+            .then((uploadResult) => {
+              const uploadImageTime = ((Date.now() - uploadImageStart) / 1000).toFixed(2);
+              if (uploadResult?.url) {
+                console.log(`图片 ${index + 1} 上传成功（耗时: ${uploadImageTime} 秒）`);
+                return {
+                  index,
+                  success: true,
+                  url: uploadResult.url,
+                  time: uploadImageTime,
+                };
+              } else {
+                return {
+                  index,
+                  success: false,
+                  error: "无法获取 URL",
+                  time: uploadImageTime,
+                };
+              }
+            })
+            .catch((uploadError: any) => {
+              const uploadImageTime = ((Date.now() - uploadImageStart) / 1000).toFixed(2);
+              console.error(`上传图片 ${index + 1} 失败（耗时: ${uploadImageTime} 秒）:`, uploadError);
+              return {
+                index,
+                success: false,
+                error: uploadError.message || "未知错误",
+                time: uploadImageTime,
+              };
+            });
+        });
+
+        // 等待所有上传完成（并行）
+        console.log(`等待 ${uploadPromises.length} 个图片上传任务完成（并行执行）...`);
+        const uploadResults = await Promise.all(uploadPromises);
+
+        // 处理上传结果：按照原始顺序收集URL
+        uploadResults.forEach((result) => {
+          if (result.success && 'url' in result && result.url) {
+            uploadedImageUrls.push(result.url);
+          } else if (!result.success && 'error' in result) {
+            uploadErrors.push(`图片 ${result.index + 1} 上传失败：${result.error}`);
           }
-        }
+        });
         
         const uploadTime = ((Date.now() - uploadStart) / 1000).toFixed(2);
-        console.log(`图片上传完成，总耗时: ${uploadTime} 秒`);
+        console.log(`图片上传完成，总耗时: ${uploadTime} 秒（并行上传 ${generatedImages.length} 张图片）`);
+        console.log(`成功: ${uploadedImageUrls.length} 张，失败: ${uploadErrors.length} 张`);
         
         // Check if all uploads failed
         if (uploadedImageUrls.length === 0 && generatedImages.length > 0) {

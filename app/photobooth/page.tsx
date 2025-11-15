@@ -78,7 +78,7 @@ export default function PhotoBoothPage() {
       const timeoutId = setTimeout(() => {
         console.warn("请求超时，正在取消...");
         controller.abort();
-      }, 300000); // 5 minutes timeout
+      }, 360000); // 6 minutes timeout (extended to account for network delays)
 
       let response: Response;
       try {
