@@ -142,12 +142,35 @@ export async function POST(request: NextRequest) {
     const generatedImages: Array<{ index: number; image: string }> = [];
     const generatedImageErrors: string[] = [];
     
+    // Helper function to sanitize strings for JSON serialization (defined early)
+    // IMPORTANT: This function removes problematic characters that could break JSON parsing
+    // Note: We do NOT escape quotes/backslashes here because JSON.stringify() will handle that
+    // Escaping here would cause double-escaping
+    const sanitizeString = (str: string | null | undefined): string => {
+      if (!str) return "";
+      let sanitized = String(str);
+      // Replace unescaped newlines with spaces (these can break JSON strings if not escaped)
+      sanitized = sanitized.replace(/\r\n/g, " ").replace(/\n/g, " ").replace(/\r/g, " ");
+      // Remove null bytes and control characters (except normal whitespace: space, tab, LF, CR)
+      // These characters can break JSON strings even if escaped
+      sanitized = sanitized.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, " ");
+      // Normalize whitespace (multiple spaces to single space)
+      sanitized = sanitized.replace(/\s+/g, " ").trim();
+      // Limit length to prevent extremely long strings
+      if (sanitized.length > 1000) {
+        sanitized = sanitized.substring(0, 997) + "...";
+      }
+      return sanitized;
+    };
+    
     // 按照原始顺序排序结果（Promise.all保持顺序）
     imageResults.forEach((result) => {
       if (result.success && 'image' in result) {
         generatedImages.push({ index: result.index, image: result.image });
       } else if (!result.success && 'error' in result) {
-        generatedImageErrors.push(`第 ${result.index + 1} 张: ${result.error}`);
+        // Sanitize error message immediately when collecting
+        const sanitizedError = sanitizeString(result.error);
+        generatedImageErrors.push(`第 ${result.index + 1} 张: ${sanitizedError}`);
       }
     });
     
@@ -230,7 +253,9 @@ export async function POST(request: NextRequest) {
           if (result.success && 'url' in result && result.url) {
             uploadedImageUrls.push({ originalIndex: result.originalIndex, url: result.url });
           } else if (!result.success && 'error' in result) {
-            uploadErrors.push(`图片 ${result.originalIndex + 1} 上传失败：${result.error}`);
+            // Sanitize error message immediately when collecting (sanitizeString defined above)
+            const sanitizedError = sanitizeString(result.error);
+            uploadErrors.push(`图片 ${result.originalIndex + 1} 上传失败：${sanitizedError}`);
           }
         });
         
@@ -258,7 +283,9 @@ export async function POST(request: NextRequest) {
         // Don't throw error, log it and continue with what we have
         // The uploadedImageUrls array may already contain some successful uploads
         console.warn("上传过程出现异常，但继续处理已成功上传的图片");
-        uploadErrors.push(`上传过程异常：${uploadError.message || "未知错误"}`);
+        // Sanitize error message immediately (sanitizeString defined above)
+        const sanitizedError = sanitizeString(uploadError.message || "未知错误");
+        uploadErrors.push(`上传过程异常：${sanitizedError}`);
       }
     } else {
       // No Aimovely token - this is a configuration issue, but don't fail the whole request
@@ -279,25 +306,9 @@ export async function POST(request: NextRequest) {
     // Prepare response data - only include necessary fields, remove undefined
     // IMPORTANT: Do NOT include base64 image data in response, only URLs
     // Only include pose descriptions that have successfully generated and uploaded images
+    // Note: sanitizeString is already defined above
     const successfulPoseDescriptions: PoseDescription[] = [];
     const successfulImageUrls: string[] = [];
-    
-    // Helper function to sanitize strings for JSON serialization
-    const sanitizeString = (str: string | null | undefined): string => {
-      if (!str) return "";
-      // Remove or escape problematic characters that could break JSON
-      // Replace unescaped newlines with spaces
-      let sanitized = str.replace(/\r\n/g, " ").replace(/\n/g, " ").replace(/\r/g, " ");
-      // Remove null bytes and control characters (except normal whitespace)
-      sanitized = sanitized.replace(/[\x00-\x1F\x7F]/g, " ");
-      // Normalize whitespace
-      sanitized = sanitized.replace(/\s+/g, " ").trim();
-      // Limit length to prevent extremely long strings
-      if (sanitized.length > 1000) {
-        sanitized = sanitized.substring(0, 997) + "...";
-      }
-      return sanitized;
-    };
 
     uploadedImageUrls.forEach((item) => {
       // item.originalIndex 对应 poseDescriptions 的索引
@@ -335,12 +346,10 @@ export async function POST(request: NextRequest) {
       requestedCount: poseDescriptions.length,
     };
     
-    // Only include errors if there are any (sanitize error messages)
+    // Only include errors if there are any (error messages already sanitized when collected)
     if (allErrors.length > 0) {
-      responseData.errors = allErrors.map((err: string) => {
-        // Sanitize error messages to prevent JSON serialization issues
-        return sanitizeString(err);
-      });
+      // Errors are already sanitized when collected, but sanitize again to be extra safe
+      responseData.errors = allErrors.map((err: string) => sanitizeString(err));
     }
 
     // Calculate total execution time
@@ -1292,8 +1301,15 @@ async function generatePoseImage(
   if (candidate.finishReason) {
     errorMsg += `。原因: ${candidate.finishReason}`;
   }
-  if (candidate.safetyRatings) {
-    errorMsg += `。安全评级: ${JSON.stringify(candidate.safetyRatings)}`;
+  // Simplify safetyRatings to avoid complex nested JSON in error message
+  // Just include the category and probability, not the full JSON
+  if (candidate.safetyRatings && Array.isArray(candidate.safetyRatings)) {
+    const ratings = candidate.safetyRatings.map((r: any) => {
+      return r.category ? `${r.category}:${r.probability || r.blocked || 'unknown'}` : '';
+    }).filter((r: string) => r).join(', ');
+    if (ratings) {
+      errorMsg += `。安全评级: ${ratings}`;
+    }
   }
   throw new Error(errorMsg);
 }
