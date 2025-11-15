@@ -160,27 +160,103 @@ export default function PhotoBoothPage() {
           console.log(`响应文本最后500字符: ${responseText.substring(responseText.length - 500)}`);
         }
         
-        try {
-          data = JSON.parse(responseText);
-        } catch (parseError: any) {
-          console.error("JSON 解析失败:", parseError);
-          console.error("错误位置:", parseError.message);
+        // Sanitize response text before parsing to handle any remaining issues
+        // This is a defensive measure in case backend sanitization missed something
+        const sanitizeJsonString = (str: string): string => {
+          // Remove or replace problematic characters that could break JSON parsing
+          // Remove Unicode control characters and format characters
+          let sanitized = str
+            .replace(/[\u200B-\u200F\u2028-\u202F\u205F-\u206F\uFEFF]/g, '')
+            .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, '');
           
-          // Try to find the problematic position
-          if (parseError.message?.includes('position')) {
-            const match = parseError.message.match(/position (\d+)/);
-            if (match) {
-              const pos = parseInt(match[1]);
-              const start = Math.max(0, pos - 100);
-              const end = Math.min(responseText.length, pos + 100);
-              console.error(`问题位置附近的文本 (${start}-${end}):`, responseText.substring(start, end));
+          // Check for unterminated strings - try to fix them
+          // Look for unescaped quotes or incomplete escape sequences
+          // This is a simple heuristic - may not catch all cases
+          const lastQuoteIndex = sanitized.lastIndexOf('"');
+          const lastBraceIndex = sanitized.lastIndexOf('}');
+          const lastBracketIndex = sanitized.lastIndexOf(']');
+          
+          // If we have a quote but the string seems incomplete, try to close it
+          if (lastQuoteIndex > lastBraceIndex && lastQuoteIndex > lastBracketIndex) {
+            // Count quotes - if odd number, we might have an unterminated string
+            const quoteCount = (sanitized.match(/"/g) || []).length;
+            if (quoteCount % 2 !== 0) {
+              console.warn("检测到可能的未终止字符串，尝试修复...");
+              // Try to close the string by finding the last unclosed quote
+              // This is a heuristic - look for quote not followed by proper JSON structure
+              const nearEnd = sanitized.substring(Math.max(0, sanitized.length - 200));
+              if (!nearEnd.match(/"[,\]\}]/)) {
+                // Likely unterminated string, try to close it
+                sanitized = sanitized + '"';
+                console.warn("已添加结束引号以修复未终止字符串");
+              }
             }
           }
           
-          // Log full response for debugging (first 2000 chars)
-          console.error("响应文本前2000字符:", responseText.substring(0, 2000));
+          return sanitized;
+        };
+        
+        try {
+          // Try parsing original response first
+          data = JSON.parse(responseText);
+        } catch (parseError: any) {
+          console.error("JSON 解析失败（原始响应）:", parseError);
+          console.error("错误位置:", parseError.message);
           
-          throw new Error(`响应解析失败: ${parseError instanceof Error ? parseError.message : '未知错误'}`);
+          // Try to find the problematic position
+          let problemPos = -1;
+          if (parseError.message?.includes('position')) {
+            const match = parseError.message.match(/position (\d+)/);
+            if (match) {
+              problemPos = parseInt(match[1]);
+              const start = Math.max(0, problemPos - 200);
+              const end = Math.min(responseText.length, problemPos + 200);
+              console.error(`问题位置附近的文本 (${start}-${end}):`, responseText.substring(start, end));
+              console.error(`问题位置字符码:`, responseText.substring(problemPos - 5, problemPos + 5).split('').map(c => c.charCodeAt(0)));
+            }
+          }
+          
+          // Log full response for debugging
+          console.error("响应文本前2000字符:", responseText.substring(0, 2000));
+          if (responseText.length > 2000) {
+            console.error(`响应文本位置 ${problemPos > 0 ? problemPos - 50 : 2000}-${problemPos > 0 ? problemPos + 50 : 2500}:`, 
+              responseText.substring(problemPos > 0 ? problemPos - 50 : 2000, problemPos > 0 ? problemPos + 50 : 2500));
+          }
+          
+          // Try sanitizing and parsing again
+          console.log("尝试清理响应文本后重新解析...");
+          try {
+            const sanitizedText = sanitizeJsonString(responseText);
+            data = JSON.parse(sanitizedText);
+            console.log("✅ 清理后解析成功");
+          } catch (sanitizeError: any) {
+            console.error("❌ 清理后解析仍然失败:", sanitizeError);
+            
+            // Try to extract partial data if possible
+            // Look for valid JSON structures we can salvage
+            try {
+              // Try to find the last complete JSON object by removing trailing incomplete parts
+              let partialText = responseText;
+              for (let i = 0; i < 100 && partialText.length > 0; i++) {
+                try {
+                  // Try removing last character until we get valid JSON
+                  partialText = partialText.substring(0, partialText.length - 1);
+                  const testParse = JSON.parse(partialText + '}');
+                  console.warn("⚠️ 使用部分响应数据（已截断）");
+                  data = testParse;
+                  break;
+                } catch {
+                  continue;
+                }
+              }
+              
+              if (!data) {
+                throw sanitizeError;
+              }
+            } catch {
+              throw new Error(`响应解析失败: ${parseError instanceof Error ? parseError.message : '未知错误'}`);
+            }
+          }
         }
       } catch (parseError: any) {
         console.error("读取响应失败:", parseError);
