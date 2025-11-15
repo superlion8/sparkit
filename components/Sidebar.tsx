@@ -28,7 +28,6 @@ const imageTools = [
   { name: "图像编辑", href: "/image-to-image", icon: ImagePlus },
   { name: "Mimic(洗稿)", href: "/mimic", icon: User },
   { name: "PhotoBooth(组图)", href: "/photobooth", icon: Camera },
-  { name: "Snapshot", href: "/snapshot", icon: Camera },
 ];
 
 const videoTools = [
