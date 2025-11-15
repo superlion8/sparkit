@@ -266,8 +266,8 @@ export default function PhotoToLivePage() {
                 >
                   {promptLoading ? (
                     <>
-                      <LoadingSpinner size="sm" />
-                      生成中...
+                      <Sparkles className="w-4 h-4 animate-spin" />
+                      AI生成中...
                     </>
                   ) : (
                     <>
@@ -299,7 +299,7 @@ export default function PhotoToLivePage() {
               >
                 {videoLoading ? (
                   <>
-                    <LoadingSpinner size="sm" />
+                    <Video className="w-5 h-5 animate-spin" />
                     生成中...
                   </>
                 ) : (
@@ -336,10 +336,7 @@ export default function PhotoToLivePage() {
 
             {videoLoading ? (
               <div className="flex flex-col items-center justify-center py-16">
-                <LoadingSpinner size="lg" />
-                <p className="mt-4 text-gray-600">
-                  {taskId ? "视频生成中，请稍候..." : "正在提交生成任务..."}
-                </p>
+                <LoadingSpinner text={taskId ? "视频生成中，请稍候..." : "正在提交生成任务..."} />
               </div>
             ) : videoUrl ? (
               <div className="space-y-4">
