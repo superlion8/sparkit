@@ -36,6 +36,7 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   background_replace: "背景替换",
   mimic: "Mimic角色替换",
   photobooth: "PhotoBooth写真组图",
+  snapshot: "Snapshot随手拍",
   video_generation: "视频生成",
   video_subject_replace: "视频主体替换",
   image_transition_edit: "改图转场 - 图片编辑",
@@ -43,8 +44,8 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   photo_to_live: "Photo to Live",
 };
 
-// Parse JSON format image URLs (for Mimic and PhotoBooth tasks)
-const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photobooth'; urls: any } | null => {
+// Parse JSON format image URLs (for Mimic, PhotoBooth, and Snapshot tasks)
+const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photobooth' | 'snapshot'; urls: any } | null => {
   if (!url) return null;
   
   // Try to parse as JSON
@@ -57,6 +58,10 @@ const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photo
     // Check if it's a PhotoBooth format
     if (typeof parsed === 'object' && (parsed.input || parsed.poses)) {
       return { type: 'photobooth', urls: parsed };
+    }
+    // Check if it's a Snapshot format
+    if (typeof parsed === 'object' && (parsed.input || parsed.snapshots)) {
+      return { type: 'snapshot', urls: parsed };
     }
   } catch {
     // Not JSON, treat as single URL
@@ -239,8 +244,9 @@ export default function HistoryPage() {
                 {/* Preview */}
                 <div className={(() => {
                   const parsedUrls = parseImageUrls(task.output_image_url);
-                  // PhotoBooth tasks: use auto height to accommodate all images
-                  if (parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses) && parsedUrls.urls.poses.length > 1) {
+                  // PhotoBooth and Snapshot tasks: use auto height to accommodate all images
+                  if ((parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses) && parsedUrls.urls.poses.length > 1) ||
+                      (parsedUrls?.type === 'snapshot' && Array.isArray(parsedUrls.urls.snapshots) && parsedUrls.urls.snapshots.length > 1)) {
                     return "bg-gray-100 relative";
                   }
                   // Other tasks: keep aspect-square
@@ -281,6 +287,57 @@ export default function HistoryPage() {
                               <img
                                 src={url}
                                 alt={`Pose ${index + 1}`}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
+                                  }
+                                }}
+                              />
+                              <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded">
+                                {index + 1}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+                    
+                    // Handle Snapshot with multiple images - show all images
+                    if (parsedUrls?.type === 'snapshot' && Array.isArray(parsedUrls.urls.snapshots) && parsedUrls.urls.snapshots.length > 0) {
+                      if (parsedUrls.urls.snapshots.length === 1) {
+                        // Single image: use square aspect
+                        return (
+                          <div className="w-full h-full aspect-square relative">
+                            <img
+                              src={parsedUrls.urls.snapshots[0]}
+                              alt="Generated"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const parent = target.parentElement;
+                                if (parent) {
+                                  parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><div class="text-center"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-xs">图片加载失败</p></div></div>';
+                                }
+                              }}
+                            />
+                          </div>
+                        );
+                      }
+                      // Multiple images: show grid (2 cols for 2-3 images, 3 cols for 4-9 images)
+                      const imageCount = parsedUrls.urls.snapshots.length;
+                      const gridColsClass = imageCount <= 3 ? 'grid-cols-2' : 'grid-cols-3';
+                      return (
+                        <div className={`grid ${gridColsClass} gap-1 p-1`}>
+                          {parsedUrls.urls.snapshots.map((url: string, index: number) => (
+                            <div key={index} className="aspect-square relative bg-gray-200 rounded overflow-hidden">
+                              <img
+                                src={url}
+                                alt={`Snapshot ${index + 1}`}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
@@ -387,6 +444,20 @@ export default function HistoryPage() {
                             // If parsing fails, display as is
                           }
                         }
+                        // Try to parse Snapshot prompt (JSON format)
+                        if (task.task_type === 'snapshot') {
+                          try {
+                            const snapshotPrompts = JSON.parse(task.prompt);
+                            if (Array.isArray(snapshotPrompts) && snapshotPrompts.length > 0) {
+                              // Display first snapshot prompt as preview
+                              const firstSnapshot = snapshotPrompts[0];
+                              const preview = firstSnapshot.snapshotPrompt || '';
+                              return preview.length > 150 ? preview.substring(0, 150) + '...' : preview;
+                            }
+                          } catch {
+                            // If parsing fails, display as is
+                          }
+                        }
                         // For other task types or if parsing fails, display prompt directly
                         return task.prompt.length > 150 ? task.prompt.substring(0, 150) + '...' : task.prompt;
                       })()}
@@ -402,6 +473,8 @@ export default function HistoryPage() {
                       // Collect all image URLs
                       if (parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses)) {
                         imageUrls.push(...parsedUrls.urls.poses);
+                      } else if (parsedUrls?.type === 'snapshot' && Array.isArray(parsedUrls.urls.snapshots)) {
+                        imageUrls.push(...parsedUrls.urls.snapshots);
                       } else if (parsedUrls?.type === 'mimic') {
                         if (parsedUrls.urls.background) imageUrls.push(parsedUrls.urls.background);
                         if (Array.isArray(parsedUrls.urls.final)) {
