@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef } from "react";
-import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
 import { useAuth } from "@/hooks/useAuth";
@@ -357,43 +356,87 @@ export default function PhotoBoothPage() {
 
             {!loading && !authLoading && !error && (
               <div className="space-y-6">
-                {/* Pose Descriptions */}
-                {poseDescriptions.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Pose 描述</h3>
-                    <div className="space-y-4">
-                      {poseDescriptions.map((pose, index) => (
-                        <div
-                          key={index}
-                          className="bg-gray-50 border border-gray-200 rounded-lg p-4"
-                        >
-                          <div className="text-sm font-medium text-gray-700 mb-2">
-                            Pose {index + 1}
-                          </div>
-                          <div className="text-xs text-gray-600 space-y-1">
-                            <div>
-                              <strong>Pose:</strong> {pose.pose}
-                            </div>
-                            <div>
-                              <strong>Camera Position:</strong> {pose.cameraPosition}
-                            </div>
-                            <div>
-                              <strong>Composition:</strong> {pose.composition}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Generated Images */}
-                {generatedImages.length > 0 && (
+                {/* Results: Image + Description pairs */}
+                {(generatedImages.length > 0 || poseDescriptions.length > 0) && (
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                      生成的图片 ({generatedImages.length}/{poseDescriptions.length > 0 ? poseDescriptions.length : 5})
+                      生成结果 ({generatedImages.length}/{poseDescriptions.length > 0 ? poseDescriptions.length : 5})
                     </h3>
-                    <ImageGrid images={generatedImages} />
+                    <div className="space-y-6">
+                      {poseDescriptions.map((pose, index) => {
+                        const hasImage = index < generatedImages.length;
+                        const imageUrl = hasImage ? generatedImages[index] : null;
+                        
+                        return (
+                          <div
+                            key={index}
+                            className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm"
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+                              {/* Left: Image */}
+                              <div className="bg-gray-50 flex items-center justify-center p-4 min-h-[300px]">
+                                {imageUrl ? (
+                                  <div className="relative w-full max-w-md">
+                                    <img
+                                      src={imageUrl}
+                                      alt={`Pose ${index + 1}`}
+                                      className="w-full h-auto rounded-lg shadow-md"
+                                    />
+                                    <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                                      Pose {index + 1}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-center text-gray-400">
+                                    <Camera className="w-16 h-16 mx-auto mb-2 opacity-50" />
+                                    <p className="text-sm">图片生成中...</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Right: Description */}
+                              <div className="p-6 flex flex-col justify-center">
+                                <div className="mb-3">
+                                  <h4 className="text-base font-semibold text-gray-900 mb-1">
+                                    Pose {index + 1} 描述
+                                  </h4>
+                                  {!hasImage && (
+                                    <span className="inline-block text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                                      生成失败
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-700 space-y-3">
+                                  <div>
+                                    <div className="font-medium text-gray-900 mb-1">Pose:</div>
+                                    <div className="text-gray-600 leading-relaxed">{pose.pose}</div>
+                                  </div>
+                                  <div>
+                                    <div className="font-medium text-gray-900 mb-1">Camera Position:</div>
+                                    <div className="text-gray-600 leading-relaxed">{pose.cameraPosition}</div>
+                                  </div>
+                                  <div>
+                                    <div className="font-medium text-gray-900 mb-1">Composition:</div>
+                                    <div className="text-gray-600 leading-relaxed">{pose.composition}</div>
+                                  </div>
+                                </div>
+                                {imageUrl && (
+                                  <div className="mt-4">
+                                    <button
+                                      onClick={() => downloadImage(imageUrl, `photobooth-pose-${index + 1}.png`)}
+                                      className="inline-flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700 font-medium"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                      下载图片
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
