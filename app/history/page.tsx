@@ -236,31 +236,65 @@ export default function HistoryPage() {
                 className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
               >
                 {/* Preview */}
-                <div className="aspect-square bg-gray-100 relative">
+                <div className={(() => {
+                  const parsedUrls = parseImageUrls(task.output_image_url);
+                  // PhotoBooth tasks: use auto height to accommodate all images
+                  if (parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses) && parsedUrls.urls.poses.length > 1) {
+                    return "bg-gray-100 relative";
+                  }
+                  // Other tasks: keep aspect-square
+                  return "aspect-square bg-gray-100 relative";
+                })()}>
                   {(() => {
                     const parsedUrls = parseImageUrls(task.output_image_url);
                     
-                    // Handle PhotoBooth with multiple images
+                    // Handle PhotoBooth with multiple images - show all images
                     if (parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses) && parsedUrls.urls.poses.length > 0) {
-                      return (
-                        <div className="w-full h-full relative">
-                          <img
-                            src={parsedUrls.urls.poses[0]}
-                            alt="Generated"
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              // Fallback if image fails to load
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                              const parent = target.parentElement;
-                              if (parent) {
-                                parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><div class="text-center"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-xs">图片加载失败</p></div></div>';
-                              }
-                            }}
-                          />
-                          <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                            {parsedUrls.urls.poses.length} 张
+                      if (parsedUrls.urls.poses.length === 1) {
+                        // Single image: use square aspect
+                        return (
+                          <div className="w-full h-full aspect-square relative">
+                            <img
+                              src={parsedUrls.urls.poses[0]}
+                              alt="Generated"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const parent = target.parentElement;
+                                if (parent) {
+                                  parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><div class="text-center"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-xs">图片加载失败</p></div></div>';
+                                }
+                              }}
+                            />
                           </div>
+                        );
+                      }
+                      // Multiple images: show grid (2 cols for 2-3 images, 3 cols for 4-9 images)
+                      const imageCount = parsedUrls.urls.poses.length;
+                      const gridColsClass = imageCount <= 3 ? 'grid-cols-2' : 'grid-cols-3';
+                      return (
+                        <div className={`grid ${gridColsClass} gap-1 p-1`}>
+                          {parsedUrls.urls.poses.map((url: string, index: number) => (
+                            <div key={index} className="aspect-square relative bg-gray-200 rounded overflow-hidden">
+                              <img
+                                src={url}
+                                alt={`Pose ${index + 1}`}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
+                                  }
+                                }}
+                              />
+                              <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded">
+                                {index + 1}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       );
                     }
