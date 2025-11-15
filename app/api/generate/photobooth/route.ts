@@ -138,18 +138,21 @@ export async function POST(request: NextRequest) {
     console.log(`等待 ${imagePromises.length} 个图片生成任务完成（并行执行）...`);
     const imageResults = await Promise.all(imagePromises);
 
-    // 处理结果：收集成功和失败的图片
-    const generatedImages: string[] = [];
+    // 处理结果：收集成功和失败的图片，保持索引对应关系
+    const generatedImages: Array<{ index: number; image: string }> = [];
     const generatedImageErrors: string[] = [];
     
     // 按照原始顺序排序结果（Promise.all保持顺序）
     imageResults.forEach((result) => {
       if (result.success && 'image' in result) {
-        generatedImages.push(result.image);
+        generatedImages.push({ index: result.index, image: result.image });
       } else if (!result.success && 'error' in result) {
         generatedImageErrors.push(`第 ${result.index + 1} 张: ${result.error}`);
       }
     });
+    
+    // 按索引排序，确保顺序正确
+    generatedImages.sort((a, b) => a.index - b.index);
 
     const step2Time = ((Date.now() - step2Start) / 1000).toFixed(2);
     console.log(`Step 2 完成，总耗时: ${step2Time} 秒（并行生成 ${poseDescriptions.length} 张图片）`);
@@ -170,13 +173,15 @@ export async function POST(request: NextRequest) {
     // Upload generated images to Aimovely (parallel upload)
     console.log("开始并行上传生成的图片到 Aimovely...");
     const uploadStart = Date.now();
-    const uploadedImageUrls: string[] = [];
+    const uploadedImageUrls: Array<{ originalIndex: number; url: string }> = [];
     const uploadErrors: string[] = [];
 
     if (aimovelyToken) {
       try {
-        // 并行上传所有图片
-        const uploadPromises = generatedImages.map((imageData, index) => {
+        // 并行上传所有图片，保持原始索引
+        const uploadPromises = generatedImages.map((imageItem) => {
+          const index = imageItem.index;
+          const imageData = imageItem.image;
           const uploadImageStart = Date.now();
           console.log(`启动第 ${index + 1}/${generatedImages.length} 张图片的上传任务...`);
           
@@ -188,16 +193,16 @@ export async function POST(request: NextRequest) {
             .then((uploadResult) => {
               const uploadImageTime = ((Date.now() - uploadImageStart) / 1000).toFixed(2);
               if (uploadResult?.url) {
-                console.log(`图片 ${index + 1} 上传成功（耗时: ${uploadImageTime} 秒）`);
+                console.log(`图片 ${index + 1} (原始索引: ${index}) 上传成功（耗时: ${uploadImageTime} 秒）`);
                 return {
-                  index,
+                  originalIndex: index,
                   success: true,
                   url: uploadResult.url,
                   time: uploadImageTime,
                 };
               } else {
                 return {
-                  index,
+                  originalIndex: index,
                   success: false,
                   error: "无法获取 URL",
                   time: uploadImageTime,
@@ -206,9 +211,9 @@ export async function POST(request: NextRequest) {
             })
             .catch((uploadError: any) => {
               const uploadImageTime = ((Date.now() - uploadImageStart) / 1000).toFixed(2);
-              console.error(`上传图片 ${index + 1} 失败（耗时: ${uploadImageTime} 秒）:`, uploadError);
+              console.error(`上传图片 ${index + 1} (原始索引: ${index}) 失败（耗时: ${uploadImageTime} 秒）:`, uploadError);
               return {
-                index,
+                originalIndex: index,
                 success: false,
                 error: uploadError.message || "未知错误",
                 time: uploadImageTime,
@@ -220,23 +225,27 @@ export async function POST(request: NextRequest) {
         console.log(`等待 ${uploadPromises.length} 个图片上传任务完成（并行执行）...`);
         const uploadResults = await Promise.all(uploadPromises);
 
-        // 处理上传结果：按照原始顺序收集URL
+        // 处理上传结果：按照原始索引收集URL
         uploadResults.forEach((result) => {
           if (result.success && 'url' in result && result.url) {
-            uploadedImageUrls.push(result.url);
+            uploadedImageUrls.push({ originalIndex: result.originalIndex, url: result.url });
           } else if (!result.success && 'error' in result) {
-            uploadErrors.push(`图片 ${result.index + 1} 上传失败：${result.error}`);
+            uploadErrors.push(`图片 ${result.originalIndex + 1} 上传失败：${result.error}`);
           }
         });
+        
+        // 按原始索引排序
+        uploadedImageUrls.sort((a, b) => a.originalIndex - b.originalIndex);
         
         const uploadTime = ((Date.now() - uploadStart) / 1000).toFixed(2);
         console.log(`图片上传完成，总耗时: ${uploadTime} 秒（并行上传 ${generatedImages.length} 张图片）`);
         console.log(`成功: ${uploadedImageUrls.length} 张，失败: ${uploadErrors.length} 张`);
         
-        // Check if all uploads failed
+        // Check if all uploads failed - but don't throw, just log warning
         if (uploadedImageUrls.length === 0 && generatedImages.length > 0) {
-          console.error("所有图片上传都失败");
-          throw new Error("所有图片上传都失败，请稍后重试");
+          console.error("所有图片上传都失败，但继续处理已生成的图片");
+          // Don't throw error, allow the process to continue with base64 images if needed
+          // But we'll still return an error in the response data
         }
         
         // Warn if some uploads failed
@@ -245,14 +254,23 @@ export async function POST(request: NextRequest) {
         }
       } catch (uploadError: any) {
         const uploadTime = ((Date.now() - uploadStart) / 1000).toFixed(2);
-        console.error(`上传生成的图片到 Aimovely 失败（总耗时: ${uploadTime} 秒）:`, uploadError);
-        // If all uploads failed, throw error instead of returning base64
-        throw new Error(`图片上传失败：${uploadError.message || "未知错误"}`);
+        console.error(`上传生成的图片到 Aimovely 时发生异常（总耗时: ${uploadTime} 秒）:`, uploadError);
+        // Don't throw error, log it and continue with what we have
+        // The uploadedImageUrls array may already contain some successful uploads
+        console.warn("上传过程出现异常，但继续处理已成功上传的图片");
+        uploadErrors.push(`上传过程异常：${uploadError.message || "未知错误"}`);
       }
     } else {
-      // No Aimovely token, throw error
+      // No Aimovely token - this is a configuration issue, but don't fail the whole request
       console.error("未配置 Aimovely token，无法上传图片");
-      throw new Error("未配置图片上传服务，请联系管理员");
+      // Don't throw error, just log and continue
+      // The response will indicate that uploads failed
+    }
+    
+    // If we have generated images but no uploaded URLs, we need to handle this gracefully
+    // For now, we'll continue and let the response indicate the issue
+    if (generatedImages.length > 0 && uploadedImageUrls.length === 0) {
+      console.warn("有生成的图片但上传失败，响应中将不包含图片URL");
     }
 
     // Combine generation errors and upload errors
@@ -260,11 +278,35 @@ export async function POST(request: NextRequest) {
 
     // Prepare response data - only include necessary fields, remove undefined
     // IMPORTANT: Do NOT include base64 image data in response, only URLs
+    // Only include pose descriptions that have successfully generated and uploaded images
+    const successfulPoseDescriptions: PoseDescription[] = [];
+    const successfulImageUrls: string[] = [];
+    
+    uploadedImageUrls.forEach((item) => {
+      // item.originalIndex 对应 poseDescriptions 的索引
+      if (poseDescriptions[item.originalIndex] && item.url) {
+        // Ensure pose description is valid (no undefined or null values)
+        const poseDesc = poseDescriptions[item.originalIndex];
+        if (poseDesc && poseDesc.pose && poseDesc.cameraPosition && poseDesc.composition) {
+          successfulPoseDescriptions.push(poseDesc);
+          successfulImageUrls.push(item.url);
+        } else {
+          console.warn(`Pose ${item.originalIndex + 1} 描述不完整，跳过`);
+        }
+      }
+    });
+    
+    // Ensure we have at least some successful results
+    if (successfulImageUrls.length === 0 && generatedImages.length > 0) {
+      console.warn("⚠️ 所有图片上传失败，但图片已生成。响应中将不包含图片URL。");
+      console.warn("建议：检查 Aimovely 配置或网络连接");
+    }
+    
     const responseData: any = {
       inputImageUrl: uploadedImageUrl || null,
-      poseDescriptions: poseDescriptions, // Keep original full-length descriptions
-      generatedImageUrls: uploadedImageUrls, // Only URLs, no base64 data
-      generatedCount: uploadedImageUrls.length,
+      poseDescriptions: successfulPoseDescriptions, // Only poses with successful images
+      generatedImageUrls: successfulImageUrls, // Only URLs, no base64 data
+      generatedCount: successfulImageUrls.length,
       requestedCount: poseDescriptions.length,
     };
     
@@ -272,6 +314,14 @@ export async function POST(request: NextRequest) {
     if (allErrors.length > 0) {
       responseData.errors = allErrors;
     }
+    
+    // Ensure all fields are properly serializable (no undefined, no circular references)
+    // Remove any undefined values to prevent JSON serialization issues
+    Object.keys(responseData).forEach(key => {
+      if (responseData[key] === undefined) {
+        delete responseData[key];
+      }
+    });
 
     // Calculate total execution time
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -291,13 +341,13 @@ export async function POST(request: NextRequest) {
       
       responseSizeKB = (responseJsonString.length / 1024).toFixed(2);
       
-      console.log(`生成的图片数量: ${uploadedImageUrls.length}`);
-      console.log(`Pose 描述数量: ${poseDescriptions.length}`);
+      console.log(`生成的图片数量: ${successfulImageUrls.length}`);
+      console.log(`Pose 描述数量: ${successfulPoseDescriptions.length} (成功) / ${poseDescriptions.length} (请求)`);
       console.log(`输入图片 URL: ${uploadedImageUrl || 'null'}`);
       
       // Log first few URLs for debugging (only first 50 chars to avoid long URLs)
-      if (uploadedImageUrls.length > 0) {
-        const urlPreview = uploadedImageUrls.slice(0, 3).map(url => 
+      if (successfulImageUrls.length > 0) {
+        const urlPreview = successfulImageUrls.slice(0, 3).map(url => 
           url.length > 50 ? url.substring(0, 50) + '...' : url
         );
         console.log(`生成的图片 URLs (前3个):`, urlPreview);
@@ -334,8 +384,8 @@ export async function POST(request: NextRequest) {
       }
       
       // Check if URLs array is reasonable
-      if (uploadedImageUrls.length > 10) {
-        console.warn(`生成的图片数量较多: ${uploadedImageUrls.length}`);
+      if (successfulImageUrls.length > 10) {
+        console.warn(`生成的图片数量较多: ${successfulImageUrls.length}`);
       }
       
       // Verify response data structure is valid (already serialized above)
@@ -351,7 +401,30 @@ export async function POST(request: NextRequest) {
       console.log("开始创建响应对象...");
       
       // Pre-serialize JSON to check final size and avoid double serialization
-      const responseJsonString = JSON.stringify(responseData);
+      // Use a try-catch to handle any JSON serialization errors
+      let responseJsonString: string;
+      try {
+        responseJsonString = JSON.stringify(responseData);
+      } catch (jsonError: any) {
+        console.error("JSON 序列化失败:", jsonError);
+        console.error("响应数据:", {
+          inputImageUrl: typeof responseData.inputImageUrl,
+          poseDescriptionsCount: responseData.poseDescriptions?.length,
+          generatedImageUrlsCount: responseData.generatedImageUrls?.length,
+          hasErrors: !!responseData.errors,
+        });
+        // Try to create a safe response with minimal data
+        const safeResponseData = {
+          inputImageUrl: responseData.inputImageUrl || null,
+          poseDescriptions: [],
+          generatedImageUrls: [],
+          generatedCount: 0,
+          requestedCount: responseData.requestedCount || 0,
+          errors: [`响应序列化失败: ${jsonError.message || '未知错误'}`],
+        };
+        responseJsonString = JSON.stringify(safeResponseData);
+      }
+      
       const finalResponseSizeKB = (responseJsonString.length / 1024).toFixed(2);
       const finalResponseSizeMB = parseFloat(finalResponseSizeKB) / 1024;
       
@@ -374,7 +447,7 @@ export async function POST(request: NextRequest) {
           'X-Response-Time': `${totalTime}s`,
           'X-Content-Size': `${finalResponseSizeKB}KB`,
           'X-Execution-Time': `${totalTime}s`,
-          'X-Generated-Count': uploadedImageUrls.length.toString(),
+          'X-Generated-Count': successfulImageUrls.length.toString(),
           'X-Requested-Count': poseDescriptions.length.toString(),
         },
       });
@@ -402,7 +475,7 @@ export async function POST(request: NextRequest) {
         name: responseError instanceof Error ? responseError.name : undefined,
         responseDataSize: responseDataSize + ' KB',
         poseDescriptionsCount: poseDescriptions.length,
-        generatedImageUrlsCount: uploadedImageUrls.length,
+        generatedImageUrlsCount: successfulImageUrls.length,
       });
       throw new Error(`创建响应失败: ${responseError instanceof Error ? responseError.message : '未知错误'}`);
     }
