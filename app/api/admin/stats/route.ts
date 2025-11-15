@@ -61,36 +61,70 @@ export async function GET(request: NextRequest) {
 
     const uniqueUsers = new Set(activeUsers?.map(u => u.email).filter(Boolean));
 
-    // 获取用户排名（按任务数量，近7天）
-    const { data: userRankingData } = await supabaseAdminClient
+    // 获取用户排名（历史累计任务数，但只显示最近7天有活动的用户）
+    // 第一步：获取最近7天有活动的用户列表
+    const { data: recentActiveUsers } = await supabaseAdminClient
       .from("generation_tasks")
-      .select("email, username")
+      .select("email")
       .gte("created_at", weekAgo.toISOString())
       .not("email", "is", null);
 
-    const userTaskCounts = userRankingData?.reduce((acc, task) => {
-      const email = task.email;
-      const username = task.username || email;
-      if (email) {
-        if (!acc[email]) {
-          acc[email] = { email, username, count: 0 };
+    const recentActiveEmails = new Set(
+      recentActiveUsers?.map(u => u.email).filter(Boolean) || []
+    );
+
+    let userRanking: Array<{ email: string; username: string; count: number }> = [];
+
+    // 第二步：获取这些用户的历史累计任务数
+    if (recentActiveEmails.size > 0) {
+      // 分批查询，避免 SQL IN 子句过长
+      const emailArray = Array.from(recentActiveEmails);
+      const batchSize = 100;
+      const allUserTasks: Array<{ email: string; username: string | null }> = [];
+
+      for (let i = 0; i < emailArray.length; i += batchSize) {
+        const batch = emailArray.slice(i, i + batchSize);
+        const { data: batchTasks } = await supabaseAdminClient
+          .from("generation_tasks")
+          .select("email, username")
+          .not("email", "is", null)
+          .in("email", batch);
+        
+        if (batchTasks) {
+          allUserTasks.push(...batchTasks);
         }
-        acc[email].count += 1;
       }
-      return acc;
-    }, {} as Record<string, { email: string; username: string; count: number }>) || {};
 
-    const userRanking = Object.values(userTaskCounts)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10); // 取前10名
+      const userTaskCounts = allUserTasks.reduce((acc, task) => {
+        const email = task.email;
+        if (email && recentActiveEmails.has(email)) {
+          const username = task.username || email;
+          if (!acc[email]) {
+            acc[email] = { email, username, count: 0 };
+          }
+          acc[email].count += 1;
+        }
+        return acc;
+      }, {} as Record<string, { email: string; username: string; count: number }>);
 
-    // 获取任务类型分布
-    const { data: taskTypeStats } = await supabaseAdminClient
+      userRanking = Object.values(userTaskCounts)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10); // 取前10名
+    }
+
+    // 获取任务类型分布（使用 count 查询确保准确性）
+    const { data: taskTypeStats, error: taskTypeError } = await supabaseAdminClient
       .from("generation_tasks")
-      .select("task_type", { count: "exact" });
+      .select("task_type");
+
+    if (taskTypeError) {
+      console.error("Error fetching task type stats:", taskTypeError);
+    }
 
     const taskTypeDistribution = taskTypeStats?.reduce((acc, task) => {
-      acc[task.task_type] = (acc[task.task_type] || 0) + 1;
+      if (task.task_type) {
+        acc[task.task_type] = (acc[task.task_type] || 0) + 1;
+      }
       return acc;
     }, {} as Record<string, number>) || {};
 
