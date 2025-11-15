@@ -28,6 +28,7 @@ const navigation = [
   { name: "AI换背景", href: "/background-replace", icon: Palette },
   { name: "Mimic角色替换", href: "/mimic", icon: User },
   { name: "PhotoBooth", href: "/photobooth", icon: Camera },
+  { name: "Snapshot", href: "/snapshot", icon: Camera },
   { name: "视频生成", href: "/video-generation", icon: Video },
   { name: "视频主体替换", href: "/video-subject-replace", icon: Replace },
   { name: "改图转场", href: "/image-transition", icon: Film },

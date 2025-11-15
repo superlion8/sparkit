@@ -48,6 +48,7 @@ const TASK_TYPES = [
   "background_replace",
   "mimic",
   "photobooth",
+  "snapshot",
   "video_generation",
   "video_subject_replace",
   "image_transition",
@@ -78,8 +79,8 @@ const isVideoValue = (value: string) =>
   /\.(mp4|mov|avi|webm)$/i.test(value) ||
   value.includes('static.aimovely.com') && value.includes('video');
 
-// Parse JSON format image URLs (for Mimic and PhotoBooth tasks)
-const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photobooth'; urls: any } | null => {
+// Parse JSON format image URLs (for Mimic, PhotoBooth, and Snapshot tasks)
+const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photobooth' | 'snapshot'; urls: any } | null => {
   if (!url) return null;
   
   // Try to parse as JSON
@@ -92,6 +93,10 @@ const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photo
     // Check if it's a PhotoBooth format
     if (typeof parsed === 'object' && (parsed.input || parsed.poses)) {
       return { type: 'photobooth', urls: parsed };
+    }
+    // Check if it's a Snapshot format
+    if (typeof parsed === 'object' && (parsed.input || parsed.snapshots)) {
+      return { type: 'snapshot', urls: parsed };
     }
   } catch {
     // Not JSON, treat as single URL
@@ -518,6 +523,20 @@ export default function AdminTasksPage() {
                                   )}
                                 </>
                               );
+                            } else if (inputUrls.type === 'snapshot') {
+                              // Snapshot task: show input image
+                              return (
+                                <>
+                                  {inputUrls.urls.input && (
+                                    <DirectMediaDisplay 
+                                      label="输入图片" 
+                                      value={inputUrls.urls.input} 
+                                      type="image" 
+                                      onExpand={() => setModalMedia({ type: 'image', url: inputUrls.urls.input, label: '输入图片' })}
+                                    />
+                                  )}
+                                </>
+                              );
                             } else {
                               // Single image
                               return (
@@ -590,6 +609,25 @@ export default function AdminTasksPage() {
                                           value={url} 
                                           type="image" 
                                           onExpand={() => setModalMedia({ type: 'image', url: url, label: `Pose ${idx + 1}` })}
+                                        />
+                                      ))}
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            } else if (outputUrls.type === 'snapshot') {
+                              // Snapshot task: show snapshot images
+                              return (
+                                <>
+                                  {Array.isArray(outputUrls.urls.snapshots) && outputUrls.urls.snapshots.length > 0 && (
+                                    <div className="space-y-1">
+                                      {outputUrls.urls.snapshots.map((url: string, idx: number) => (
+                                        <DirectMediaDisplay 
+                                          key={idx}
+                                          label={`Snapshot ${idx + 1}`} 
+                                          value={url} 
+                                          type="image" 
+                                          onExpand={() => setModalMedia({ type: 'image', url: url, label: `Snapshot ${idx + 1}` })}
                                         />
                                       ))}
                                     </div>
