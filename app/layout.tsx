@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://creator-ai-toolkit.vercel.app"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://sparkiai.com"),
   openGraph: {
     title: "Sparkit - AI 驱动的创意工具包",
     description: "强大的 AI 图像生成、视频制作和创意工具。轻松创作专业级视觉内容。",
