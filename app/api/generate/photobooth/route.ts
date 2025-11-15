@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 1: 生成5个pose描述（使用 gemini-2.5-flash 文本模型）
+    // Step 1: 生成6个pose描述（使用 gemini-2.5-flash 文本模型）
     console.log("Step 1: 生成pose描述...");
     const step1Start = Date.now();
     const poseDescriptions = await generatePoseDescriptions(
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
       throw new Error("未能解析任何pose描述，请重试");
     }
     
-    if (poseDescriptions.length < 5) {
+    if (poseDescriptions.length < 6) {
       console.warn(`只解析到 ${poseDescriptions.length} 个pose描述，将生成 ${poseDescriptions.length} 张图片`);
     } else {
       console.log(`成功解析 ${poseDescriptions.length} 个pose描述`);
@@ -459,13 +459,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Step 1: 生成5个pose描述（使用 gemini-2.5-flash 文本模型）
+// Step 1: 生成6个pose描述（使用 gemini-2.5-flash 文本模型）
 async function generatePoseDescriptions(
   imageBase64: string,
   mimeType: string,
   apiKey: string
 ): Promise<PoseDescription[]> {
-  const prompt = `你现在是一个专门拍摄ins风格写真照的职业摄影师，请你分析一下这个模特所在的环境、模特的特征还有她现在在做的动作，让她换5个不同的pose，可以把这几个连续的pose发成一个instagram的组图，请你给出这5个pose的指令。
+  const prompt = `你现在是一个专门拍摄ins风格写真照的职业摄影师，请你分析一下这个模特所在的环境、模特的特征还有她现在在做的动作，让她换6个不同的pose，可以把这几个连续的pose发成一个instagram的组图，请你给出这6个pose的指令。
 
 尽量避免指令过于复杂，导致在一张图片里传达了过多的信息、或者让模特做出过于dramatic的姿势，不要改变光影。
 
@@ -499,7 +499,13 @@ async function generatePoseDescriptions(
 
 - Camera Position5:
 
-- Composition5:`;
+- Composition5:
+
+- Pose6:
+
+- Camera Position6:
+
+- Composition6:`;
 
   const contents = [
     {
@@ -1003,7 +1009,7 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
     // Split by Pose markers and try to extract from each section
     const sections = text.split(/(?:^|\n)\s*Pose\s*\d+\s*:?\s*/i).filter(s => s.trim().length > 0);
     
-    for (let i = 0; i < sections.length && i < 5; i++) {
+    for (let i = 0; i < sections.length && i < 6; i++) {
       const section = sections[i];
       const poseData: Partial<PoseDescription> = {};
       
@@ -1036,8 +1042,8 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
     }
   }
   
-  // Limit to 5 poses maximum
-  const finalPoses = poses.slice(0, 5);
+  // Limit to 6 poses maximum
+  const finalPoses = poses.slice(0, 6);
   console.log(`成功解析 ${finalPoses.length} 个pose描述`);
   
   if (finalPoses.length === 0) {
