@@ -151,10 +151,35 @@ export default function PhotoBoothPage() {
         if (!responseText) {
           throw new Error("服务器返回空响应");
         }
+        
+        // Log response text length and preview for debugging
+        console.log(`收到响应，长度: ${responseText.length} 字符`);
+        if (responseText.length > 5000) {
+          console.log(`响应文本过长，预览前500字符: ${responseText.substring(0, 500)}...`);
+          console.log(`响应文本预览 (位置4000-4500): ${responseText.substring(4000, 4500)}`);
+          console.log(`响应文本最后500字符: ${responseText.substring(responseText.length - 500)}`);
+        }
+        
         try {
           data = JSON.parse(responseText);
-        } catch (parseError) {
-          console.error("JSON 解析失败，响应文本:", responseText.substring(0, 500));
+        } catch (parseError: any) {
+          console.error("JSON 解析失败:", parseError);
+          console.error("错误位置:", parseError.message);
+          
+          // Try to find the problematic position
+          if (parseError.message?.includes('position')) {
+            const match = parseError.message.match(/position (\d+)/);
+            if (match) {
+              const pos = parseInt(match[1]);
+              const start = Math.max(0, pos - 100);
+              const end = Math.min(responseText.length, pos + 100);
+              console.error(`问题位置附近的文本 (${start}-${end}):`, responseText.substring(start, end));
+            }
+          }
+          
+          // Log full response for debugging (first 2000 chars)
+          console.error("响应文本前2000字符:", responseText.substring(0, 2000));
+          
           throw new Error(`响应解析失败: ${parseError instanceof Error ? parseError.message : '未知错误'}`);
         }
       } catch (parseError: any) {

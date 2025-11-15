@@ -282,13 +282,36 @@ export async function POST(request: NextRequest) {
     const successfulPoseDescriptions: PoseDescription[] = [];
     const successfulImageUrls: string[] = [];
     
+    // Helper function to sanitize strings for JSON serialization
+    const sanitizeString = (str: string | null | undefined): string => {
+      if (!str) return "";
+      // Remove or escape problematic characters that could break JSON
+      // Replace unescaped newlines with spaces
+      let sanitized = str.replace(/\r\n/g, " ").replace(/\n/g, " ").replace(/\r/g, " ");
+      // Remove null bytes and control characters (except normal whitespace)
+      sanitized = sanitized.replace(/[\x00-\x1F\x7F]/g, " ");
+      // Normalize whitespace
+      sanitized = sanitized.replace(/\s+/g, " ").trim();
+      // Limit length to prevent extremely long strings
+      if (sanitized.length > 1000) {
+        sanitized = sanitized.substring(0, 997) + "...";
+      }
+      return sanitized;
+    };
+
     uploadedImageUrls.forEach((item) => {
       // item.originalIndex 对应 poseDescriptions 的索引
       if (poseDescriptions[item.originalIndex] && item.url) {
         // Ensure pose description is valid (no undefined or null values)
         const poseDesc = poseDescriptions[item.originalIndex];
         if (poseDesc && poseDesc.pose && poseDesc.cameraPosition && poseDesc.composition) {
-          successfulPoseDescriptions.push(poseDesc);
+          // Sanitize pose description strings to prevent JSON serialization issues
+          const sanitizedPoseDesc: PoseDescription = {
+            pose: sanitizeString(poseDesc.pose),
+            cameraPosition: sanitizeString(poseDesc.cameraPosition),
+            composition: sanitizeString(poseDesc.composition),
+          };
+          successfulPoseDescriptions.push(sanitizedPoseDesc);
           successfulImageUrls.push(item.url);
         } else {
           console.warn(`Pose ${item.originalIndex + 1} 描述不完整，跳过`);
@@ -302,26 +325,23 @@ export async function POST(request: NextRequest) {
       console.warn("建议：检查 Aimovely 配置或网络连接");
     }
     
+    // Ensure all fields are properly serializable (no undefined, no circular references)
+    // Clean and validate all string fields
     const responseData: any = {
       inputImageUrl: uploadedImageUrl || null,
-      poseDescriptions: successfulPoseDescriptions, // Only poses with successful images
+      poseDescriptions: successfulPoseDescriptions, // Only poses with successful images (already sanitized)
       generatedImageUrls: successfulImageUrls, // Only URLs, no base64 data
       generatedCount: successfulImageUrls.length,
       requestedCount: poseDescriptions.length,
     };
     
-    // Only include errors if there are any (avoid undefined in JSON)
+    // Only include errors if there are any (sanitize error messages)
     if (allErrors.length > 0) {
-      responseData.errors = allErrors;
+      responseData.errors = allErrors.map((err: string) => {
+        // Sanitize error messages to prevent JSON serialization issues
+        return sanitizeString(err);
+      });
     }
-    
-    // Ensure all fields are properly serializable (no undefined, no circular references)
-    // Remove any undefined values to prevent JSON serialization issues
-    Object.keys(responseData).forEach(key => {
-      if (responseData[key] === undefined) {
-        delete responseData[key];
-      }
-    });
 
     // Calculate total execution time
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -404,25 +424,62 @@ export async function POST(request: NextRequest) {
       // Use a try-catch to handle any JSON serialization errors
       let responseJsonString: string;
       try {
-        responseJsonString = JSON.stringify(responseData);
+        // Validate response data before serialization
+        const validatedData = {
+          inputImageUrl: responseData.inputImageUrl || null,
+          poseDescriptions: (responseData.poseDescriptions || []).map((pose: PoseDescription) => ({
+            pose: sanitizeString(pose.pose),
+            cameraPosition: sanitizeString(pose.cameraPosition),
+            composition: sanitizeString(pose.composition),
+          })),
+          generatedImageUrls: (responseData.generatedImageUrls || []).filter((url: string) => url && typeof url === 'string'),
+          generatedCount: Number(responseData.generatedCount) || 0,
+          requestedCount: Number(responseData.requestedCount) || 0,
+          ...(responseData.errors && responseData.errors.length > 0 ? {
+            errors: (responseData.errors || []).map((err: string) => sanitizeString(err))
+          } : {})
+        };
+        
+        responseJsonString = JSON.stringify(validatedData);
+        
+        // Test parsing to ensure valid JSON
+        JSON.parse(responseJsonString);
       } catch (jsonError: any) {
         console.error("JSON 序列化失败:", jsonError);
-        console.error("响应数据:", {
+        console.error("错误详情:", {
+          message: jsonError.message,
+          name: jsonError.name,
+          stack: jsonError.stack,
+        });
+        console.error("响应数据结构:", {
           inputImageUrl: typeof responseData.inputImageUrl,
           poseDescriptionsCount: responseData.poseDescriptions?.length,
           generatedImageUrlsCount: responseData.generatedImageUrls?.length,
           hasErrors: !!responseData.errors,
         });
+        
         // Try to create a safe response with minimal data
         const safeResponseData = {
-          inputImageUrl: responseData.inputImageUrl || null,
+          inputImageUrl: null,
           poseDescriptions: [],
           generatedImageUrls: [],
           generatedCount: 0,
-          requestedCount: responseData.requestedCount || 0,
-          errors: [`响应序列化失败: ${jsonError.message || '未知错误'}`],
+          requestedCount: poseDescriptions.length,
+          errors: [`响应序列化失败: ${sanitizeString(jsonError.message || '未知错误')}`],
         };
-        responseJsonString = JSON.stringify(safeResponseData);
+        
+        try {
+          responseJsonString = JSON.stringify(safeResponseData);
+          // Verify it's valid JSON
+          JSON.parse(responseJsonString);
+        } catch (safeError) {
+          console.error("创建安全响应也失败:", safeError);
+          // Last resort: return a simple error message
+          responseJsonString = JSON.stringify({
+            error: "服务器响应序列化失败",
+            details: null,
+          });
+        }
       }
       
       const finalResponseSizeKB = (responseJsonString.length / 1024).toFixed(2);
