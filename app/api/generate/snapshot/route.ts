@@ -66,7 +66,9 @@ export async function POST(request: NextRequest) {
           const uploadResult = await uploadImageToAimovely(
             imageDataUrl,
             aimovelyToken,
-            "snapshot-input"
+            "snapshot-input",
+            aimovelyEmail,
+            aimovelyVcode
           );
           if (uploadResult?.url) {
             uploadedImageUrl = uploadResult.url;
@@ -228,7 +230,7 @@ export async function POST(request: NextRequest) {
     const uploadedFinalImageUrls: Array<{ originalIndex: number; url: string }> = [];
     const uploadErrors: string[] = [];
 
-    if (aimovelyToken) {
+    if (aimovelyToken && aimovelyEmail && aimovelyVcode) {
       try {
         const uploadPromises = finalImages.map((imageItem) => {
           const index = imageItem.index;
@@ -239,7 +241,9 @@ export async function POST(request: NextRequest) {
           return uploadImageToAimovely(
             imageData,
             aimovelyToken!,
-            `snapshot-${index}`
+            `snapshot-${index}`,
+            aimovelyEmail,
+            aimovelyVcode
           )
             .then((uploadResult) => {
               const uploadImageTime = ((Date.now() - uploadImageStart) / 1000).toFixed(2);
@@ -798,26 +802,63 @@ interface UploadResult {
 async function uploadImageToAimovely(
   imageDataUrl: string,
   token: string,
-  filename: string
+  filename: string,
+  email?: string,
+  vcode?: string
 ): Promise<UploadResult | null> {
   try {
-    // Convert data URL to blob
-    const response = await fetch(imageDataUrl);
-    const blob = await response.blob();
+    if (!imageDataUrl.startsWith("data:")) {
+      console.warn("Unsupported image format, expected data URL");
+      return { error: "Invalid image format" };
+    }
+
+    // Parse data URL
+    const [metadata, base64Data] = imageDataUrl.split(",");
+    const mimeMatch = metadata.match(/data:(.*?);base64/);
+    if (!mimeMatch) {
+      console.warn("Failed to parse data URL metadata");
+      return { error: "Failed to parse image data" };
+    }
+
+    const mimeType = mimeMatch[1] || "image/png";
+    const buffer = Buffer.from(base64Data, "base64");
+    const fileName = `snapshot-${filename}-${Date.now()}.${mimeType.split("/")[1] ?? "png"}`;
+
+    const file = new File([buffer], fileName, { type: mimeType });
 
     // Create FormData
     const formData = new FormData();
-    formData.append("file", blob, `${filename}.png`);
-    formData.append("resource_type", "image");
+    formData.append("file", file);
+    formData.append("biz", "external_tool");
 
     // Upload to Aimovely
-    const uploadResponse = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
+    let uploadResponse = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: token, // Use token directly, not Bearer token
       },
       body: formData,
     });
+
+    // If 401, try to refresh token and retry once
+    if (uploadResponse.status === 401 && email && vcode) {
+      console.warn("Aimovely token expired (401), refreshing token and retrying...");
+      const newToken = await fetchAimovelyToken(email, vcode);
+      if (newToken) {
+        // Retry with new token
+        uploadResponse = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
+          method: "POST",
+          headers: {
+            Authorization: newToken,
+          },
+          body: formData,
+        });
+      } else {
+        console.error("Failed to refresh Aimovely token");
+        const errorText = await uploadResponse.text();
+        return { error: `Token refresh failed: ${errorText}` };
+      }
+    }
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text();
