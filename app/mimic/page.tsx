@@ -17,6 +17,7 @@ export default function MimicPage() {
   const [characterImage, setCharacterImage] = useState<File[]>([]);
   const [numImages, setNumImages] = useState(1);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
+  const [keepBackground, setKeepBackground] = useState(true);
   const [loading, setLoading] = useState(false);
   const [captionPrompt, setCaptionPrompt] = useState("");
   const [backgroundImage, setBackgroundImage] = useState<string>("");
@@ -57,6 +58,7 @@ export default function MimicPage() {
       formData.append("characterImage", characterImage[0]);
       formData.append("aspectRatio", aspectRatio);
       formData.append("numImages", numImages.toString());
+      formData.append("keepBackground", keepBackground.toString());
 
       setCurrentStep("正在去掉参考图中的人物...");
 
@@ -247,6 +249,22 @@ export default function MimicPage() {
                   <option value="3:4">3:4 (标准竖屏)</option>
                 </select>
               </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="keepBackground"
+                  checked={keepBackground}
+                  onChange={(e) => setKeepBackground(e.target.checked)}
+                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <label htmlFor="keepBackground" className="text-sm font-medium text-gray-700">
+                  保留参考图背景
+                </label>
+              </div>
+              <p className="text-xs text-gray-500 -mt-4 ml-6">
+                勾选后将使用参考图的背景，取消勾选则只使用场景描述生成背景
+              </p>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
                 <strong>工作流程：</strong>

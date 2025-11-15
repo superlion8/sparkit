@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
     const characterImage = formData.get("characterImage") as File;
     const aspectRatio = formData.get("aspectRatio") as string;
     const numImages = parseInt(formData.get("numImages") as string) || 1;
+    const keepBackground = formData.get("keepBackground") === "true";
 
     if (!referenceImage || !characterImage) {
       return NextResponse.json(
@@ -92,17 +93,24 @@ export async function POST(request: NextRequest) {
     console.log("反推得到的提示词:", captionPrompt);
 
     // Step 2: 去掉人物（使用 gemini-2.5-flash-image 图像生成模型）
-    console.log("Step 2: 去掉人物...");
-    const backgroundImage = await removeCharacter(
-      referenceBase64,
-      referenceImage.type,
-      aspectRatio,
-      apiKey
-    );
-    console.log("背景图生成完成");
+    // Only generate background image if user wants to keep it
+    let backgroundImage: string | null = null;
+    if (keepBackground) {
+      console.log("Step 2: 去掉人物（生成背景图）...");
+      backgroundImage = await removeCharacter(
+        referenceBase64,
+        referenceImage.type,
+        aspectRatio,
+        apiKey
+      );
+      console.log("背景图生成完成");
+    } else {
+      console.log("Step 2: 跳过背景图生成（用户选择不保留背景）");
+    }
 
     // Step 3: 生成最终图片（使用 gemini-2.5-flash-image 图像生成模型）
     console.log("Step 3: 生成最终图片...");
+    console.log(`保留背景图: ${keepBackground}`);
     const finalImages: string[] = [];
     const finalImageErrors: string[] = [];
 
@@ -113,7 +121,7 @@ export async function POST(request: NextRequest) {
         const finalImage = await generateFinalImage(
           characterBase64,
           characterImage.type,
-          backgroundImage,
+          keepBackground ? backgroundImage : null,
           captionPrompt,
           aspectRatio,
           apiKey
@@ -148,15 +156,19 @@ export async function POST(request: NextRequest) {
       try {
         console.log("开始上传生成的图片到 Aimovely...");
         
-        // Upload background image
-        const bgUploadResult = await uploadImageToAimovely(
-          backgroundImage,
-          aimovelyToken,
-          "background"
-        );
-        if (bgUploadResult?.url) {
-          uploadedBackgroundImageUrl = bgUploadResult.url;
-          console.log("背景图上传成功:", uploadedBackgroundImageUrl);
+        // Upload background image only if it was generated
+        if (backgroundImage) {
+          const bgUploadResult = await uploadImageToAimovely(
+            backgroundImage,
+            aimovelyToken,
+            "background"
+          );
+          if (bgUploadResult?.url) {
+            uploadedBackgroundImageUrl = bgUploadResult.url;
+            console.log("背景图上传成功:", uploadedBackgroundImageUrl);
+          }
+        } else {
+          console.log("跳过背景图上传（用户选择不保留背景）");
         }
 
         // Upload final images
@@ -510,45 +522,55 @@ async function removeCharacter(
 async function generateFinalImage(
   characterBase64: string,
   characterMimeType: string,
-  backgroundImage: string,
+  backgroundImage: string | null,
   captionPrompt: string,
   aspectRatio: string | null,
   apiKey: string
 ): Promise<string> {
-  // Convert background image (data URL) back to base64 if needed
-  let backgroundBase64 = backgroundImage;
-  let backgroundMimeType = "image/png";
+  // Build final prompt: take autentic photo of the character, use instagram friendly composition, scene setup from caption prompt
+  const finalPrompt = `take autentic photo of the character, use instagram friendly composition. Shot on the character should have identical face, features, skin tone, hairstyle, body proportions, and vibe. 
 
-  if (backgroundImage.startsWith("data:")) {
-    const parts = backgroundImage.split(",");
-    const metadata = parts[0];
-    backgroundBase64 = parts[1];
-    const mimeMatch = metadata.match(/data:(.*?);base64/);
-    if (mimeMatch) {
-      backgroundMimeType = mimeMatch[1];
+scene setup: ${captionPrompt}`;
+
+  // Build contents array - include background image only if provided
+  const parts: any[] = [
+    {
+      inlineData: {
+        mimeType: characterMimeType,
+        data: characterBase64,
+      },
+    },
+  ];
+
+  // Add background image only if keepBackground is true
+  if (backgroundImage) {
+    // Convert background image (data URL) back to base64 if needed
+    let backgroundBase64 = backgroundImage;
+    let backgroundMimeType = "image/png";
+
+    if (backgroundImage.startsWith("data:")) {
+      const parts = backgroundImage.split(",");
+      const metadata = parts[0];
+      backgroundBase64 = parts[1];
+      const mimeMatch = metadata.match(/data:(.*?);base64/);
+      if (mimeMatch) {
+        backgroundMimeType = mimeMatch[1];
+      }
     }
+
+    parts.push({
+      inlineData: {
+        mimeType: backgroundMimeType,
+        data: backgroundBase64,
+      },
+    });
   }
 
-  // Build final prompt: take autentic photo of the character, use instagram friendly composition, scene setup from caption prompt
-  const finalPrompt = `take autentic photo of the character, use instagram friendly composition. scene setup: ${captionPrompt}`;
+  parts.push({ text: finalPrompt });
 
   const contents = [
     {
-      parts: [
-        {
-          inlineData: {
-            mimeType: characterMimeType,
-            data: characterBase64,
-          },
-        },
-        {
-          inlineData: {
-            mimeType: backgroundMimeType,
-            data: backgroundBase64,
-          },
-        },
-        { text: finalPrompt },
-      ],
+      parts,
     },
   ];
 
