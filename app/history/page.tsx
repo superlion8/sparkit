@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download, X } from "lucide-react";
+import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { downloadImage, downloadVideo } from "@/lib/downloadUtils";
 
 interface GenerationTask {
@@ -42,12 +42,34 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   image_transition_video: "改图转场 - 视频生成",
 };
 
+// Parse JSON format image URLs (for Mimic and PhotoBooth tasks)
+const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photobooth'; urls: any } | null => {
+  if (!url) return null;
+  
+  // Try to parse as JSON
+  try {
+    const parsed = JSON.parse(url);
+    // Check if it's a Mimic format
+    if (typeof parsed === 'object' && (parsed.reference || parsed.character || parsed.background || parsed.final)) {
+      return { type: 'mimic', urls: parsed };
+    }
+    // Check if it's a PhotoBooth format
+    if (typeof parsed === 'object' && (parsed.input || parsed.poses)) {
+      return { type: 'photobooth', urls: parsed };
+    }
+  } catch {
+    // Not JSON, treat as single URL
+  }
+  
+  // Single URL
+  return { type: 'single', urls: url };
+};
+
 export default function HistoryPage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [modalMedia, setModalMedia] = useState<{ type: 'image' | 'video'; url: string; label: string } | null>(null);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
     pageSize: 20,
@@ -120,13 +142,19 @@ export default function HistoryPage() {
   };
 
   const handleDownloadVideo = async (url: string, taskId: string) => {
-    try {
-      console.log('Downloading video:', url);
-      await downloadVideo(url, `video-${taskId}.mp4`);
-    } catch (error) {
-      console.error('Video download error:', error);
-      alert(`视频下载失败: ${error}`);
-    }
+    await downloadVideo(url, `video-${taskId}.mp4`);
+  };
+
+  const handleDownloadAllImages = async (urls: string[], taskId: string, taskType: string) => {
+    // Download all images with delay to avoid browser blocking
+    urls.forEach((url, index) => {
+      setTimeout(() => {
+        const filename = taskType === 'photobooth' 
+          ? `photobooth-pose-${index + 1}-${taskId}.png`
+          : `image-${index + 1}-${taskId}.png`;
+        downloadImage(url, filename);
+      }, index * 200);
+    });
   };
 
   if (authLoading) {
@@ -209,45 +237,91 @@ export default function HistoryPage() {
               >
                 {/* Preview */}
                 <div className="aspect-square bg-gray-100 relative">
-                  {task.output_image_url && (
-                    <div className="w-full h-full relative cursor-pointer group" onClick={() => setModalMedia({ type: 'image', url: task.output_image_url!, label: '生成图片' })}>
-                      <img
-                        src={task.output_image_url}
-                        alt="Generated"
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
-                        <div className="text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                          <ImageIcon className="w-8 h-8" />
+                  {(() => {
+                    const parsedUrls = parseImageUrls(task.output_image_url);
+                    
+                    // Handle PhotoBooth with multiple images
+                    if (parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses) && parsedUrls.urls.poses.length > 0) {
+                      return (
+                        <div className="w-full h-full relative">
+                          <img
+                            src={parsedUrls.urls.poses[0]}
+                            alt="Generated"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              // Fallback if image fails to load
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const parent = target.parentElement;
+                              if (parent) {
+                                parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><div class="text-center"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-xs">图片加载失败</p></div></div>';
+                              }
+                            }}
+                          />
+                          <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                            {parsedUrls.urls.poses.length} 张
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    // Handle Mimic with multiple images
+                    if (parsedUrls?.type === 'mimic') {
+                      const firstImage = parsedUrls.urls.final?.[0] || parsedUrls.urls.background;
+                      if (firstImage) {
+                        const imageCount = (parsedUrls.urls.final?.length || 0) + (parsedUrls.urls.background ? 1 : 0);
+                        return (
+                          <div className="w-full h-full relative">
+                            <img
+                              src={firstImage}
+                              alt="Generated"
+                              className="w-full h-full object-cover"
+                            />
+                            {imageCount > 1 && (
+                              <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                                {imageCount} 张
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                    }
+                    
+                    // Handle single image
+                    if (parsedUrls?.type === 'single' && parsedUrls.urls) {
+                      return (
+                        <img
+                          src={parsedUrls.urls}
+                          alt="Generated"
+                          className="w-full h-full object-cover"
+                        />
+                      );
+                    }
+                    
+                    // Handle video
+                    if (task.output_video_url && !task.output_image_url) {
+                      return (
+                        <video
+                          src={task.output_video_url}
+                          className="w-full h-full object-cover"
+                          controls
+                        />
+                      );
+                    }
+                    
+                    // Empty state
+                    return (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="text-gray-400">
+                          {task.task_type.includes("video") ? (
+                            <Video className="w-12 h-12" />
+                          ) : (
+                            <ImageIcon className="w-12 h-12" />
+                          )}
                         </div>
                       </div>
-                    </div>
-                  )}
-                  {task.output_video_url && !task.output_image_url && (
-                    <div className="w-full h-full relative cursor-pointer group" onClick={() => setModalMedia({ type: 'video', url: task.output_video_url!, label: '生成视频' })}>
-                      <video
-                        src={task.output_video_url}
-                        className="w-full h-full object-cover pointer-events-none"
-                        muted
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
-                        <div className="text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Video className="w-8 h-8" />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {!task.output_image_url && !task.output_video_url && (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <div className="text-gray-400">
-                        {task.task_type.includes("video") ? (
-                          <Video className="w-12 h-12" />
-                        ) : (
-                          <ImageIcon className="w-12 h-12" />
-                        )}
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 {/* Info */}
@@ -263,21 +337,72 @@ export default function HistoryPage() {
 
                   {task.prompt && (
                     <p className="text-sm text-gray-700 mb-3 line-clamp-2">
-                      {task.prompt}
+                      {(() => {
+                        // Try to parse PhotoBooth prompt (JSON format)
+                        if (task.task_type === 'photobooth') {
+                          try {
+                            const poseDescriptions = JSON.parse(task.prompt);
+                            if (Array.isArray(poseDescriptions) && poseDescriptions.length > 0) {
+                              // Display first pose description as preview
+                              const firstPose = poseDescriptions[0];
+                              const preview = `Pose 1: ${firstPose.pose || ''} | Camera: ${firstPose.cameraPosition || ''} | Composition: ${firstPose.composition || ''}`;
+                              return preview.length > 150 ? preview.substring(0, 150) + '...' : preview;
+                            }
+                          } catch {
+                            // If parsing fails, display as is
+                          }
+                        }
+                        // For other task types or if parsing fails, display prompt directly
+                        return task.prompt.length > 150 ? task.prompt.substring(0, 150) + '...' : task.prompt;
+                      })()}
                     </p>
                   )}
 
                   {/* Download buttons */}
                   <div className="flex gap-2">
-                    {task.output_image_url && (
-                      <button
-                        onClick={() => handleDownloadImage(task.output_image_url!, task.task_id)}
-                        className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        图片
-                      </button>
-                    )}
+                    {(() => {
+                      const parsedUrls = parseImageUrls(task.output_image_url);
+                      const imageUrls: string[] = [];
+                      
+                      // Collect all image URLs
+                      if (parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses)) {
+                        imageUrls.push(...parsedUrls.urls.poses);
+                      } else if (parsedUrls?.type === 'mimic') {
+                        if (parsedUrls.urls.background) imageUrls.push(parsedUrls.urls.background);
+                        if (Array.isArray(parsedUrls.urls.final)) {
+                          imageUrls.push(...parsedUrls.urls.final);
+                        }
+                      } else if (parsedUrls?.type === 'single' && parsedUrls.urls) {
+                        imageUrls.push(parsedUrls.urls);
+                      }
+                      
+                      if (imageUrls.length > 0) {
+                        if (imageUrls.length > 1) {
+                          // Multiple images - show download all button
+                          return (
+                            <button
+                              onClick={() => handleDownloadAllImages(imageUrls, task.task_id, task.task_type)}
+                              className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
+                            >
+                              <Download className="w-4 h-4" />
+                              下载全部 ({imageUrls.length}张)
+                            </button>
+                          );
+                        } else {
+                          // Single image
+                          return (
+                            <button
+                              onClick={() => handleDownloadImage(imageUrls[0], task.task_id)}
+                              className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
+                            >
+                              <Download className="w-4 h-4" />
+                              图片
+                            </button>
+                          );
+                        }
+                      }
+                      return null;
+                    })()}
                     {task.output_video_url && (
                       <button
                         onClick={() => handleDownloadVideo(task.output_video_url!, task.task_id)}
@@ -320,38 +445,6 @@ export default function HistoryPage() {
             </div>
           )}
         </>
-      )}
-      
-      {/* 媒体放大模态框 */}
-      {modalMedia && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setModalMedia(null)}>
-          <div className="relative max-w-4xl max-h-[90vh] bg-white rounded-lg overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="absolute top-4 right-4 z-10">
-              <button
-                onClick={() => setModalMedia(null)}
-                className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-all"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">{modalMedia.label}</h3>
-              {modalMedia.type === 'image' ? (
-                <img 
-                  src={modalMedia.url} 
-                  alt={modalMedia.label} 
-                  className="max-w-full max-h-[70vh] object-contain rounded-lg mx-auto"
-                />
-              ) : (
-                <video 
-                  src={modalMedia.url} 
-                  controls 
-                  className="max-w-full max-h-[70vh] object-contain rounded-lg mx-auto"
-                />
-              )}
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
