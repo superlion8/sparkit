@@ -15,7 +15,26 @@ export default function AuthCallbackPage() {
         return;
       }
       const stored = window.sessionStorage.getItem("postLoginRedirect");
-      const next = stored || "/text-to-image";
+      let next = "/text-to-image";
+      
+      if (stored) {
+        try {
+          // Parse the stored URL and extract pathname to use relative path
+          // This ensures we stay on the current domain
+          const storedUrl = new URL(stored);
+          // Use only the pathname to ensure we stay on current domain
+          next = storedUrl.pathname || "/text-to-image";
+          // If the stored URL is the homepage, redirect to text-to-image instead
+          if (next === "/" || next === "") {
+            next = "/text-to-image";
+          }
+        } catch (e) {
+          // If URL parsing fails, use default
+          console.warn("[AuthCallback] Failed to parse stored URL:", stored);
+          next = "/text-to-image";
+        }
+      }
+      
       console.log("[AuthCallback] stored redirect", stored, "->", next);
       window.sessionStorage.removeItem("postLoginRedirect");
       router.replace(next);

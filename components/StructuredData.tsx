@@ -6,7 +6,7 @@ export default function StructuredData() {
     "@type": "WebApplication",
     "name": "Sparkit",
     "description": "AI 驱动的创意工具包，提供强大的图像生成、视频制作和创意工具",
-    "url": process.env.NEXT_PUBLIC_SITE_URL || "https://creator-ai-toolkit.vercel.app",
+    "url": process.env.NEXT_PUBLIC_SITE_URL || "https://sparkiai.com",
     "applicationCategory": "MultimediaApplication",
     "operatingSystem": "Web",
     "offers": {
@@ -33,8 +33,8 @@ export default function StructuredData() {
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "Sparkit",
-    "url": process.env.NEXT_PUBLIC_SITE_URL || "https://creator-ai-toolkit.vercel.app",
-    "logo": `${process.env.NEXT_PUBLIC_SITE_URL || "https://creator-ai-toolkit.vercel.app"}/sparkit.png`,
+    "url": process.env.NEXT_PUBLIC_SITE_URL || "https://sparkiai.com",
+    "logo": `${process.env.NEXT_PUBLIC_SITE_URL || "https://sparkiai.com"}/sparkit.png`,
     "description": "AI 驱动的创意工具包"
   };
 
@@ -45,7 +45,7 @@ export default function StructuredData() {
     "applicationCategory": "MultimediaApplication",
     "operatingSystem": "Web",
     "description": "强大的 AI 图像生成、视频制作和创意工具",
-    "url": process.env.NEXT_PUBLIC_SITE_URL || "https://creator-ai-toolkit.vercel.app",
+    "url": process.env.NEXT_PUBLIC_SITE_URL || "https://sparkiai.com",
     "offers": {
       "@type": "Offer",
       "price": "0",
