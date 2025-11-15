@@ -189,9 +189,10 @@ export default function AdminDashboard({ accessToken }: AdminDashboardProps) {
             </div>
           </div>
 
-          {/* 用户排名 (近7天) */}
+          {/* 用户排名 (历史累计，最近7天有活动) */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-3">用户排名 (近7天)</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-3">用户排名 (历史累计)</h3>
+            <p className="text-xs text-gray-500 mb-2">仅显示最近7天有活动的用户</p>
             <div className="space-y-2">
               {stats.userRanking.slice(0, 8).map((user, index) => (
                 <div key={user.email} className="flex items-center justify-between">
