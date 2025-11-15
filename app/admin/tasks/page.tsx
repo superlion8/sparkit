@@ -478,12 +478,28 @@ export default function AdminTasksPage() {
                                     />
                                   )}
                                   {inputUrls.urls.character && (
-                                    <DirectMediaDisplay 
-                                      label="角色图" 
-                                      value={inputUrls.urls.character} 
-                                      type="image" 
-                                      onExpand={() => setModalMedia({ type: 'image', url: inputUrls.urls.character, label: '角色图' })}
-                                    />
+                                    <>
+                                      {Array.isArray(inputUrls.urls.character) ? (
+                                        // Multiple character images
+                                        inputUrls.urls.character.map((url: string, index: number) => (
+                                          <DirectMediaDisplay 
+                                            key={index}
+                                            label={`角色图 ${index + 1}`} 
+                                            value={url} 
+                                            type="image" 
+                                            onExpand={() => setModalMedia({ type: 'image', url, label: `角色图 ${index + 1}` })}
+                                          />
+                                        ))
+                                      ) : (
+                                        // Single character image (backward compatibility)
+                                        <DirectMediaDisplay 
+                                          label="角色图" 
+                                          value={inputUrls.urls.character} 
+                                          type="image" 
+                                          onExpand={() => setModalMedia({ type: 'image', url: inputUrls.urls.character, label: '角色图' })}
+                                        />
+                                      )}
+                                    </>
                                   )}
                                 </>
                               );
