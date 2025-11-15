@@ -5,7 +5,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
 import { useAuth } from "@/hooks/useAuth";
 import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
-import { Camera, Download } from "lucide-react";
+import { Camera, Download, X, Maximize2 } from "lucide-react";
 import { downloadImage } from "@/lib/downloadUtils";
 
 type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
@@ -26,6 +26,7 @@ export default function PhotoBoothPage() {
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState<string>("");
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
   
   // Use ref to prevent duplicate requests
   const isGeneratingRef = useRef(false);
@@ -239,7 +240,7 @@ export default function PhotoBoothPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Control Panel */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sticky top-6">
@@ -275,9 +276,9 @@ export default function PhotoBoothPage() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
                 <strong>工作流程：</strong>
                 <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
-                  <li>分析图片并生成5个不同的pose描述</li>
+                  <li>分析图片并生成6个不同的pose描述</li>
                   <li>根据每个pose描述生成对应的图片</li>
-                  <li>生成5张Instagram风格的组图</li>
+                  <li>生成6张Instagram风格的组图</li>
                 </ol>
               </div>
 
@@ -301,7 +302,7 @@ export default function PhotoBoothPage() {
         </div>
 
         {/* Results Panel */}
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-2">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">生成结果</h2>
 
@@ -359,9 +360,26 @@ export default function PhotoBoothPage() {
                 {/* Results: Image + Description pairs */}
                 {(generatedImages.length > 0 || poseDescriptions.length > 0) && (
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                      生成结果 ({generatedImages.length}/{poseDescriptions.length > 0 ? poseDescriptions.length : 5})
-                    </h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        生成结果 ({generatedImages.length}/{poseDescriptions.length > 0 ? poseDescriptions.length : 6})
+                      </h3>
+                      {generatedImages.length > 0 && (
+                        <button
+                          onClick={() => {
+                            generatedImages.forEach((url, index) => {
+                              setTimeout(() => {
+                                downloadImage(url, `photobooth-pose-${index + 1}.png`);
+                              }, index * 200); // 延迟下载，避免浏览器阻止多个下载
+                            });
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
+                        >
+                          <Download className="w-4 h-4" />
+                          下载全部 ({generatedImages.length}张)
+                        </button>
+                      )}
+                    </div>
                     <div className="space-y-6">
                       {poseDescriptions.map((pose, index) => {
                         const hasImage = index < generatedImages.length;
@@ -372,18 +390,21 @@ export default function PhotoBoothPage() {
                             key={index}
                             className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm"
                           >
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+                            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-0">
                               {/* Left: Image */}
-                              <div className="bg-gray-50 flex items-center justify-center p-4 min-h-[300px]">
+                              <div className="bg-gray-50 flex items-center justify-center p-6 min-h-[400px]">
                                 {imageUrl ? (
-                                  <div className="relative w-full max-w-md">
+                                  <div className="relative w-full max-w-2xl group cursor-pointer" onClick={() => setSelectedImageIndex(index)}>
                                     <img
                                       src={imageUrl}
                                       alt={`Pose ${index + 1}`}
-                                      className="w-full h-auto rounded-lg shadow-md"
+                                      className="w-full h-auto rounded-lg shadow-lg transition-transform group-hover:scale-[1.02]"
                                     />
-                                    <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                                    <div className="absolute top-3 left-3 bg-black/70 text-white text-xs px-3 py-1.5 rounded-lg font-medium">
                                       Pose {index + 1}
+                                    </div>
+                                    <div className="absolute top-3 right-3 bg-black/70 text-white p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <Maximize2 className="w-4 h-4" />
                                     </div>
                                   </div>
                                 ) : (
@@ -395,9 +416,9 @@ export default function PhotoBoothPage() {
                               </div>
 
                               {/* Right: Description */}
-                              <div className="p-6 flex flex-col justify-center">
-                                <div className="mb-3">
-                                  <h4 className="text-base font-semibold text-gray-900 mb-1">
+                              <div className="p-8 flex flex-col justify-center">
+                                <div className="mb-4">
+                                  <h4 className="text-lg font-semibold text-gray-900 mb-2">
                                     Pose {index + 1} 描述
                                   </h4>
                                   {!hasImage && (
@@ -406,22 +427,22 @@ export default function PhotoBoothPage() {
                                     </span>
                                   )}
                                 </div>
-                                <div className="text-sm text-gray-700 space-y-3">
+                                <div className="text-sm text-gray-700 space-y-4">
                                   <div>
-                                    <div className="font-medium text-gray-900 mb-1">Pose:</div>
+                                    <div className="font-semibold text-gray-900 mb-2">Pose:</div>
                                     <div className="text-gray-600 leading-relaxed">{pose.pose}</div>
                                   </div>
                                   <div>
-                                    <div className="font-medium text-gray-900 mb-1">Camera Position:</div>
+                                    <div className="font-semibold text-gray-900 mb-2">Camera Position:</div>
                                     <div className="text-gray-600 leading-relaxed">{pose.cameraPosition}</div>
                                   </div>
                                   <div>
-                                    <div className="font-medium text-gray-900 mb-1">Composition:</div>
+                                    <div className="font-semibold text-gray-900 mb-2">Composition:</div>
                                     <div className="text-gray-600 leading-relaxed">{pose.composition}</div>
                                   </div>
                                 </div>
                                 {imageUrl && (
-                                  <div className="mt-4">
+                                  <div className="mt-6">
                                     <button
                                       onClick={() => downloadImage(imageUrl, `photobooth-pose-${index + 1}.png`)}
                                       className="inline-flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700 font-medium"
@@ -453,6 +474,32 @@ export default function PhotoBoothPage() {
           </div>
         </div>
       </div>
+
+      {/* Image Modal for Fullscreen View */}
+      {selectedImageIndex !== null && generatedImages[selectedImageIndex] && (
+        <div
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedImageIndex(null)}
+        >
+          <button
+            onClick={() => setSelectedImageIndex(null)}
+            className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors p-2"
+            aria-label="关闭"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <div className="max-w-7xl max-h-full relative" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={generatedImages[selectedImageIndex]}
+              alt={`Pose ${selectedImageIndex + 1}`}
+              className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            />
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-lg text-sm">
+              Pose {selectedImageIndex + 1} / {generatedImages.length}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
