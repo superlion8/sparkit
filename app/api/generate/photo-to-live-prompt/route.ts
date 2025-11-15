@@ -30,27 +30,104 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert image to base64
-    const imageBuffer = await image.arrayBuffer();
-    const imageBase64 = Buffer.from(imageBuffer).toString("base64");
-
     // Prepare the prompt for Gemini
     const promptText = `你是一个专业的摄影师，擅长拍摄适合instagram、tiktok等社交媒体风格的视频。请你基于对图像的理解，给出一段5s的镜头描述，目标是拍摄出一段适合发在instagram上的5s短视频。请直接输出英文描述。`;
 
-    // Build request for Gemini API
-    const contents = [
-      {
-        parts: [
-          {
-            inlineData: {
-              mimeType: image.type,
-              data: imageBase64,
-            },
+    // Try to use Gemini FileData API to avoid base64 token limit
+    // This uploads the file to Gemini first, then uses fileUri instead of base64
+    let contents: any[];
+    const imageBuffer = await image.arrayBuffer();
+    const fileData = Buffer.from(imageBuffer);
+    
+    try {
+      // Step 1: Upload file to Gemini File API
+      const fileUploadResponse = await fetch(
+        `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: {
+            "X-Goog-Upload-Protocol": "resumable",
+            "X-Goog-Upload-Command": "start",
+            "X-Goog-Upload-Header-Content-Length": fileData.length.toString(),
+            "X-Goog-Upload-Header-Content-Type": image.type,
+            "Content-Type": `application/json; charset=utf-8`,
           },
-          { text: promptText },
-        ],
-      },
-    ];
+          body: JSON.stringify({
+            file: {
+              displayName: "photo-to-live-input",
+            },
+          }),
+        }
+      );
+
+      if (!fileUploadResponse.ok) {
+        const errorText = await fileUploadResponse.text();
+        throw new Error(`Gemini file upload start failed: ${fileUploadResponse.status} - ${errorText}`);
+      }
+
+      const uploadUrl = fileUploadResponse.headers.get("X-Goog-Upload-URL");
+      if (!uploadUrl) {
+        throw new Error("未能获取上传 URL");
+      }
+
+      // Step 2: Upload the actual file data
+      const fileUploadResponse2 = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "X-Goog-Upload-Offset": "0",
+          "X-Goog-Upload-Command": "upload, finalize",
+          "Content-Type": image.type,
+          "Content-Length": fileData.length.toString(),
+        },
+        body: fileData,
+      });
+
+      if (!fileUploadResponse2.ok) {
+        const errorText = await fileUploadResponse2.text();
+        throw new Error(`Gemini file data upload failed: ${fileUploadResponse2.status} - ${errorText}`);
+      }
+
+      const fileDataResponse = await fileUploadResponse2.json();
+      const fileUri = fileDataResponse.file?.uri || fileDataResponse.uri;
+
+      if (fileUri) {
+        // Use fileUri instead of base64 to avoid token limit
+        contents = [
+          {
+            parts: [
+              {
+                fileData: {
+                  mimeType: image.type,
+                  fileUri: fileUri,
+                },
+              },
+              { text: promptText },
+            ],
+          },
+        ];
+        console.log("使用 Gemini FileData API (fileUri) - 避免 base64 token 限制");
+      } else {
+        throw new Error("未能获取 fileUri");
+      }
+    } catch (fileError: any) {
+      console.error("使用 Gemini FileData API 失败，回退到 inlineData:", fileError.message);
+      // Fallback to inlineData with base64
+      const imageBase64 = Buffer.from(imageBuffer).toString("base64");
+      contents = [
+        {
+          parts: [
+            {
+              inlineData: {
+                mimeType: image.type,
+                data: imageBase64,
+              },
+            },
+            { text: promptText },
+          ],
+        },
+      ];
+      console.log("使用 inlineData (base64) - 回退方案");
+    }
 
     // Call Gemini API using gemini-2.5-flash model
     const model = "gemini-2.5-flash";
@@ -69,7 +146,7 @@ export async function POST(request: NextRequest) {
             temperature: 0.7,
             topP: 0.8,
             topK: 40,
-            maxOutputTokens: 1024,
+            maxOutputTokens: 2048, // Increased from 1024 to avoid truncation
           },
         }),
       }
@@ -118,6 +195,22 @@ export async function POST(request: NextRequest) {
             prompt += part.text;
           }
         }
+      }
+    }
+
+    if (!prompt) {
+      console.error("未找到生成的prompt");
+      return NextResponse.json(
+        { error: "Gemini 未返回有效的prompt" },
+        { status: 500 }
+      );
+    }
+
+    // Check for MAX_TOKENS finish reason
+    if (data.candidates && data.candidates.length > 0) {
+      const candidate = data.candidates[0];
+      if (candidate.finishReason === "MAX_TOKENS") {
+        console.warn("提示：生成的prompt可能被截断（MAX_TOKENS），但已返回部分内容");
       }
     }
 
