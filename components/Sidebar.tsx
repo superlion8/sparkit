@@ -15,7 +15,8 @@ import {
   History,
   Settings,
   User,
-  Camera
+  Camera,
+  PlayCircle
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,6 +31,7 @@ const navigation = [
   { name: "视频生成", href: "/video-generation", icon: Video },
   { name: "视频主体替换", href: "/video-subject-replace", icon: Replace },
   { name: "改图转场", href: "/image-transition", icon: Film },
+  { name: "Photo to Live", href: "/photo-to-live", icon: PlayCircle },
 ];
 
 // 管理员邮箱列表

@@ -40,6 +40,7 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   video_subject_replace: "视频主体替换",
   image_transition_edit: "改图转场 - 图片编辑",
   image_transition_video: "改图转场 - 视频生成",
+  photo_to_live: "Photo to Live",
 };
 
 // Parse JSON format image URLs (for Mimic and PhotoBooth tasks)
