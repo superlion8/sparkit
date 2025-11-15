@@ -51,6 +51,7 @@ const TASK_TYPES = [
   "video_generation",
   "video_subject_replace",
   "image_transition",
+  "photo_to_live",
 ];
 
 const formatDateTime = (value: string) => {
