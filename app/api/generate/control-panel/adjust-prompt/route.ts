@@ -81,7 +81,7 @@ Output the complete adjusted JSON prompt. Return ONLY valid JSON, no explanation
             temperature: 0.7,
             topP: 0.8,
             topK: 40,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 4096, // Increase to handle larger JSON responses
           },
         }),
       }
