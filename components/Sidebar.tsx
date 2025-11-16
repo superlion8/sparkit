@@ -27,7 +27,7 @@ const imageTools = [
   { name: "文生图", href: "/text-to-image", icon: Image },
   { name: "图像编辑", href: "/image-to-image", icon: ImagePlus },
   { name: "Mimic(洗稿)", href: "/mimic", icon: User },
-  { name: "Control Panel", href: "/control-panel", icon: Settings },
+  { name: "Control Panel(控制面板)", href: "/control-panel", icon: Settings },
   { name: "PhotoBooth(组图)", href: "/photobooth", icon: Camera },
   { name: "Snapshot", href: "/snapshot", icon: Camera },
 ];
