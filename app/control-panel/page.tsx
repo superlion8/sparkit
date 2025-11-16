@@ -105,6 +105,15 @@ export default function ControlPanelPage() {
     camera: "keep",
   });
   const [adjustingPrompt, setAdjustingPrompt] = useState(false);
+  const [variatePrompt, setVariatePrompt] = useState<CaptionPrompt | null>(null);
+  const [variateFields, setVariateFields] = useState({
+    scene: "",
+    subject_desc: "",
+    subject_pose: "",
+    subject_wardrobe: "",
+    environment: "",
+    camera: "",
+  });
   const [finalPromptJson, setFinalPromptJson] = useState<string>("");
   const [finalPromptData, setFinalPromptData] = useState<any>(null);
   
@@ -284,14 +293,20 @@ export default function ControlPanelPage() {
         const data = await response.json();
         const adjustedPrompt = data.adjustedPrompt;
 
-        // Merge adjusted prompt with character description
-        const finalData: any = {
-          ...adjustedPrompt,
-          subject_desc: characterPrompt.subject_desc, // Always use character description
-        };
+        // Set variate prompt and fields for display/editing
+        setVariatePrompt(adjustedPrompt);
+        setVariateFields({
+          scene: adjustedPrompt.scene || "",
+          subject_desc: JSON.stringify(adjustedPrompt.subject_desc || {}, null, 2),
+          subject_pose: adjustedPrompt.subject_pose || "",
+          subject_wardrobe: JSON.stringify(adjustedPrompt.subject_wardrobe || {}, null, 2),
+          environment: JSON.stringify(adjustedPrompt.environment || {}, null, 2),
+          camera: JSON.stringify(adjustedPrompt.camera || {}, null, 2),
+        });
 
-        setFinalPromptData(finalData);
-        setFinalPromptJson(JSON.stringify(finalData, null, 2));
+        // Also set final prompt data (will be updated when user edits variateFields)
+        setFinalPromptData(adjustedPrompt);
+        setFinalPromptJson(JSON.stringify(adjustedPrompt, null, 2));
       } catch (err: any) {
         setError(err.message || "微调 prompt 失败");
         setErrorDetails(err);
@@ -299,7 +314,7 @@ export default function ControlPanelPage() {
         setAdjustingPrompt(false);
       }
     } else {
-      // Build final prompt based on control dimensions (all keep)
+      // All keep - use original prompt with character description
       const finalData: any = {
         scene: updatedCaptionPrompt.scene,
         subject_desc: characterPrompt.subject_desc, // Always use character description
@@ -309,8 +324,47 @@ export default function ControlPanelPage() {
         camera: updatedCaptionPrompt.camera,
       };
 
+      setVariatePrompt(finalData);
+      setVariateFields({
+        scene: finalData.scene || "",
+        subject_desc: JSON.stringify(finalData.subject_desc || {}, null, 2),
+        subject_pose: finalData.subject_pose || "",
+        subject_wardrobe: JSON.stringify(finalData.subject_wardrobe || {}, null, 2),
+        environment: JSON.stringify(finalData.environment || {}, null, 2),
+        camera: JSON.stringify(finalData.camera || {}, null, 2),
+      });
+
       setFinalPromptData(finalData);
       setFinalPromptJson(JSON.stringify(finalData, null, 2));
+    }
+  };
+
+  // Update final prompt when user edits variateFields
+  const updateFinalPromptFromVariateFields = () => {
+    if (!variatePrompt) return;
+
+    try {
+      const finalData: any = {
+        scene: variateFields.scene || variatePrompt.scene,
+        subject_desc: variateFields.subject_desc 
+          ? JSON.parse(variateFields.subject_desc) 
+          : variatePrompt.subject_desc,
+        subject_pose: variateFields.subject_pose || variatePrompt.subject_pose,
+        subject_wardrobe: variateFields.subject_wardrobe
+          ? JSON.parse(variateFields.subject_wardrobe)
+          : variatePrompt.subject_wardrobe,
+        environment: variateFields.environment
+          ? JSON.parse(variateFields.environment)
+          : variatePrompt.environment,
+        camera: variateFields.camera
+          ? JSON.parse(variateFields.camera)
+          : variatePrompt.camera,
+      };
+
+      setFinalPromptData(finalData);
+      setFinalPromptJson(JSON.stringify(finalData, null, 2));
+    } catch (e) {
+      console.error("更新 final prompt 失败:", e);
     }
   };
 
@@ -321,7 +375,34 @@ export default function ControlPanelPage() {
       return;
     }
 
-    if (!finalPromptData) {
+    // Use variateFields if available (user edited), otherwise use finalPromptData
+    let promptToUse = finalPromptData;
+    
+    if (variatePrompt && variateFields) {
+      // Reconstruct from variateFields (user may have edited)
+      try {
+        promptToUse = {
+          scene: variateFields.scene || variatePrompt.scene,
+          subject_desc: variateFields.subject_desc 
+            ? JSON.parse(variateFields.subject_desc) 
+            : variatePrompt.subject_desc,
+          subject_pose: variateFields.subject_pose || variatePrompt.subject_pose,
+          subject_wardrobe: variateFields.subject_wardrobe
+            ? JSON.parse(variateFields.subject_wardrobe)
+            : variatePrompt.subject_wardrobe,
+          environment: variateFields.environment
+            ? JSON.parse(variateFields.environment)
+            : variatePrompt.environment,
+          camera: variateFields.camera
+            ? JSON.parse(variateFields.camera)
+            : variatePrompt.camera,
+        };
+      } catch (e) {
+        console.error("解析 variateFields 失败，使用 finalPromptData:", e);
+      }
+    }
+
+    if (!promptToUse) {
       setError("请先生成最终 prompt");
       return;
     }
@@ -339,7 +420,7 @@ export default function ControlPanelPage() {
     try {
       const formData = new FormData();
       formData.append("characterImage", characterImage[0]);
-      formData.append("finalPromptJson", JSON.stringify(finalPromptData));
+      formData.append("finalPromptJson", JSON.stringify(promptToUse));
 
       const response = await fetch("/api/generate/control-panel/generate", {
         method: "POST",
@@ -586,21 +667,95 @@ export default function ControlPanelPage() {
               )}
             </button>
             
+            {/* Variate Prompt Fields (after generating prompt) */}
+            {variatePrompt && variateFields && (
+              <div className="mt-6 space-y-4 border-t pt-4">
+                <h3 className="text-md font-semibold text-gray-900">微调后的 Prompt (可编辑)</h3>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">场景 (Scene)</label>
+                    <textarea
+                      value={variateFields.scene}
+                      onChange={(e) => {
+                        setVariateFields({ ...variateFields, scene: e.target.value });
+                        updateFinalPromptFromVariateFields();
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                      rows={2}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">人物动作 (Pose)</label>
+                    <textarea
+                      value={variateFields.subject_pose}
+                      onChange={(e) => {
+                        setVariateFields({ ...variateFields, subject_pose: e.target.value });
+                        updateFinalPromptFromVariateFields();
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                      rows={2}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">人物描述 (Subject Desc) - JSON</label>
+                    <textarea
+                      value={variateFields.subject_desc}
+                      onChange={(e) => {
+                        setVariateFields({ ...variateFields, subject_desc: e.target.value });
+                        updateFinalPromptFromVariateFields();
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
+                      rows={4}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">着装 (Wardrobe) - JSON</label>
+                    <textarea
+                      value={variateFields.subject_wardrobe}
+                      onChange={(e) => {
+                        setVariateFields({ ...variateFields, subject_wardrobe: e.target.value });
+                        updateFinalPromptFromVariateFields();
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
+                      rows={4}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">环境 (Environment) - JSON</label>
+                    <textarea
+                      value={variateFields.environment}
+                      onChange={(e) => {
+                        setVariateFields({ ...variateFields, environment: e.target.value });
+                        updateFinalPromptFromVariateFields();
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
+                      rows={4}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">镜头 (Camera) - JSON</label>
+                    <textarea
+                      value={variateFields.camera}
+                      onChange={(e) => {
+                        setVariateFields({ ...variateFields, camera: e.target.value });
+                        updateFinalPromptFromVariateFields();
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
+                      rows={4}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {finalPromptJson && (
               <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">最终 Prompt (可编辑)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">最终 Prompt JSON (预览)</label>
                 <textarea
                   value={finalPromptJson}
-                  onChange={(e) => {
-                    setFinalPromptJson(e.target.value);
-                    try {
-                      setFinalPromptData(JSON.parse(e.target.value));
-                    } catch (err) {
-                      // Invalid JSON, ignore
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
-                  rows={12}
+                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
+                  rows={8}
                 />
               </div>
             )}

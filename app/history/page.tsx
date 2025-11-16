@@ -261,7 +261,7 @@ export default function HistoryPage() {
                         // Single image: use square aspect
                         return (
                           <div className="w-full h-full aspect-square relative">
-                            <img
+                    <img
                               src={parsedUrls.urls.poses[0]}
                               alt="Generated"
                               className="w-full h-full object-cover"
@@ -366,9 +366,9 @@ export default function HistoryPage() {
                           <div className="w-full h-full relative">
                             <img
                               src={firstImage}
-                              alt="Generated"
-                              className="w-full h-full object-cover"
-                            />
+                      alt="Generated"
+                      className="w-full h-full object-cover"
+                    />
                             {imageCount > 1 && (
                               <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
                                 {imageCount} 张
@@ -393,25 +393,25 @@ export default function HistoryPage() {
                     // Handle video
                     if (task.output_video_url && !task.output_image_url) {
                       return (
-                        <video
-                          src={task.output_video_url}
-                          className="w-full h-full object-cover"
-                          controls
-                        />
+                    <video
+                      src={task.output_video_url}
+                      className="w-full h-full object-cover"
+                      controls
+                    />
                       );
                     }
                     
                     // Empty state
                     return (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <div className="text-gray-400">
-                          {task.task_type.includes("video") ? (
-                            <Video className="w-12 h-12" />
-                          ) : (
-                            <ImageIcon className="w-12 h-12" />
-                          )}
-                        </div>
+                    <div className="w-full h-full flex items-center justify-center">
+                      <div className="text-gray-400">
+                        {task.task_type.includes("video") ? (
+                          <Video className="w-12 h-12" />
+                        ) : (
+                          <ImageIcon className="w-12 h-12" />
+                        )}
                       </div>
+                    </div>
                     );
                   })()}
                 </div>
@@ -499,13 +499,13 @@ export default function HistoryPage() {
                         } else {
                           // Single image
                           return (
-                            <button
+                      <button
                               onClick={() => handleDownloadImage(imageUrls[0], task.task_id)}
-                              className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
-                            >
-                              <Download className="w-4 h-4" />
-                              图片
-                            </button>
+                        className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                        图片
+                      </button>
                           );
                         }
                       }

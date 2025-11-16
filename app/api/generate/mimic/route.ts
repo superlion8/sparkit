@@ -12,14 +12,13 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const referenceImage = formData.get("referenceImage") as File;
-    const characterImages = formData.getAll("characterImage") as File[];
+    const characterImage = formData.get("characterImage") as File;
     const aspectRatio = formData.get("aspectRatio") as string;
     const numImages = parseInt(formData.get("numImages") as string) || 1;
-    const keepBackground = formData.get("keepBackground") === "true";
 
-    if (!referenceImage || !characterImages || characterImages.length === 0) {
+    if (!referenceImage || !characterImage) {
       return NextResponse.json(
-        { error: "需要提供参考图和至少一张角色图" },
+        { error: "需要提供参考图和角色图" },
         { status: 400 }
       );
     }
@@ -32,23 +31,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert reference image to base64
+    // Convert images to base64
     const referenceBuffer = await referenceImage.arrayBuffer();
     const referenceBase64 = Buffer.from(referenceBuffer).toString("base64");
-
-    // Convert all character images to base64
-    const characterImagesData: Array<{ base64: string; mimeType: string; file: File }> = [];
-    for (const characterImage of characterImages) {
-      const characterBuffer = await characterImage.arrayBuffer();
-      const characterBase64 = Buffer.from(characterBuffer).toString("base64");
-      characterImagesData.push({
-        base64: characterBase64,
-        mimeType: characterImage.type,
-        file: characterImage,
-      });
-    }
-    
-    console.log(`收到 ${characterImagesData.length} 张角色图`);
+    const characterBuffer = await characterImage.arrayBuffer();
+    const characterBase64 = Buffer.from(characterBuffer).toString("base64");
 
     console.log("=== Mimic Generation Started ===");
 
@@ -57,7 +44,7 @@ export async function POST(request: NextRequest) {
     const aimovelyVcode = process.env.AIMOVELY_VCODE;
     let aimovelyToken: string | null = null;
     let uploadedReferenceImageUrl: string | null = null;
-    const uploadedCharacterImageUrls: string[] = [];
+    let uploadedCharacterImageUrl: string | null = null;
 
     if (aimovelyEmail && aimovelyVcode) {
       try {
@@ -77,19 +64,16 @@ export async function POST(request: NextRequest) {
             console.log("参考图上传成功:", uploadedReferenceImageUrl);
           }
 
-          // Upload all character images
-          for (let i = 0; i < characterImagesData.length; i++) {
-            const characterImageData = characterImagesData[i];
-            const characterDataUrl = `data:${characterImageData.mimeType};base64,${characterImageData.base64}`;
-            const characterUploadResult = await uploadImageToAimovely(
-              characterDataUrl,
-              aimovelyToken,
-              `character-${i}`
-            );
-            if (characterUploadResult?.url) {
-              uploadedCharacterImageUrls.push(characterUploadResult.url);
-              console.log(`角色图 ${i + 1}/${characterImagesData.length} 上传成功:`, characterUploadResult.url);
-            }
+          // Upload character image
+          const characterDataUrl = `data:${characterImage.type};base64,${characterBase64}`;
+          const characterUploadResult = await uploadImageToAimovely(
+            characterDataUrl,
+            aimovelyToken,
+            "character"
+          );
+          if (characterUploadResult?.url) {
+            uploadedCharacterImageUrl = characterUploadResult.url;
+            console.log("角色图上传成功:", uploadedCharacterImageUrl);
           }
         }
       } catch (uploadError) {
@@ -108,24 +92,17 @@ export async function POST(request: NextRequest) {
     console.log("反推得到的提示词:", captionPrompt);
 
     // Step 2: 去掉人物（使用 gemini-2.5-flash-image 图像生成模型）
-    // Only generate background image if user wants to keep it
-    let backgroundImage: string | null = null;
-    if (keepBackground) {
-      console.log("Step 2: 去掉人物（生成背景图）...");
-      backgroundImage = await removeCharacter(
-        referenceBase64,
-        referenceImage.type,
-        aspectRatio,
-        apiKey
-      );
-      console.log("背景图生成完成");
-    } else {
-      console.log("Step 2: 跳过背景图生成（用户选择不保留背景）");
-    }
+    console.log("Step 2: 去掉人物...");
+    const backgroundImage = await removeCharacter(
+      referenceBase64,
+      referenceImage.type,
+      aspectRatio,
+      apiKey
+    );
+    console.log("背景图生成完成");
 
     // Step 3: 生成最终图片（使用 gemini-2.5-flash-image 图像生成模型）
     console.log("Step 3: 生成最终图片...");
-    console.log(`保留背景图: ${keepBackground}`);
     const finalImages: string[] = [];
     const finalImageErrors: string[] = [];
 
@@ -134,8 +111,9 @@ export async function POST(request: NextRequest) {
       try {
         console.log(`正在生成第 ${i + 1}/${numImages} 张图片...`);
         const finalImage = await generateFinalImage(
-          characterImagesData, // Pass all character images
-          keepBackground ? backgroundImage : null,
+          characterBase64,
+          characterImage.type,
+          backgroundImage,
           captionPrompt,
           aspectRatio,
           apiKey
@@ -170,19 +148,15 @@ export async function POST(request: NextRequest) {
       try {
         console.log("开始上传生成的图片到 Aimovely...");
         
-        // Upload background image only if it was generated
-        if (backgroundImage) {
-          const bgUploadResult = await uploadImageToAimovely(
-            backgroundImage,
-            aimovelyToken,
-            "background"
-          );
-          if (bgUploadResult?.url) {
-            uploadedBackgroundImageUrl = bgUploadResult.url;
-            console.log("背景图上传成功:", uploadedBackgroundImageUrl);
-          }
-        } else {
-          console.log("跳过背景图上传（用户选择不保留背景）");
+        // Upload background image
+        const bgUploadResult = await uploadImageToAimovely(
+          backgroundImage,
+          aimovelyToken,
+          "background"
+        );
+        if (bgUploadResult?.url) {
+          uploadedBackgroundImageUrl = bgUploadResult.url;
+          console.log("背景图上传成功:", uploadedBackgroundImageUrl);
         }
 
         // Upload final images
@@ -221,7 +195,7 @@ export async function POST(request: NextRequest) {
       captionPrompt,
       // Input image URLs
       referenceImageUrl: uploadedReferenceImageUrl,
-      characterImageUrls: uploadedCharacterImageUrls,
+      characterImageUrl: uploadedCharacterImageUrl,
       // Generated image URLs
       backgroundImageUrl: uploadedBackgroundImageUrl,
       finalImageUrls: uploadedFinalImageUrls,
@@ -509,24 +483,11 @@ async function removeCharacter(
       console.error("内容被安全过滤阻止:", candidate.finishReason);
       throw new Error("内容被安全过滤阻止，请尝试其他图片");
     }
-    
-    // Handle NO_IMAGE finish reason specifically
-    if (candidate.finishReason === "NO_IMAGE") {
-      console.error("未生成背景图，原因: NO_IMAGE");
-      console.error("Candidate details:", JSON.stringify({
-        finishReason: candidate.finishReason,
-        safetyRatings: candidate.safetyRatings,
-        hasContent: !!candidate.content,
-        partsCount: candidate.content?.parts?.length || 0,
-      }, null, 2));
-      throw new Error("未找到生成的背景图。原因: NO_IMAGE - 可能是输入图片无法识别人物或模型无法去除人物");
-    }
 
     if (candidate.content && candidate.content.parts) {
       for (const part of candidate.content.parts) {
         if (part.inlineData) {
           const dataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          console.log("成功生成背景图（从参考图去除人物）");
           return dataUrl;
         }
       }
@@ -538,96 +499,56 @@ async function removeCharacter(
   const candidate = data.candidates[0];
   if (candidate.finishReason) {
     errorMsg += `。原因: ${candidate.finishReason}`;
-    console.error(`背景图生成失败，finishReason: ${candidate.finishReason}`);
   }
   if (candidate.safetyRatings) {
-    const ratings = candidate.safetyRatings.map((r: any) => {
-      return r.category ? `${r.category}:${r.probability || r.blocked || 'unknown'}` : '';
-    }).filter((r: string) => r).join(', ');
-    if (ratings) {
-      errorMsg += `。安全评级: ${ratings}`;
-      console.error(`背景图生成安全评级: ${ratings}`);
-    }
+    errorMsg += `。安全评级: ${JSON.stringify(candidate.safetyRatings)}`;
   }
-  console.error("背景图生成失败详情:", JSON.stringify({
-    finishReason: candidate.finishReason,
-    safetyRatings: candidate.safetyRatings,
-    hasContent: !!candidate.content,
-    partsCount: candidate.content?.parts?.length || 0,
-  }, null, 2));
   throw new Error(errorMsg);
 }
 
 // Step 3: 生成最终图片（使用 gemini-2.5-flash-image 图像生成模型）
 async function generateFinalImage(
-  characterImagesData: Array<{ base64: string; mimeType: string; file: File }>,
-  backgroundImage: string | null,
+  characterBase64: string,
+  characterMimeType: string,
+  backgroundImage: string,
   captionPrompt: string,
   aspectRatio: string | null,
   apiKey: string
 ): Promise<string> {
-  // Build final prompt: take autentic photo of the character, use instagram friendly composition, scene setup from caption prompt
-  const finalPrompt = `take autentic photo of the character, use instagram friendly composition. Shot on the character should have identical face, features, skin tone, hairstyle, body proportions, and vibe. 
+  // Convert background image (data URL) back to base64 if needed
+  let backgroundBase64 = backgroundImage;
+  let backgroundMimeType = "image/png";
 
-scene setup: ${captionPrompt}
-
-negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorted anatomy, fake portrait-mode blur, CGI/illustration look`;
-
-  // Build contents array - include all character images first
-  // Order: 1. All character images, 2. Background image (if provided), 3. Final prompt
-  const parts: any[] = [];
-  
-  // Add all character images (multiple character images support)
-  console.log(`添加 ${characterImagesData.length} 张角色图到最终生成请求`);
-  for (let i = 0; i < characterImagesData.length; i++) {
-    const characterImageData = characterImagesData[i];
-    parts.push({
-      inlineData: {
-        mimeType: characterImageData.mimeType,
-        data: characterImageData.base64,
-      },
-    });
-    console.log(`  角色图 ${i + 1}/${characterImagesData.length}: ${characterImageData.mimeType}, 大小: ${(characterImageData.base64.length / 1024).toFixed(2)} KB`);
-  }
-
-  // Add background image only if provided (keepBackground is true)
-  if (backgroundImage) {
-    console.log("添加背景图到最终生成请求（从参考图去除人物后的背景图）");
-    // Convert background image (data URL) back to base64 if needed
-    let backgroundBase64 = backgroundImage;
-    let backgroundMimeType = "image/png";
-
-    if (backgroundImage.startsWith("data:")) {
-      const parts = backgroundImage.split(",");
-      const metadata = parts[0];
-      backgroundBase64 = parts[1];
-      const mimeMatch = metadata.match(/data:(.*?);base64/);
-      if (mimeMatch) {
-        backgroundMimeType = mimeMatch[1];
-      }
+  if (backgroundImage.startsWith("data:")) {
+    const parts = backgroundImage.split(",");
+    const metadata = parts[0];
+    backgroundBase64 = parts[1];
+    const mimeMatch = metadata.match(/data:(.*?);base64/);
+    if (mimeMatch) {
+      backgroundMimeType = mimeMatch[1];
     }
-
-    parts.push({
-      inlineData: {
-        mimeType: backgroundMimeType,
-        data: backgroundBase64,
-      },
-    });
-    console.log(`  背景图: ${backgroundMimeType}, 大小: ${(backgroundBase64.length / 1024).toFixed(2)} KB`);
-  } else {
-    console.log("不添加背景图（用户选择不保留背景或背景图生成失败）");
   }
 
-  // Add final prompt
-  parts.push({ text: finalPrompt });
-  console.log(`添加最终 prompt，长度: ${finalPrompt.length} 字符`);
-  
-  // Log final request structure
-  console.log(`最终生成请求包含: ${characterImagesData.length} 张角色图, ${backgroundImage ? '1 张' : '0 张'} 背景图, 1 个 prompt`);
+  // Build final prompt: take autentic photo of the character, use instagram friendly composition, scene setup from caption prompt
+  const finalPrompt = `take autentic photo of the character, use instagram friendly composition. scene setup: ${captionPrompt}`;
 
   const contents = [
     {
-      parts,
+      parts: [
+        {
+          inlineData: {
+            mimeType: characterMimeType,
+            data: characterBase64,
+          },
+        },
+        {
+          inlineData: {
+            mimeType: backgroundMimeType,
+            data: backgroundBase64,
+          },
+        },
+        { text: finalPrompt },
+      ],
     },
   ];
 

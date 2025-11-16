@@ -47,10 +47,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert character image to base64
-    const characterBuffer = await characterImage.arrayBuffer();
-    const characterBase64 = Buffer.from(characterBuffer).toString("base64");
-
     console.log("=== Control Panel: 生成最终图片 ===");
     console.log("Final prompt data:", JSON.stringify(finalPromptData, null, 2));
 
@@ -64,15 +60,76 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
 
     console.log("Final prompt:", finalPrompt);
 
-    // Use Gemini 2.5 Flash Image model to generate image
-    // Use the REST API directly for image generation
+    // Use Gemini File API to avoid base64 token limit
+    const imageBuffer = await characterImage.arrayBuffer();
+    const fileData = Buffer.from(imageBuffer);
+    
+    // Step 1: Upload file to Gemini File API
+    const fileUploadResponse = await fetch(
+      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: {
+          "X-Goog-Upload-Protocol": "resumable",
+          "X-Goog-Upload-Command": "start",
+          "X-Goog-Upload-Header-Content-Length": fileData.length.toString(),
+          "X-Goog-Upload-Header-Content-Type": characterImage.type || "image/jpeg",
+          "Content-Type": `application/json; charset=utf-8`,
+        },
+        body: JSON.stringify({
+          file: {
+            displayName: "control-panel-character-generate",
+          },
+        }),
+      }
+    );
+
+    if (!fileUploadResponse.ok) {
+      const errorText = await fileUploadResponse.text();
+      console.error("Gemini file upload start failed:", errorText);
+      throw new Error(`文件上传失败: ${fileUploadResponse.status}`);
+    }
+
+    const uploadUrl = fileUploadResponse.headers.get("X-Goog-Upload-URL");
+    if (!uploadUrl) {
+      throw new Error("未能获取上传 URL");
+    }
+
+    // Step 2: Upload the actual file data
+    const fileUploadResponse2 = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "X-Goog-Upload-Offset": "0",
+        "X-Goog-Upload-Command": "upload, finalize",
+        "Content-Type": characterImage.type || "image/jpeg",
+        "Content-Length": fileData.length.toString(),
+      },
+      body: fileData,
+    });
+
+    if (!fileUploadResponse2.ok) {
+      const errorText = await fileUploadResponse2.text();
+      console.error("Gemini file data upload failed:", errorText);
+      throw new Error(`文件数据上传失败: ${fileUploadResponse2.status}`);
+    }
+
+    const fileDataResponse = await fileUploadResponse2.json();
+    const fileUri = fileDataResponse.file?.uri || fileDataResponse.uri;
+
+    if (!fileUri) {
+      throw new Error("未能获取文件 URI");
+    }
+
+    console.log("文件上传成功，fileUri:", fileUri);
+
+    // Step 3: Use fileUri in generateContent request
     const contents = [
       {
         parts: [
           {
-            inlineData: {
+            fileData: {
               mimeType: characterImage.type || "image/jpeg",
-              data: characterBase64,
+              fileUri: fileUri,
             },
           },
           { text: finalPrompt },
@@ -164,6 +221,8 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
           console.log("开始上传图片到 Aimovely...");
           
           // Upload character image
+          const characterBuffer = await characterImage.arrayBuffer();
+          const characterBase64 = Buffer.from(characterBuffer).toString("base64");
           const characterDataUrl = `data:${characterImage.type};base64,${characterBase64}`;
           const characterUploadResult = await uploadImageToAimovely(
             characterDataUrl,
@@ -191,6 +250,10 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
         // Continue with base64 images
       }
     }
+
+    // Get character image base64 for response
+    const characterBuffer = await characterImage.arrayBuffer();
+    const characterBase64 = Buffer.from(characterBuffer).toString("base64");
 
     return NextResponse.json({
       finalImageUrl: uploadedFinalImageUrl || generatedImage,

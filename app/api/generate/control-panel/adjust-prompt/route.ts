@@ -44,23 +44,40 @@ export async function POST(request: NextRequest) {
       adjustParts.push("camera");
     }
 
-    // Build a more structured prompt
-    const originalPromptStr = JSON.stringify(captionPromptJson, null, 2);
-    const characterDescStr = JSON.stringify(characterPromptJson, null, 2);
+    // Build prompt according to new requirements
+    // Always use character description for subject_desc
+    const characterDesc = characterPromptJson.subject_desc || characterPromptJson;
     
-    const prompt = `You are an AI assistant that adjusts image generation prompts.
+    // Create a copy of captionPromptJson and replace subject_desc with character description
+    const captionPromptWithCharacter = {
+      ...captionPromptJson,
+      subject_desc: characterDesc,
+    };
+    
+    const originalPromptStr = JSON.stringify(captionPromptWithCharacter, null, 2);
+    const characterDescStr = JSON.stringify(characterDesc, null, 2);
+    
+    // Map adjust parts to Chinese names for prompt
+    const adjustPartsMap: Record<string, string> = {
+      "subject_pose": "pose",
+      "subject_wardrobe": "wardrobe",
+      "environment": "environment",
+      "camera": "camera",
+    };
+    
+    const adjustPartsChinese = adjustParts.map(part => adjustPartsMap[part] || part).join("和");
+    
+    const prompt = `你是一个人像拍摄大师，擅长拍摄适合instagram的人像照片。
 
-Original prompt (JSON):
-${originalPromptStr}
+你要拍的角色是${characterDescStr}，参考的图像是${originalPromptStr}。
 
-Character description (JSON):
-${characterDescStr}
+现在，你的用户想要调整${originalPromptStr}中的${adjustPartsChinese}，请你不要修改${originalPromptStr}中的其他部分，重新输出一个包含${characterDescStr}信息的完整JSON prompt。
 
-Adjust these fields based on the character description: ${adjustParts.join(", ")}
+输出格式必须和原始prompt完全一致，包含所有字段：scene, subject_desc, subject_pose, subject_wardrobe, environment, camera。
 
-Keep all other fields exactly the same as the original.
+注意：subject_desc 必须使用角色描述 ${characterDescStr}，不要使用参考图中的 subject_desc。
 
-Output the complete adjusted JSON prompt. Return ONLY valid JSON, no explanations or markdown.`;
+请直接输出JSON格式，不要包含其他文字说明。`;
 
     const contents = [
       {
@@ -295,8 +312,16 @@ Output the complete adjusted JSON prompt. Return ONLY valid JSON, no explanation
     console.log("解析后的JSON字段:", Object.keys(adjustedPrompt));
     console.log("解析后的JSON预览:", JSON.stringify(adjustedPrompt, null, 2).substring(0, 500));
 
+    // Ensure subject_desc always uses character description
+    const finalAdjustedPrompt = {
+      ...adjustedPrompt,
+      subject_desc: characterDesc, // Always use character description
+    };
+
+    console.log("最终返回的 prompt (已替换 subject_desc):", JSON.stringify(finalAdjustedPrompt, null, 2).substring(0, 500));
+
     return NextResponse.json({
-      adjustedPrompt,
+      adjustedPrompt: finalAdjustedPrompt,
     });
   } catch (error: any) {
     console.error("Error in adjust prompt:", error);

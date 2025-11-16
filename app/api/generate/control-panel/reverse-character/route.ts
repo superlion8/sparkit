@@ -26,10 +26,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert image to base64
-    const characterBuffer = await characterImage.arrayBuffer();
-    const characterBase64 = Buffer.from(characterBuffer).toString("base64");
-
     console.log("=== Control Panel: 反推 Character 图描述 ===");
 
     const prompt = `用英文反推下这张图片的提示词，用以下json格式来输出：
@@ -47,13 +43,76 @@ export async function POST(request: NextRequest) {
 
 请直接输出JSON格式，不要包含其他文字说明。`;
 
+    // Use Gemini File API to avoid base64 token limit
+    const imageBuffer = await characterImage.arrayBuffer();
+    const fileData = Buffer.from(imageBuffer);
+    
+    // Step 1: Upload file to Gemini File API
+    const fileUploadResponse = await fetch(
+      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: {
+          "X-Goog-Upload-Protocol": "resumable",
+          "X-Goog-Upload-Command": "start",
+          "X-Goog-Upload-Header-Content-Length": fileData.length.toString(),
+          "X-Goog-Upload-Header-Content-Type": characterImage.type || "image/jpeg",
+          "Content-Type": `application/json; charset=utf-8`,
+        },
+        body: JSON.stringify({
+          file: {
+            displayName: "control-panel-character",
+          },
+        }),
+      }
+    );
+
+    if (!fileUploadResponse.ok) {
+      const errorText = await fileUploadResponse.text();
+      console.error("Gemini file upload start failed:", errorText);
+      throw new Error(`文件上传失败: ${fileUploadResponse.status}`);
+    }
+
+    const uploadUrl = fileUploadResponse.headers.get("X-Goog-Upload-URL");
+    if (!uploadUrl) {
+      throw new Error("未能获取上传 URL");
+    }
+
+    // Step 2: Upload the actual file data
+    const fileUploadResponse2 = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "X-Goog-Upload-Offset": "0",
+        "X-Goog-Upload-Command": "upload, finalize",
+        "Content-Type": characterImage.type || "image/jpeg",
+        "Content-Length": fileData.length.toString(),
+      },
+      body: fileData,
+    });
+
+    if (!fileUploadResponse2.ok) {
+      const errorText = await fileUploadResponse2.text();
+      console.error("Gemini file data upload failed:", errorText);
+      throw new Error(`文件数据上传失败: ${fileUploadResponse2.status}`);
+    }
+
+    const fileDataResponse = await fileUploadResponse2.json();
+    const fileUri = fileDataResponse.file?.uri || fileDataResponse.uri;
+
+    if (!fileUri) {
+      throw new Error("未能获取文件 URI");
+    }
+
+    console.log("文件上传成功，fileUri:", fileUri);
+
+    // Step 3: Use fileUri in generateContent request
     const contents = [
       {
         parts: [
           {
-            inlineData: {
+            fileData: {
               mimeType: characterImage.type || "image/jpeg",
-              data: characterBase64,
+              fileUri: fileUri,
             },
           },
           { text: prompt },
