@@ -474,37 +474,40 @@ export default function ControlPanelPage() {
         )}
       </div>
 
-      <div className="space-y-8">
-        {/* Block 1: Reverse Caption */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">1. 反推参考图</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left: Image Upload */}
-            <div className="space-y-4">
+      {/* 2x2 Grid Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-200px)]">
+        {/* Top Left: 反推参考图 */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">反推参考图</h2>
+          <div className="flex-1 flex flex-col space-y-4">
+            {/* Image Upload Area */}
+            <div className="flex-shrink-0">
               <ImageUpload
                 maxImages={1}
                 onImagesChange={setReferenceImage}
                 label="上传参考图"
               />
-              <button
-                onClick={handleReverseCaption}
-                disabled={reverseCaptionLoading || referenceImage.length === 0}
-                className="w-full bg-primary-600 text-white py-2 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-              >
-                {reverseCaptionLoading ? (
-                  <>
-                    <Sparkles className="w-4 h-4 animate-spin" />
-                    反推中...
-                  </>
-                ) : (
-                  "反推"
-                )}
-              </button>
             </div>
             
-            {/* Right: Text Fields */}
+            {/* Reverse Button */}
+            <button
+              onClick={handleReverseCaption}
+              disabled={reverseCaptionLoading || referenceImage.length === 0}
+              className="w-full bg-primary-600 text-white py-2 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 flex-shrink-0"
+            >
+              {reverseCaptionLoading ? (
+                <>
+                  <Sparkles className="w-4 h-4 animate-spin" />
+                  反推中...
+                </>
+              ) : (
+                "反推"
+              )}
+            </button>
+            
+            {/* Output Fields - 2 columns, 3 rows */}
             {captionPrompt && (
-              <div className="space-y-3 h-full flex flex-col">
+              <div className="flex-1 grid grid-cols-2 gap-3 overflow-y-auto">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">场景</label>
                   <textarea
@@ -514,12 +517,13 @@ export default function ControlPanelPage() {
                     rows={3}
                   />
                 </div>
-                <div className="flex-1">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">人物样貌描述</label>
                   <textarea
                     value={captionFields.subject_desc}
                     onChange={(e) => setCaptionFields({ ...captionFields, subject_desc: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono h-32"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
+                    rows={3}
                   />
                 </div>
                 <div>
@@ -531,28 +535,31 @@ export default function ControlPanelPage() {
                     rows={3}
                   />
                 </div>
-                <div className="flex-1">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">人物着装</label>
                   <textarea
                     value={captionFields.subject_wardrobe}
                     onChange={(e) => setCaptionFields({ ...captionFields, subject_wardrobe: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono h-32"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
+                    rows={3}
                   />
                 </div>
-                <div className="flex-1">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">环境</label>
                   <textarea
                     value={captionFields.environment}
                     onChange={(e) => setCaptionFields({ ...captionFields, environment: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono h-32"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
+                    rows={3}
                   />
                 </div>
-                <div className="flex-1">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">镜头</label>
                   <textarea
                     value={captionFields.camera}
                     onChange={(e) => setCaptionFields({ ...captionFields, camera: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono h-32"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
+                    rows={3}
                   />
                 </div>
               </div>
@@ -560,287 +567,223 @@ export default function ControlPanelPage() {
           </div>
         </div>
 
-        {/* Block 2: Reverse Character */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">2. 反推角色描述</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left: Image Upload */}
-            <div className="space-y-4">
+        {/* Top Right: 反推角色描述 */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">反推角色描述</h2>
+          <div className="flex-1 flex flex-col space-y-4">
+            {/* Image Upload Area */}
+            <div className="flex-shrink-0">
               <ImageUpload
                 maxImages={1}
                 onImagesChange={setCharacterImage}
                 label="上传角色图"
               />
-              <button
-                onClick={handleReverseCharacter}
-                disabled={reverseCharacterLoading || characterImage.length === 0}
-                className="w-full bg-primary-600 text-white py-2 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-              >
-                {reverseCharacterLoading ? (
-                  <>
-                    <Sparkles className="w-4 h-4 animate-spin" />
-                    反推中...
-                  </>
-                ) : (
-                  "反推"
-                )}
-              </button>
             </div>
             
-            {/* Right: Character Description */}
+            {/* Reverse Button */}
+            <button
+              onClick={handleReverseCharacter}
+              disabled={reverseCharacterLoading || characterImage.length === 0}
+              className="w-full bg-primary-600 text-white py-2 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 flex-shrink-0"
+            >
+              {reverseCharacterLoading ? (
+                <>
+                  <Sparkles className="w-4 h-4 animate-spin" />
+                  反推中...
+                </>
+              ) : (
+                "反推"
+              )}
+            </button>
+            
+            {/* Character Description Field */}
             {characterPrompt && (
-              <div className="h-full">
+              <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">角色描述</label>
                 <textarea
                   value={characterDesc}
                   onChange={(e) => setCharacterDesc(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono h-full min-h-[400px]"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono h-full min-h-[200px]"
                 />
               </div>
             )}
           </div>
         </div>
 
-        {/* Block 3: Control Dimensions */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">3. 控制维度</h2>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">动作</label>
-                <select
-                  value={controlDimensions.pose}
-                  onChange={(e) => setControlDimensions({ ...controlDimensions, pose: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  <option value="keep">保持</option>
-                  <option value="adjust">微调</option>
-                </select>
+        {/* Bottom Left: 控制维度 */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">控制维度</h2>
+          <div className="flex-1 flex flex-col space-y-4">
+            {/* 选择控制哪些 */}
+            <div className="flex-shrink-0">
+              <label className="block text-sm font-medium text-gray-700 mb-2">选择控制哪些</label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">动作</label>
+                  <select
+                    value={controlDimensions.pose}
+                    onChange={(e) => setControlDimensions({ ...controlDimensions, pose: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                  >
+                    <option value="keep">保持</option>
+                    <option value="adjust">微调</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">着装</label>
+                  <select
+                    value={controlDimensions.wardrobe}
+                    onChange={(e) => setControlDimensions({ ...controlDimensions, wardrobe: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                  >
+                    <option value="keep">保持</option>
+                    <option value="adjust">微调</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">环境</label>
+                  <select
+                    value={controlDimensions.environment}
+                    onChange={(e) => setControlDimensions({ ...controlDimensions, environment: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                  >
+                    <option value="keep">保持</option>
+                    <option value="adjust">微调</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">镜头</label>
+                  <select
+                    value={controlDimensions.camera}
+                    onChange={(e) => setControlDimensions({ ...controlDimensions, camera: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                  >
+                    <option value="keep">保持</option>
+                    <option value="adjust">微调</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">着装</label>
-                <select
-                  value={controlDimensions.wardrobe}
-                  onChange={(e) => setControlDimensions({ ...controlDimensions, wardrobe: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  <option value="keep">保持</option>
-                  <option value="adjust">微调</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">环境</label>
-                <select
-                  value={controlDimensions.environment}
-                  onChange={(e) => setControlDimensions({ ...controlDimensions, environment: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  <option value="keep">保持</option>
-                  <option value="adjust">微调</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">镜头</label>
-                <select
-                  value={controlDimensions.camera}
-                  onChange={(e) => setControlDimensions({ ...controlDimensions, camera: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  <option value="keep">保持</option>
-                  <option value="adjust">微调</option>
-                </select>
-              </div>
+              
+              <button
+                onClick={handleGeneratePrompt}
+                disabled={adjustingPrompt || !captionPrompt || !characterPrompt}
+                className="w-full mt-4 bg-primary-600 text-white py-2 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                {adjustingPrompt ? (
+                  <>
+                    <Sparkles className="w-4 h-4 animate-spin" />
+                    微调中...
+                  </>
+                ) : (
+                  "生成 Prompt"
+                )}
+              </button>
             </div>
             
-            <button
-              onClick={handleGeneratePrompt}
-              disabled={adjustingPrompt || !captionPrompt || !characterPrompt}
-              className="w-full bg-primary-600 text-white py-2 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-            >
-              {adjustingPrompt ? (
-                <>
-                  <Sparkles className="w-4 h-4 animate-spin" />
-                  微调中...
-                </>
-              ) : (
-                "生成 Prompt"
-              )}
-            </button>
-            
-            {/* Variate Prompt Fields (after generating prompt) */}
-            {variatePrompt && variateFields && (
-              <div className="mt-6 space-y-4 border-t pt-4">
-                <h3 className="text-md font-semibold text-gray-900">微调后的 Prompt (可编辑)</h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">场景 (Scene)</label>
-                    <textarea
-                      value={variateFields.scene}
-                      onChange={(e) => {
-                        setVariateFields({ ...variateFields, scene: e.target.value });
-                        updateFinalPromptFromVariateFields();
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-                      rows={2}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">人物动作 (Pose)</label>
-                    <textarea
-                      value={variateFields.subject_pose}
-                      onChange={(e) => {
-                        setVariateFields({ ...variateFields, subject_pose: e.target.value });
-                        updateFinalPromptFromVariateFields();
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-                      rows={2}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">人物描述 (Subject Desc) - JSON</label>
-                    <textarea
-                      value={variateFields.subject_desc}
-                      onChange={(e) => {
-                        setVariateFields({ ...variateFields, subject_desc: e.target.value });
-                        updateFinalPromptFromVariateFields();
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
-                      rows={4}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">着装 (Wardrobe) - JSON</label>
-                    <textarea
-                      value={variateFields.subject_wardrobe}
-                      onChange={(e) => {
-                        setVariateFields({ ...variateFields, subject_wardrobe: e.target.value });
-                        updateFinalPromptFromVariateFields();
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
-                      rows={4}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">环境 (Environment) - JSON</label>
-                    <textarea
-                      value={variateFields.environment}
-                      onChange={(e) => {
-                        setVariateFields({ ...variateFields, environment: e.target.value });
-                        updateFinalPromptFromVariateFields();
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
-                      rows={4}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">镜头 (Camera) - JSON</label>
-                    <textarea
-                      value={variateFields.camera}
-                      onChange={(e) => {
-                        setVariateFields({ ...variateFields, camera: e.target.value });
-                        updateFinalPromptFromVariateFields();
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
-                      rows={4}
-                    />
-                  </div>
+            {/* 输出prompt - Large editable field */}
+            <div className="flex-1 flex flex-col">
+              <label className="block text-sm font-medium text-gray-700 mb-1">输出prompt</label>
+              <textarea
+                value={finalPromptJson || ""}
+                onChange={(e) => {
+                  setFinalPromptJson(e.target.value);
+                  try {
+                    setFinalPromptData(JSON.parse(e.target.value));
+                  } catch (err) {
+                    // Invalid JSON, ignore
+                  }
+                }}
+                placeholder={variatePrompt ? "" : "生成 prompt 后将显示在这里，可编辑"}
+                className="flex-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono resize-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Right: 生成结果 */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">生成结果</h2>
+          <div className="flex-1 flex flex-col">
+            {finalImage ? (
+              <div className="flex-1 relative bg-gray-100 rounded-lg overflow-hidden">
+                <img
+                  src={finalImage}
+                  alt="Generated"
+                  className="w-full h-full object-contain"
+                />
+                <button
+                  onClick={() => downloadImage(finalImage, "control-panel-result.png")}
+                  className="absolute top-2 right-2 bg-primary-600 text-white px-3 py-2 rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2 text-sm shadow-lg"
+                >
+                  <Download className="w-4 h-4" />
+                  下载
+                </button>
+              </div>
+            ) : (
+              <div className="flex-1 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
+                <div className="text-center text-gray-400">
+                  <Settings className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">生成结果将显示在这里</p>
+                  <button
+                    onClick={handleGenerate}
+                    disabled={generating || !finalPromptData || characterImage.length === 0}
+                    className="mt-4 bg-primary-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 mx-auto"
+                  >
+                    {generating ? (
+                      <>
+                        <Sparkles className="w-4 h-4 animate-spin" />
+                        生成中...
+                      </>
+                    ) : (
+                      <>
+                        <Settings className="w-4 h-4" />
+                        生成图片
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             )}
-            
-            {finalPromptJson && (
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">最终 Prompt JSON (预览)</label>
-                <textarea
-                  value={finalPromptJson}
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
-                  rows={8}
-                />
-              </div>
-            )}
           </div>
         </div>
-
-        {/* Generate Button */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <button
-            onClick={handleGenerate}
-            disabled={generating || !finalPromptData || characterImage.length === 0}
-            className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-          >
-            {generating ? (
-              <>
-                <Sparkles className="w-5 h-5 animate-spin" />
-                生成中...
-              </>
-            ) : (
-              <>
-                <Settings className="w-5 h-5" />
-                生成图片
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Error Display */}
-        {error && (
-          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0">
-                <svg
-                  className="w-6 h-6 text-red-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-semibold text-red-900 mb-2">错误</h3>
-                <p className="text-red-700 text-sm mb-3 break-words">{error}</p>
-                {errorDetails && (
-                  <div className="mt-3">
-                    <div className="text-xs font-medium text-red-700 mb-2">详情：</div>
-                    <div className="mt-2 p-3 bg-red-100 rounded text-red-900 overflow-x-auto max-h-64 overflow-y-auto">
-                      <pre className="text-xs whitespace-pre-wrap break-words">
-                        {JSON.stringify(errorDetails, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Result Display */}
-        {finalImage && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">生成结果</h2>
-            <div className="relative bg-gray-100 rounded-lg overflow-hidden">
-              <img
-                src={finalImage}
-                alt="Generated"
-                className="w-full h-auto object-contain"
-              />
-              <button
-                onClick={() => downloadImage(finalImage, "control-panel-result.png")}
-                className="absolute top-2 right-2 bg-primary-600 text-white px-3 py-2 rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2 text-sm"
-              >
-                <Download className="w-4 h-4" />
-                下载
-              </button>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Error Display - Full width below grid */}
+      {error && (
+        <div className="mt-6 bg-red-50 border-2 border-red-300 rounded-xl p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <svg
+                className="w-6 h-6 text-red-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-lg font-semibold text-red-900 mb-2">错误</h3>
+              <p className="text-red-700 text-sm mb-3 break-words">{error}</p>
+              {errorDetails && (
+                <div className="mt-3">
+                  <div className="text-xs font-medium text-red-700 mb-2">详情：</div>
+                  <div className="mt-2 p-3 bg-red-100 rounded text-red-900 overflow-x-auto max-h-64 overflow-y-auto">
+                    <pre className="text-xs whitespace-pre-wrap break-words">
+                      {JSON.stringify(errorDetails, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
