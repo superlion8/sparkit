@@ -680,44 +680,46 @@ export default function ControlPanelPage() {
               </button>
             </div>
             
-            {/* 输出prompt - Show individual fields first, then summary */}
+            {/* 输出prompt - Show individual fields in boxes, then summary */}
             <div className="flex-1 flex flex-col space-y-3 overflow-y-auto">
               {variatePrompt && variateFields && (
                 <>
-                  {/* Individual Fields */}
+                  {/* Individual Fields - 6 boxes in 2 rows of 3 */}
                   <div className="space-y-2 flex-shrink-0">
                     <h3 className="text-sm font-semibold text-gray-700">细分值：</h3>
-                    <div className="grid grid-cols-1 gap-2 text-xs">
-                      <div>
-                        <span className="font-medium text-gray-600">场景：</span>
-                        <span className="text-gray-800 ml-1">{variateFields.scene || "-"}</span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {/* Row 1 */}
+                      <div className="border border-gray-300 rounded-lg p-2 bg-white">
+                        <div className="text-xs font-medium text-gray-600 mb-1">场景</div>
+                        <div className="text-xs text-gray-800 break-words">{variateFields.scene || "-"}</div>
                       </div>
-                      <div>
-                        <span className="font-medium text-gray-600">人物动作：</span>
-                        <span className="text-gray-800 ml-1">{variateFields.subject_pose || "-"}</span>
+                      <div className="border border-gray-300 rounded-lg p-2 bg-white">
+                        <div className="text-xs font-medium text-gray-600 mb-1">人物样貌描述</div>
+                        <pre className="text-xs text-gray-800 whitespace-pre-wrap break-words font-mono">{variateFields.subject_desc || "-"}</pre>
                       </div>
-                      <div>
-                        <span className="font-medium text-gray-600">人物描述：</span>
-                        <pre className="text-gray-800 ml-1 whitespace-pre-wrap break-words text-xs font-mono bg-gray-50 p-1 rounded">{variateFields.subject_desc || "-"}</pre>
+                      <div className="border border-gray-300 rounded-lg p-2 bg-white">
+                        <div className="text-xs font-medium text-gray-600 mb-1">人物动作</div>
+                        <div className="text-xs text-gray-800 break-words">{variateFields.subject_pose || "-"}</div>
                       </div>
-                      <div>
-                        <span className="font-medium text-gray-600">着装：</span>
-                        <pre className="text-gray-800 ml-1 whitespace-pre-wrap break-words text-xs font-mono bg-gray-50 p-1 rounded">{variateFields.subject_wardrobe || "-"}</pre>
+                      {/* Row 2 */}
+                      <div className="border border-gray-300 rounded-lg p-2 bg-white">
+                        <div className="text-xs font-medium text-gray-600 mb-1">人物着装</div>
+                        <pre className="text-xs text-gray-800 whitespace-pre-wrap break-words font-mono">{variateFields.subject_wardrobe || "-"}</pre>
                       </div>
-                      <div>
-                        <span className="font-medium text-gray-600">环境：</span>
-                        <pre className="text-gray-800 ml-1 whitespace-pre-wrap break-words text-xs font-mono bg-gray-50 p-1 rounded">{variateFields.environment || "-"}</pre>
+                      <div className="border border-gray-300 rounded-lg p-2 bg-white">
+                        <div className="text-xs font-medium text-gray-600 mb-1">环境</div>
+                        <pre className="text-xs text-gray-800 whitespace-pre-wrap break-words font-mono">{variateFields.environment || "-"}</pre>
                       </div>
-                      <div>
-                        <span className="font-medium text-gray-600">镜头：</span>
-                        <pre className="text-gray-800 ml-1 whitespace-pre-wrap break-words text-xs font-mono bg-gray-50 p-1 rounded">{variateFields.camera || "-"}</pre>
+                      <div className="border border-gray-300 rounded-lg p-2 bg-white">
+                        <div className="text-xs font-medium text-gray-600 mb-1">镜头</div>
+                        <pre className="text-xs text-gray-800 whitespace-pre-wrap break-words font-mono">{variateFields.camera || "-"}</pre>
                       </div>
                     </div>
                   </div>
                   
                   {/* Summary Prompt */}
                   <div className="flex-1 flex flex-col min-h-[300px]">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">汇总 prompt：</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">final prompt</label>
                     <textarea
                       value={finalPromptJson || ""}
                       onChange={(e) => {

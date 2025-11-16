@@ -67,15 +67,28 @@ export async function POST(request: NextRequest) {
     
     const adjustPartsChinese = adjustParts.map(part => adjustPartsMap[part] || part).join("和");
     
+    // Build explicit field list for adjustment
+    const adjustFieldsList = adjustParts.map(part => {
+      if (part === "subject_pose") return "subject_pose (人物动作)";
+      if (part === "subject_wardrobe") return "subject_wardrobe (人物着装)";
+      if (part === "environment") return "environment (环境)";
+      if (part === "camera") return "camera (镜头)";
+      return part;
+    }).join("、");
+    
     const prompt = `你是一个人像拍摄大师，擅长拍摄适合instagram的人像照片。
 
 你要拍的角色是${characterDescStr}，参考的图像是${originalPromptStr}。
 
-现在，你的用户想要调整${originalPromptStr}中的${adjustPartsChinese}，请你不要修改${originalPromptStr}中的其他部分，重新输出一个包含${characterDescStr}信息的完整JSON prompt。
+现在，你的用户想要调整以下字段：${adjustFieldsList}。
 
-输出格式必须和原始prompt完全一致，包含所有字段：scene, subject_desc, subject_pose, subject_wardrobe, environment, camera。
+请根据角色描述 ${characterDescStr} 和参考图像 ${originalPromptStr}，重新生成这些字段的值，使其更适合角色 ${characterDescStr}。
 
-注意：subject_desc 必须使用角色描述 ${characterDescStr}，不要使用参考图中的 subject_desc。
+重要要求：
+1. 只调整以下字段：${adjustFieldsList}
+2. 其他字段（scene, subject_desc等）必须保持与参考图像 ${originalPromptStr} 完全一致
+3. subject_desc 必须使用角色描述 ${characterDescStr}，不要使用参考图中的 subject_desc
+4. 输出格式必须和原始prompt完全一致，包含所有字段：scene, subject_desc, subject_pose, subject_wardrobe, environment, camera
 
 请直接输出JSON格式，不要包含其他文字说明。`;
 
