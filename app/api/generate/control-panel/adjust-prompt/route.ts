@@ -164,6 +164,14 @@ Output the complete adjusted JSON prompt. Return ONLY valid JSON, no explanation
     
     if (jsonMatch) {
       jsonText = jsonMatch[0];
+    } else {
+      // If no JSON found, try to find from first brace to end
+      const firstBrace = jsonText.indexOf('{');
+      if (firstBrace !== -1) {
+        jsonText = jsonText.substring(firstBrace);
+      } else {
+        throw new Error("响应中未找到 JSON 格式的内容");
+      }
     }
 
     // If MAX_TOKENS, try to fix incomplete JSON
