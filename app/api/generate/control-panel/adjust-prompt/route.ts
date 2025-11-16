@@ -215,38 +215,115 @@ Output the complete adjusted JSON prompt. Return ONLY valid JSON, no explanation
       if (isMaxTokens) {
         console.warn("由于 MAX_TOKENS，尝试合并原始 prompt 和部分调整...");
         try {
-          // Try to extract any valid fields from the partial JSON
-          const partialMatch = jsonText.match(/\{[\s\S]*/);
-          if (partialMatch) {
-            // Try to extract individual fields using regex
-            adjustedPrompt = { ...captionPromptJson };
-            
-            // Try to extract specific fields that might be complete
-            const fieldsToExtract = ['scene', 'subject_pose', 'subject_wardrobe', 'environment', 'camera'];
-            for (const field of fieldsToExtract) {
-              const fieldRegex = new RegExp(`"${field}"\\s*:\\s*([^,}]+(?:\\{[^}]*\\})?[^,}]*?)(?:,|\\s*\\})`, 's');
-              const fieldMatch = jsonText.match(fieldRegex);
-              if (fieldMatch) {
-                try {
-                  const fieldValue = JSON.parse(`{${fieldMatch[0]}}`);
-                  if (fieldValue[field] !== undefined) {
-                    adjustedPrompt[field] = fieldValue[field];
-                    console.log(`成功提取字段 ${field}`);
+          // Start with original prompt
+          adjustedPrompt = JSON.parse(JSON.stringify(captionPromptJson)); // Deep copy
+          
+          // Try to extract individual fields from partial JSON using a more robust approach
+          // For simple string fields
+          const stringFields = ['scene', 'subject_pose'];
+          for (const field of stringFields) {
+            const fieldRegex = new RegExp(`"${field}"\\s*:\\s*"([^"]*(?:\\\\.[^"]*)*)"`, 's');
+            const fieldMatch = jsonText.match(fieldRegex);
+            if (fieldMatch && fieldMatch[1]) {
+              try {
+                adjustedPrompt[field] = JSON.parse(`"${fieldMatch[1]}"`);
+                console.log(`成功提取字符串字段 ${field}: ${adjustedPrompt[field].substring(0, 50)}...`);
+              } catch (e) {
+                // Ignore field extraction errors
+              }
+            }
+          }
+          
+          // For complex object fields, try to extract them more carefully
+          const objectFields = ['subject_wardrobe', 'environment', 'camera'];
+          for (const field of objectFields) {
+            // Try to find the field and its value
+            const fieldStart = jsonText.indexOf(`"${field}"`);
+            if (fieldStart !== -1) {
+              // Find the colon after the field name
+              const colonPos = jsonText.indexOf(':', fieldStart);
+              if (colonPos !== -1) {
+                // Try to extract the value - it could be an object or array
+                let braceCount = 0;
+                let bracketCount = 0;
+                let inString = false;
+                let escapeNext = false;
+                let valueStart = colonPos + 1;
+                
+                // Skip whitespace
+                while (valueStart < jsonText.length && /\s/.test(jsonText[valueStart])) {
+                  valueStart++;
+                }
+                
+                const startChar = jsonText[valueStart];
+                if (startChar === '{') {
+                  // Object value
+                  let endPos = valueStart + 1;
+                  braceCount = 1;
+                  while (endPos < jsonText.length && braceCount > 0) {
+                    const char = jsonText[endPos];
+                    if (escapeNext) {
+                      escapeNext = false;
+                    } else if (char === '\\') {
+                      escapeNext = true;
+                    } else if (char === '"') {
+                      inString = !inString;
+                    } else if (!inString) {
+                      if (char === '{') braceCount++;
+                      if (char === '}') braceCount--;
+                    }
+                    endPos++;
                   }
-                } catch (e) {
-                  // Ignore field extraction errors
+                  
+                  if (braceCount === 0) {
+                    const fieldValueStr = jsonText.substring(valueStart, endPos);
+                    try {
+                      const fieldValue = JSON.parse(fieldValueStr);
+                      adjustedPrompt[field] = fieldValue;
+                      console.log(`成功提取对象字段 ${field}`);
+                    } catch (e) {
+                      // Ignore field extraction errors
+                    }
+                  }
+                } else if (startChar === '[') {
+                  // Array value
+                  let endPos = valueStart + 1;
+                  bracketCount = 1;
+                  while (endPos < jsonText.length && bracketCount > 0) {
+                    const char = jsonText[endPos];
+                    if (escapeNext) {
+                      escapeNext = false;
+                    } else if (char === '\\') {
+                      escapeNext = true;
+                    } else if (char === '"') {
+                      inString = !inString;
+                    } else if (!inString) {
+                      if (char === '[') bracketCount++;
+                      if (char === ']') bracketCount--;
+                    }
+                    endPos++;
+                  }
+                  
+                  if (bracketCount === 0) {
+                    const fieldValueStr = jsonText.substring(valueStart, endPos);
+                    try {
+                      const fieldValue = JSON.parse(fieldValueStr);
+                      adjustedPrompt[field] = fieldValue;
+                      console.log(`成功提取数组字段 ${field}`);
+                    } catch (e) {
+                      // Ignore field extraction errors
+                    }
+                  }
                 }
               }
             }
-            
-            // Still validate
-            if (Object.keys(adjustedPrompt).length > 0) {
-              console.log("使用合并后的 prompt");
-            } else {
-              throw new Error("无法从部分响应中提取有效字段");
-            }
+          }
+          
+          // Validate that we got something useful
+          if (Object.keys(adjustedPrompt).length > 0) {
+            console.log("使用合并后的 prompt，包含字段:", Object.keys(adjustedPrompt));
           } else {
-            throw new Error("无法找到 JSON 对象");
+            throw new Error("无法从部分响应中提取有效字段");
           }
         } catch (mergeError: any) {
           console.error("合并失败:", mergeError);
