@@ -85,6 +85,7 @@ export default function ControlPanelPage() {
   const [captionPrompt, setCaptionPrompt] = useState<CaptionPrompt | null>(null);
   const [captionFields, setCaptionFields] = useState({
     scene: "",
+    subject_desc: "",
     subject_pose: "",
     subject_wardrobe: "",
     environment: "",
@@ -103,6 +104,7 @@ export default function ControlPanelPage() {
     environment: "keep",
     camera: "keep",
   });
+  const [adjustingPrompt, setAdjustingPrompt] = useState(false);
   const [finalPromptJson, setFinalPromptJson] = useState<string>("");
   const [finalPromptData, setFinalPromptData] = useState<any>(null);
   
@@ -153,6 +155,7 @@ export default function ControlPanelPage() {
       const cp = data.captionPrompt;
       setCaptionFields({
         scene: cp.scene || "",
+        subject_desc: JSON.stringify(cp.subject_desc || {}, null, 2),
         subject_pose: cp.subject_pose || "",
         subject_wardrobe: JSON.stringify(cp.subject_wardrobe || {}, null, 2),
         environment: JSON.stringify(cp.environment || {}, null, 2),
@@ -212,32 +215,103 @@ export default function ControlPanelPage() {
   };
 
   // Block 3: Generate Prompt
-  const handleGeneratePrompt = () => {
+  const handleGeneratePrompt = async () => {
     if (!captionPrompt || !characterPrompt) {
       setError("请先完成参考图和角色图的反推");
       return;
     }
 
-    // Build final prompt based on control dimensions
-    const finalData: any = {
-      scene: captionPrompt.scene,
-      subject_desc: characterPrompt.subject_desc, // Always use character description
-      subject_pose: controlDimensions.pose === "keep" 
-        ? captionPrompt.subject_pose 
-        : captionPrompt.subject_pose + " (slightly adjusted)",
-      subject_wardrobe: controlDimensions.wardrobe === "keep"
-        ? captionPrompt.subject_wardrobe
-        : { ...captionPrompt.subject_wardrobe, adjusted: true },
-      environment: controlDimensions.environment === "keep"
-        ? captionPrompt.environment
-        : { ...captionPrompt.environment, adjusted: true },
-      camera: controlDimensions.camera === "keep"
-        ? captionPrompt.camera
-        : { ...captionPrompt.camera, adjusted: true },
-    };
+    if (!isAuthenticated || !accessToken) {
+      setError("登录后才能使用此功能");
+      promptLogin();
+      return;
+    }
 
-    setFinalPromptData(finalData);
-    setFinalPromptJson(JSON.stringify(finalData, null, 2));
+    // Reconstruct captionPrompt from edited fields
+    let updatedCaptionPrompt: any = { ...captionPrompt };
+    try {
+      if (captionFields.scene) updatedCaptionPrompt.scene = captionFields.scene;
+      if (captionFields.subject_desc) {
+        updatedCaptionPrompt.subject_desc = JSON.parse(captionFields.subject_desc);
+      }
+      if (captionFields.subject_pose) updatedCaptionPrompt.subject_pose = captionFields.subject_pose;
+      if (captionFields.subject_wardrobe) {
+        updatedCaptionPrompt.subject_wardrobe = JSON.parse(captionFields.subject_wardrobe);
+      }
+      if (captionFields.environment) {
+        updatedCaptionPrompt.environment = JSON.parse(captionFields.environment);
+      }
+      if (captionFields.camera) {
+        updatedCaptionPrompt.camera = JSON.parse(captionFields.camera);
+      }
+    } catch (e) {
+      setError("JSON 格式错误，请检查编辑的字段");
+      return;
+    }
+
+    // Check if any dimension needs adjustment
+    const needsAdjustment = 
+      controlDimensions.pose === "adjust" ||
+      controlDimensions.wardrobe === "adjust" ||
+      controlDimensions.environment === "adjust" ||
+      controlDimensions.camera === "adjust";
+
+    if (needsAdjustment) {
+      // Call API to adjust prompt
+      setAdjustingPrompt(true);
+      setError("");
+      setErrorDetails(null);
+
+      try {
+        const response = await fetch("/api/generate/control-panel/adjust-prompt", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            captionPromptJson: updatedCaptionPrompt,
+            characterPromptJson: characterPrompt,
+            adjustDimensions: controlDimensions,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "微调 prompt 失败");
+        }
+
+        const data = await response.json();
+        const adjustedPrompt = data.adjustedPrompt;
+
+        // Merge adjusted prompt with character description
+        const finalData: any = {
+          ...adjustedPrompt,
+          subject_desc: characterPrompt.subject_desc, // Always use character description
+        };
+
+        setFinalPromptData(finalData);
+        setFinalPromptJson(JSON.stringify(finalData, null, 2));
+      } catch (err: any) {
+        setError(err.message || "微调 prompt 失败");
+        setErrorDetails(err);
+      } finally {
+        setAdjustingPrompt(false);
+      }
+    } else {
+      // Build final prompt based on control dimensions (all keep)
+      const finalData: any = {
+        scene: updatedCaptionPrompt.scene,
+        subject_desc: characterPrompt.subject_desc, // Always use character description
+        subject_pose: updatedCaptionPrompt.subject_pose,
+        subject_wardrobe: updatedCaptionPrompt.subject_wardrobe,
+        environment: updatedCaptionPrompt.environment,
+        camera: updatedCaptionPrompt.camera,
+      };
+
+      setFinalPromptData(finalData);
+      setFinalPromptJson(JSON.stringify(finalData, null, 2));
+    }
   };
 
   // Generate Final Image
@@ -323,29 +397,42 @@ export default function ControlPanelPage() {
         {/* Block 1: Reverse Caption */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">1. 反推参考图</h2>
-          <div className="space-y-4">
-            <ImageUpload
-              maxImages={1}
-              onImagesChange={setReferenceImage}
-              label="上传参考图"
-            />
-            <button
-              onClick={handleReverseCaption}
-              disabled={reverseCaptionLoading || referenceImage.length === 0}
-              className="w-full bg-primary-600 text-white py-2 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-            >
-              {reverseCaptionLoading ? (
-                <>
-                  <Sparkles className="w-4 h-4 animate-spin" />
-                  反推中...
-                </>
-              ) : (
-                "反推"
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left: Image Upload */}
+            <div className="space-y-4">
+              <ImageUpload
+                maxImages={1}
+                onImagesChange={setReferenceImage}
+                label="上传参考图"
+              />
+              <button
+                onClick={handleReverseCaption}
+                disabled={reverseCaptionLoading || referenceImage.length === 0}
+                className="w-full bg-primary-600 text-white py-2 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                {reverseCaptionLoading ? (
+                  <>
+                    <Sparkles className="w-4 h-4 animate-spin" />
+                    反推中...
+                  </>
+                ) : (
+                  "反推"
+                )}
+              </button>
+              {referenceImage.length > 0 && (
+                <div className="mt-4">
+                  <img
+                    src={URL.createObjectURL(referenceImage[0])}
+                    alt="Reference"
+                    className="w-full h-auto rounded-lg border border-gray-200"
+                  />
+                </div>
               )}
-            </button>
+            </div>
             
+            {/* Right: Text Fields */}
             {captionPrompt && (
-              <div className="mt-4 space-y-3">
+              <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">场景</label>
                   <textarea
@@ -353,6 +440,15 @@ export default function ControlPanelPage() {
                     onChange={(e) => setCaptionFields({ ...captionFields, scene: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                     rows={2}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">人物样貌描述</label>
+                  <textarea
+                    value={captionFields.subject_desc}
+                    onChange={(e) => setCaptionFields({ ...captionFields, subject_desc: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
+                    rows={6}
                   />
                 </div>
                 <div>
@@ -399,35 +495,48 @@ export default function ControlPanelPage() {
         {/* Block 2: Reverse Character */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">2. 反推角色描述</h2>
-          <div className="space-y-4">
-            <ImageUpload
-              maxImages={1}
-              onImagesChange={setCharacterImage}
-              label="上传角色图"
-            />
-            <button
-              onClick={handleReverseCharacter}
-              disabled={reverseCharacterLoading || characterImage.length === 0}
-              className="w-full bg-primary-600 text-white py-2 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-            >
-              {reverseCharacterLoading ? (
-                <>
-                  <Sparkles className="w-4 h-4 animate-spin" />
-                  反推中...
-                </>
-              ) : (
-                "反推"
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left: Image Upload */}
+            <div className="space-y-4">
+              <ImageUpload
+                maxImages={1}
+                onImagesChange={setCharacterImage}
+                label="上传角色图"
+              />
+              <button
+                onClick={handleReverseCharacter}
+                disabled={reverseCharacterLoading || characterImage.length === 0}
+                className="w-full bg-primary-600 text-white py-2 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                {reverseCharacterLoading ? (
+                  <>
+                    <Sparkles className="w-4 h-4 animate-spin" />
+                    反推中...
+                  </>
+                ) : (
+                  "反推"
+                )}
+              </button>
+              {characterImage.length > 0 && (
+                <div className="mt-4">
+                  <img
+                    src={URL.createObjectURL(characterImage[0])}
+                    alt="Character"
+                    className="w-full h-auto rounded-lg border border-gray-200"
+                  />
+                </div>
               )}
-            </button>
+            </div>
             
+            {/* Right: Character Description */}
             {characterPrompt && (
-              <div className="mt-4">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">角色描述</label>
                 <textarea
                   value={characterDesc}
                   onChange={(e) => setCharacterDesc(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
-                  rows={6}
+                  rows={12}
                 />
               </div>
             )}
@@ -487,10 +596,17 @@ export default function ControlPanelPage() {
             
             <button
               onClick={handleGeneratePrompt}
-              disabled={!captionPrompt || !characterPrompt}
-              className="w-full bg-primary-600 text-white py-2 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              disabled={adjustingPrompt || !captionPrompt || !characterPrompt}
+              className="w-full bg-primary-600 text-white py-2 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
-              生成 Prompt
+              {adjustingPrompt ? (
+                <>
+                  <Sparkles className="w-4 h-4 animate-spin" />
+                  微调中...
+                </>
+              ) : (
+                "生成 Prompt"
+              )}
             </button>
             
             {finalPromptJson && (
