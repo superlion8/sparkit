@@ -684,8 +684,8 @@ export default function ControlPanelPage() {
             <div className="flex-1 flex flex-col space-y-3">
               {variatePrompt && variateFields && (
                 <>
-                  {/* Individual Fields - 6 boxes in 2 rows of 3 - Fixed height like reference module */}
-                  <div className="h-[300px] flex flex-col space-y-2">
+                  {/* Individual Fields - 6 boxes in 2 rows of 3 - Same height as reference module */}
+                  <div className="flex-1 flex flex-col space-y-2">
                     <h3 className="text-sm font-semibold text-gray-700 flex-shrink-0">细分值：</h3>
                     <div className="flex-1 grid grid-cols-3 gap-2 overflow-y-auto">
                       {/* Row 1 */}
