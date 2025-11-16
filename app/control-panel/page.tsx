@@ -680,22 +680,78 @@ export default function ControlPanelPage() {
               </button>
             </div>
             
-            {/* 输出prompt - Large editable field */}
-            <div className="flex-1 flex flex-col">
-              <label className="block text-sm font-medium text-gray-700 mb-1">输出prompt</label>
-              <textarea
-                value={finalPromptJson || ""}
-                onChange={(e) => {
-                  setFinalPromptJson(e.target.value);
-                  try {
-                    setFinalPromptData(JSON.parse(e.target.value));
-                  } catch (err) {
-                    // Invalid JSON, ignore
-                  }
-                }}
-                placeholder={variatePrompt ? "" : "生成 prompt 后将显示在这里，可编辑"}
-                className="flex-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono resize-none"
-              />
+            {/* 输出prompt - Show individual fields first, then summary */}
+            <div className="flex-1 flex flex-col space-y-3 overflow-y-auto">
+              {variatePrompt && variateFields && (
+                <>
+                  {/* Individual Fields */}
+                  <div className="space-y-2 flex-shrink-0">
+                    <h3 className="text-sm font-semibold text-gray-700">细分值：</h3>
+                    <div className="grid grid-cols-1 gap-2 text-xs">
+                      <div>
+                        <span className="font-medium text-gray-600">场景：</span>
+                        <span className="text-gray-800 ml-1">{variateFields.scene || "-"}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-600">人物动作：</span>
+                        <span className="text-gray-800 ml-1">{variateFields.subject_pose || "-"}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-600">人物描述：</span>
+                        <pre className="text-gray-800 ml-1 whitespace-pre-wrap break-words text-xs font-mono bg-gray-50 p-1 rounded">{variateFields.subject_desc || "-"}</pre>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-600">着装：</span>
+                        <pre className="text-gray-800 ml-1 whitespace-pre-wrap break-words text-xs font-mono bg-gray-50 p-1 rounded">{variateFields.subject_wardrobe || "-"}</pre>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-600">环境：</span>
+                        <pre className="text-gray-800 ml-1 whitespace-pre-wrap break-words text-xs font-mono bg-gray-50 p-1 rounded">{variateFields.environment || "-"}</pre>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-600">镜头：</span>
+                        <pre className="text-gray-800 ml-1 whitespace-pre-wrap break-words text-xs font-mono bg-gray-50 p-1 rounded">{variateFields.camera || "-"}</pre>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Summary Prompt */}
+                  <div className="flex-1 flex flex-col min-h-[300px]">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">汇总 prompt：</label>
+                    <textarea
+                      value={finalPromptJson || ""}
+                      onChange={(e) => {
+                        setFinalPromptJson(e.target.value);
+                        try {
+                          setFinalPromptData(JSON.parse(e.target.value));
+                        } catch (err) {
+                          // Invalid JSON, ignore
+                        }
+                      }}
+                      className="flex-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono resize-none min-h-[300px]"
+                    />
+                  </div>
+                </>
+              )}
+              
+              {!variatePrompt && (
+                <div className="flex-1 flex flex-col min-h-[300px]">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">输出prompt</label>
+                  <textarea
+                    value={finalPromptJson || ""}
+                    onChange={(e) => {
+                      setFinalPromptJson(e.target.value);
+                      try {
+                        setFinalPromptData(JSON.parse(e.target.value));
+                      } catch (err) {
+                        // Invalid JSON, ignore
+                      }
+                    }}
+                    placeholder="生成 prompt 后将显示在这里，可编辑"
+                    className="flex-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono resize-none min-h-[300px]"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
