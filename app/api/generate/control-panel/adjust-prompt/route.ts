@@ -44,24 +44,23 @@ export async function POST(request: NextRequest) {
       adjustParts.push("camera");
     }
 
-    const prompt = `You are an AI assistant that adjusts image generation prompts. 
+    // Build a more structured prompt
+    const originalPromptStr = JSON.stringify(captionPromptJson, null, 2);
+    const characterDescStr = JSON.stringify(characterPromptJson, null, 2);
+    
+    const prompt = `You are an AI assistant that adjusts image generation prompts.
 
-Given:
-1. Original reference image prompt (JSON format): ${JSON.stringify(captionPromptJson)}
-2. Character description (JSON format): ${JSON.stringify(characterPromptJson)}
-3. Dimensions to adjust: ${adjustParts.join(", ")}
+Original prompt (JSON):
+${originalPromptStr}
 
-Please adjust the following parts of the original prompt based on the character description:
-${adjustParts.map(part => `- ${part}`).join("\n")}
+Character description (JSON):
+${characterDescStr}
 
-For parts NOT in the adjust list, keep them exactly the same as the original.
+Adjust these fields based on the character description: ${adjustParts.join(", ")}
 
-Output the complete adjusted prompt in the same JSON format as the original, ensuring:
-- All fields from the original are preserved
-- Only the specified dimensions are adjusted based on the character description
-- The adjusted parts should be different from the original but consistent with the character description
+Keep all other fields exactly the same as the original.
 
-Return only the JSON, no other text.`;
+Output the complete adjusted JSON prompt. Return ONLY valid JSON, no explanations or markdown.`;
 
     const contents = [
       {
@@ -110,6 +109,16 @@ Return only the JSON, no other text.`;
 
     const candidate = data.candidates[0];
 
+    // Check finish reason
+    if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
+      console.error("内容被安全过滤阻止:", candidate.finishReason);
+      throw new Error("内容被安全过滤阻止，请尝试调整输入");
+    }
+
+    if (candidate.finishReason === "MAX_TOKENS") {
+      console.warn("达到最大令牌数限制");
+    }
+
     // Extract text from response
     let text = "";
     if (candidate.content && candidate.content.parts) {
@@ -120,7 +129,14 @@ Return only the JSON, no other text.`;
       }
     }
 
-    console.log("原始响应:", text);
+    if (!text || text.trim().length === 0) {
+      console.error("响应文本为空");
+      console.error("Candidate details:", JSON.stringify(candidate, null, 2));
+      throw new Error("API 返回空响应，请稍后重试");
+    }
+
+    console.log("原始响应长度:", text.length);
+    console.log("原始响应预览:", text.substring(0, 500));
 
     // Try to extract JSON from the response
     let jsonText = text.trim();
@@ -132,27 +148,42 @@ Return only the JSON, no other text.`;
       jsonText = jsonText.split("```")[1].split("```")[0].trim();
     }
 
+    // Remove any leading/trailing text that's not JSON
+    // Try to find the JSON object
+    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonText = jsonMatch[0];
+    }
+
     // Try to parse JSON
     let adjustedPrompt;
     try {
       adjustedPrompt = JSON.parse(jsonText);
-    } catch (parseError) {
-      console.error("JSON解析失败:", parseError);
-      console.error("尝试解析的文本:", jsonText);
-      // Try to extract JSON object using regex
-      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          adjustedPrompt = JSON.parse(jsonMatch[0]);
-        } catch (e) {
-          throw new Error("无法解析JSON格式的调整后的prompt。原始响应: " + text.substring(0, 200));
-        }
-      } else {
-        throw new Error("无法解析JSON格式的调整后的prompt。原始响应: " + text.substring(0, 200));
+      
+      // Validate that we got a proper object
+      if (!adjustedPrompt || typeof adjustedPrompt !== "object" || Array.isArray(adjustedPrompt)) {
+        throw new Error("解析结果不是有效的对象");
       }
+      
+      // Check if it's empty
+      if (Object.keys(adjustedPrompt).length === 0) {
+        throw new Error("解析结果为空对象");
+      }
+    } catch (parseError: any) {
+      console.error("JSON解析失败:", parseError);
+      console.error("尝试解析的文本:", jsonText.substring(0, 500));
+      console.error("完整响应:", text);
+      
+      // If parsing failed, try to use the original prompt as fallback
+      console.warn("使用原始 prompt 作为后备方案");
+      adjustedPrompt = { ...captionPromptJson };
+      
+      // Still throw error to let user know
+      throw new Error(`无法解析JSON格式的调整后的prompt。错误: ${parseError.message}。原始响应预览: ${text.substring(0, 300)}`);
     }
 
-    console.log("解析后的JSON:", JSON.stringify(adjustedPrompt, null, 2));
+    console.log("解析后的JSON字段:", Object.keys(adjustedPrompt));
+    console.log("解析后的JSON预览:", JSON.stringify(adjustedPrompt, null, 2).substring(0, 500));
 
     return NextResponse.json({
       adjustedPrompt,

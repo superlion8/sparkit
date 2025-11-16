@@ -419,36 +419,26 @@ export default function ControlPanelPage() {
                   "反推"
                 )}
               </button>
-              {referenceImage.length > 0 && (
-                <div className="mt-4">
-                  <img
-                    src={URL.createObjectURL(referenceImage[0])}
-                    alt="Reference"
-                    className="w-full h-auto rounded-lg border border-gray-200"
-                  />
-                </div>
-              )}
             </div>
             
             {/* Right: Text Fields */}
             {captionPrompt && (
-              <div className="space-y-3">
+              <div className="space-y-3 h-full flex flex-col">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">场景</label>
                   <textarea
                     value={captionFields.scene}
                     onChange={(e) => setCaptionFields({ ...captionFields, scene: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-                    rows={2}
+                    rows={3}
                   />
                 </div>
-                <div>
+                <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">人物样貌描述</label>
                   <textarea
                     value={captionFields.subject_desc}
                     onChange={(e) => setCaptionFields({ ...captionFields, subject_desc: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
-                    rows={6}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono h-32"
                   />
                 </div>
                 <div>
@@ -457,34 +447,31 @@ export default function ControlPanelPage() {
                     value={captionFields.subject_pose}
                     onChange={(e) => setCaptionFields({ ...captionFields, subject_pose: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-                    rows={2}
+                    rows={3}
                   />
                 </div>
-                <div>
+                <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">人物着装</label>
                   <textarea
                     value={captionFields.subject_wardrobe}
                     onChange={(e) => setCaptionFields({ ...captionFields, subject_wardrobe: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
-                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono h-32"
                   />
                 </div>
-                <div>
+                <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">环境</label>
                   <textarea
                     value={captionFields.environment}
                     onChange={(e) => setCaptionFields({ ...captionFields, environment: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
-                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono h-32"
                   />
                 </div>
-                <div>
+                <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">镜头</label>
                   <textarea
                     value={captionFields.camera}
                     onChange={(e) => setCaptionFields({ ...captionFields, camera: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
-                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono h-32"
                   />
                 </div>
               </div>
@@ -517,26 +504,16 @@ export default function ControlPanelPage() {
                   "反推"
                 )}
               </button>
-              {characterImage.length > 0 && (
-                <div className="mt-4">
-                  <img
-                    src={URL.createObjectURL(characterImage[0])}
-                    alt="Character"
-                    className="w-full h-auto rounded-lg border border-gray-200"
-                  />
-                </div>
-              )}
             </div>
             
             {/* Right: Character Description */}
             {characterPrompt && (
-              <div>
+              <div className="h-full">
                 <label className="block text-sm font-medium text-gray-700 mb-1">角色描述</label>
                 <textarea
                   value={characterDesc}
                   onChange={(e) => setCharacterDesc(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
-                  rows={12}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono h-full min-h-[400px]"
                 />
               </div>
             )}
