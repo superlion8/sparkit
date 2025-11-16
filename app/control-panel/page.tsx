@@ -680,65 +680,70 @@ export default function ControlPanelPage() {
               </button>
             </div>
             
-            {/* 输出prompt - Show individual fields in boxes, then summary */}
-            <div className="flex-1 flex flex-col space-y-3">
-              {variatePrompt && variateFields && (
-                <>
-                  {/* Individual Fields - 6 boxes in 2 rows of 3 - Same height as reference module */}
-                  <div className="flex-1 flex flex-col space-y-2">
-                    <h3 className="text-sm font-semibold text-gray-700 flex-shrink-0">细分值：</h3>
-                    <div className="flex-1 grid grid-cols-3 gap-2 overflow-y-auto">
-                      {/* Row 1 */}
-                      <div className="border border-gray-300 rounded-lg p-2 bg-white h-fit">
-                        <div className="text-xs font-medium text-gray-600 mb-1">场景</div>
-                        <div className="text-xs text-gray-800 break-words">{variateFields.scene || "-"}</div>
-                      </div>
-                      <div className="border border-gray-300 rounded-lg p-2 bg-white h-fit">
-                        <div className="text-xs font-medium text-gray-600 mb-1">人物样貌描述</div>
-                        <pre className="text-xs text-gray-800 whitespace-pre-wrap break-words font-mono">{variateFields.subject_desc || "-"}</pre>
-                      </div>
-                      <div className="border border-gray-300 rounded-lg p-2 bg-white h-fit">
-                        <div className="text-xs font-medium text-gray-600 mb-1">人物动作</div>
-                        <div className="text-xs text-gray-800 break-words">{variateFields.subject_pose || "-"}</div>
-                      </div>
-                      {/* Row 2 */}
-                      <div className="border border-gray-300 rounded-lg p-2 bg-white h-fit">
-                        <div className="text-xs font-medium text-gray-600 mb-1">人物着装</div>
-                        <pre className="text-xs text-gray-800 whitespace-pre-wrap break-words font-mono">{variateFields.subject_wardrobe || "-"}</pre>
-                      </div>
-                      <div className="border border-gray-300 rounded-lg p-2 bg-white h-fit">
-                        <div className="text-xs font-medium text-gray-600 mb-1">环境</div>
-                        <pre className="text-xs text-gray-800 whitespace-pre-wrap break-words font-mono">{variateFields.environment || "-"}</pre>
-                      </div>
-                      <div className="border border-gray-300 rounded-lg p-2 bg-white h-fit">
-                        <div className="text-xs font-medium text-gray-600 mb-1">镜头</div>
-                        <pre className="text-xs text-gray-800 whitespace-pre-wrap break-words font-mono">{variateFields.camera || "-"}</pre>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Summary Prompt */}
-                  <div className="flex-1 flex flex-col">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">final prompt</label>
+            {/* 输出prompt - Show individual fields like reference module */}
+            {variatePrompt && variateFields ? (
+              <div className="flex-1 flex flex-col space-y-3">
+                {/* Individual Fields - Same structure as reference module */}
+                <div className="flex-1 grid grid-cols-3 gap-3 overflow-y-auto">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">场景</label>
                     <textarea
-                      value={finalPromptJson || ""}
-                      onChange={(e) => {
-                        setFinalPromptJson(e.target.value);
-                        try {
-                          setFinalPromptData(JSON.parse(e.target.value));
-                        } catch (err) {
-                          // Invalid JSON, ignore
-                        }
-                      }}
-                      className="flex-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono resize-none"
+                      value={variateFields.scene}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm"
+                      rows={3}
                     />
                   </div>
-                </>
-              )}
-              
-              {!variatePrompt && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">人物样貌描述</label>
+                    <textarea
+                      value={variateFields.subject_desc}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">人物动作</label>
+                    <textarea
+                      value={variateFields.subject_pose}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm"
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">人物着装</label>
+                    <textarea
+                      value={variateFields.subject_wardrobe}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">环境</label>
+                    <textarea
+                      value={variateFields.environment}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">镜头</label>
+                    <textarea
+                      value={variateFields.camera}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
+                      rows={3}
+                    />
+                  </div>
+                </div>
+                
+                {/* Summary Prompt */}
                 <div className="flex-1 flex flex-col">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">输出prompt</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">final prompt</label>
                   <textarea
                     value={finalPromptJson || ""}
                     onChange={(e) => {
@@ -749,12 +754,28 @@ export default function ControlPanelPage() {
                         // Invalid JSON, ignore
                       }
                     }}
-                    placeholder="生成 prompt 后将显示在这里，可编辑"
                     className="flex-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono resize-none"
                   />
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col">
+                <label className="block text-sm font-medium text-gray-700 mb-1">输出prompt</label>
+                <textarea
+                  value={finalPromptJson || ""}
+                  onChange={(e) => {
+                    setFinalPromptJson(e.target.value);
+                    try {
+                      setFinalPromptData(JSON.parse(e.target.value));
+                    } catch (err) {
+                      // Invalid JSON, ignore
+                    }
+                  }}
+                  placeholder="生成 prompt 后将显示在这里，可编辑"
+                  className="flex-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono resize-none"
+                />
+              </div>
+            )}
           </div>
         </div>
 
