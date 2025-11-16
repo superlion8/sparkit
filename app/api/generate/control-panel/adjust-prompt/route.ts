@@ -115,8 +115,9 @@ Output the complete adjusted JSON prompt. Return ONLY valid JSON, no explanation
       throw new Error("内容被安全过滤阻止，请尝试调整输入");
     }
 
-    if (candidate.finishReason === "MAX_TOKENS") {
-      console.warn("达到最大令牌数限制");
+    const isMaxTokens = candidate.finishReason === "MAX_TOKENS";
+    if (isMaxTokens) {
+      console.warn("达到最大令牌数限制，响应可能被截断");
     }
 
     // Extract text from response
@@ -136,7 +137,9 @@ Output the complete adjusted JSON prompt. Return ONLY valid JSON, no explanation
     }
 
     console.log("原始响应长度:", text.length);
+    console.log("Finish reason:", candidate.finishReason);
     console.log("原始响应预览:", text.substring(0, 500));
+    console.log("原始响应结尾:", text.substring(Math.max(0, text.length - 500)));
 
     // Try to extract JSON from the response
     let jsonText = text.trim();
@@ -148,11 +151,43 @@ Output the complete adjusted JSON prompt. Return ONLY valid JSON, no explanation
       jsonText = jsonText.split("```")[1].split("```")[0].trim();
     }
 
-    // Remove any leading/trailing text that's not JSON
-    // Try to find the JSON object
-    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+    // Try to find the JSON object - use a more robust approach
+    let jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      // Try to find JSON starting from the first {
+      const firstBrace = jsonText.indexOf('{');
+      if (firstBrace !== -1) {
+        jsonText = jsonText.substring(firstBrace);
+        jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+      }
+    }
+    
     if (jsonMatch) {
       jsonText = jsonMatch[0];
+    }
+
+    // If MAX_TOKENS, try to fix incomplete JSON
+    if (isMaxTokens && jsonText) {
+      // Count braces to see if JSON is incomplete
+      const openBraces = (jsonText.match(/\{/g) || []).length;
+      const closeBraces = (jsonText.match(/\}/g) || []).length;
+      const openBrackets = (jsonText.match(/\[/g) || []).length;
+      const closeBrackets = (jsonText.match(/\]/g) || []).length;
+      
+      console.log(`JSON 括号计数 - 大括号: ${openBraces}/${closeBraces}, 方括号: ${openBrackets}/${closeBrackets}`);
+      
+      // Try to fix incomplete JSON by adding missing closing braces/brackets
+      if (openBraces > closeBraces || openBrackets > closeBrackets) {
+        console.warn("检测到不完整的 JSON，尝试修复...");
+        // Add missing closing brackets first, then braces
+        for (let i = 0; i < openBrackets - closeBrackets; i++) {
+          jsonText += ']';
+        }
+        for (let i = 0; i < openBraces - closeBraces; i++) {
+          jsonText += '}';
+        }
+        console.log("修复后的 JSON 预览:", jsonText.substring(0, 500));
+      }
     }
 
     // Try to parse JSON
@@ -171,15 +206,55 @@ Output the complete adjusted JSON prompt. Return ONLY valid JSON, no explanation
       }
     } catch (parseError: any) {
       console.error("JSON解析失败:", parseError);
-      console.error("尝试解析的文本:", jsonText.substring(0, 500));
+      console.error("尝试解析的文本长度:", jsonText.length);
+      console.error("尝试解析的文本开头:", jsonText.substring(0, 500));
+      console.error("尝试解析的文本结尾:", jsonText.substring(Math.max(0, jsonText.length - 500)));
       console.error("完整响应:", text);
       
-      // If parsing failed, try to use the original prompt as fallback
-      console.warn("使用原始 prompt 作为后备方案");
-      adjustedPrompt = { ...captionPromptJson };
-      
-      // Still throw error to let user know
-      throw new Error(`无法解析JSON格式的调整后的prompt。错误: ${parseError.message}。原始响应预览: ${text.substring(0, 300)}`);
+      // If parsing failed and we have MAX_TOKENS, try to merge with original
+      if (isMaxTokens) {
+        console.warn("由于 MAX_TOKENS，尝试合并原始 prompt 和部分调整...");
+        try {
+          // Try to extract any valid fields from the partial JSON
+          const partialMatch = jsonText.match(/\{[\s\S]*/);
+          if (partialMatch) {
+            // Try to extract individual fields using regex
+            adjustedPrompt = { ...captionPromptJson };
+            
+            // Try to extract specific fields that might be complete
+            const fieldsToExtract = ['scene', 'subject_pose', 'subject_wardrobe', 'environment', 'camera'];
+            for (const field of fieldsToExtract) {
+              const fieldRegex = new RegExp(`"${field}"\\s*:\\s*([^,}]+(?:\\{[^}]*\\})?[^,}]*?)(?:,|\\s*\\})`, 's');
+              const fieldMatch = jsonText.match(fieldRegex);
+              if (fieldMatch) {
+                try {
+                  const fieldValue = JSON.parse(`{${fieldMatch[0]}}`);
+                  if (fieldValue[field] !== undefined) {
+                    adjustedPrompt[field] = fieldValue[field];
+                    console.log(`成功提取字段 ${field}`);
+                  }
+                } catch (e) {
+                  // Ignore field extraction errors
+                }
+              }
+            }
+            
+            // Still validate
+            if (Object.keys(adjustedPrompt).length > 0) {
+              console.log("使用合并后的 prompt");
+            } else {
+              throw new Error("无法从部分响应中提取有效字段");
+            }
+          } else {
+            throw new Error("无法找到 JSON 对象");
+          }
+        } catch (mergeError: any) {
+          console.error("合并失败:", mergeError);
+          throw new Error(`无法解析JSON格式的调整后的prompt。错误: ${parseError.message}。原始响应预览: ${text.substring(0, 300)}`);
+        }
+      } else {
+        throw new Error(`无法解析JSON格式的调整后的prompt。错误: ${parseError.message}。原始响应预览: ${text.substring(0, 300)}`);
+      }
     }
 
     console.log("解析后的JSON字段:", Object.keys(adjustedPrompt));
