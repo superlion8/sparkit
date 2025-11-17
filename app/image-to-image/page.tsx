@@ -72,7 +72,10 @@ export default function ImageToImagePage() {
       // Step 2: Generate images
       const allImages: string[] = [];
 
-      for (let i = 0; i < numImages; i++) {
+      // For Flux/Kontext Pro, only generate 1 image per request (API limitation)
+      const actualNumImages = model === "flux" ? 1 : numImages;
+
+      for (let i = 0; i < actualNumImages; i++) {
         const formData = new FormData();
         formData.append("prompt", prompt);
 
@@ -82,10 +85,16 @@ export default function ImageToImagePage() {
             formData.append("images", image);
           });
         } else {
+          // Flux/Kontext Pro only supports single image
+          if (uploadedImages.length === 0) {
+            throw new Error("请至少上传一张图片");
+          }
           formData.append("image", uploadedImages[0]);
         }
 
         const endpoint = model === "gemini" ? "/api/generate/gemini" : "/api/generate/flux";
+        
+        console.log(`[Image-to-Image] 准备发送请求 - Model: ${model}, Endpoint: ${endpoint}, Image count: ${uploadedImages.length}, Prompt length: ${prompt.length}, Iteration: ${i + 1}/${actualNumImages}`);
 
         const response = await fetch(endpoint, {
           method: "POST",
@@ -94,6 +103,8 @@ export default function ImageToImagePage() {
           },
           body: formData,
         });
+        
+        console.log(`[Image-to-Image] 请求响应状态 - Status: ${response.status}, OK: ${response.ok}`);
 
         if (!response.ok) {
           let errorData: any;
@@ -118,11 +129,14 @@ export default function ImageToImagePage() {
             };
           }
 
+          console.error(`[Image-to-Image] 请求失败 - Error:`, errorData);
           setErrorDetails(errorData);
           throw new Error(errorData.error || errorData.statusText || "Generation failed");
         }
 
         const data = await response.json();
+        console.log(`[Image-to-Image] 响应数据 - Images count: ${data.images?.length || 0}, Has requestId: ${!!data.requestId}`);
+        
         if (data.images && data.images.length > 0) {
           const taskType = model === "flux" ? "image_to_image_flux" : "image_to_image_gemini";
           const baseTaskId =
@@ -149,6 +163,8 @@ export default function ImageToImagePage() {
             ? data.base64Images 
             : data.images;
           allImages.push(...displayImages);
+        } else {
+          console.warn(`[Image-to-Image] API 返回成功但没有图片数据 - Response:`, data);
         }
       }
 
@@ -241,23 +257,30 @@ export default function ImageToImagePage() {
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  生成数量: {numImages}
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="4"
-                  value={numImages}
-                  onChange={(e) => setNumImages(parseInt(e.target.value))}
-                  className="w-full accent-primary-600"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>1张</span>
-                  <span>4张</span>
+              {model === "gemini" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    生成数量: {numImages}
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="4"
+                    value={numImages}
+                    onChange={(e) => setNumImages(parseInt(e.target.value))}
+                    className="w-full accent-primary-600"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>1张</span>
+                    <span>4张</span>
+                  </div>
                 </div>
-              </div>
+              )}
+              {model === "flux" && (
+                <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                  <p>Kontext Pro 每次生成 1 张图片</p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
