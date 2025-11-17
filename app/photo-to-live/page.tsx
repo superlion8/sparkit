@@ -16,6 +16,7 @@ export default function PhotoToLivePage() {
 
   // Prompt
   const [prompt, setPrompt] = useState("");
+  const [userPrompt, setUserPrompt] = useState(""); // 用户自定义要求
   const [promptMode, setPromptMode] = useState<"manual" | "ai">("manual");
   const [promptLoading, setPromptLoading] = useState(false);
   const [promptError, setPromptError] = useState("");
@@ -45,6 +46,9 @@ export default function PhotoToLivePage() {
     try {
       const formData = new FormData();
       formData.append("image", image[0]);
+      if (userPrompt.trim()) {
+        formData.append("userPrompt", userPrompt.trim());
+      }
 
       const response = await fetch("/api/generate/photo-to-live-prompt", {
         method: "POST",
@@ -241,6 +245,23 @@ export default function PhotoToLivePage() {
                 onImagesChange={setImage}
                 label="上传图片"
               />
+
+              {/* User Custom Prompt Requirements */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  自定义要求（可选）
+                </label>
+                <textarea
+                  value={userPrompt}
+                  onChange={(e) => setUserPrompt(e.target.value)}
+                  placeholder="输入您对视频的特定要求，例如：风格、动作、氛围等（可选）"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none text-sm"
+                  rows={2}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  这些要求将被传递给AI，帮助生成更符合您期望的prompt
+                </p>
+              </div>
 
               {/* Prompt Input */}
               <div>

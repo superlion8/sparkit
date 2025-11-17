@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const image = formData.get("image") as File;
+    const userPrompt = formData.get("userPrompt") as string | null;
 
     if (!image) {
       return NextResponse.json(
@@ -31,7 +32,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare the prompt for Gemini
-    const promptText = `你是一个专业的摄影师，擅长拍摄适合instagram、tiktok等社交媒体风格的视频。请你基于对图像的理解，给出一段5s的镜头描述，目标是拍摄出一段适合发在instagram上的5s短视频。请直接输出英文描述。`;
+    let promptText = `你是一个专业的摄影师，擅长拍摄适合instagram、tiktok等社交媒体风格的视频。请你基于对图像的理解，给出一段5s的镜头描述，目标是拍摄出一段适合发在instagram上的5s短视频。`;
+    
+    // Add user custom requirements if provided
+    if (userPrompt && userPrompt.trim()) {
+      promptText += `\n\n用户要求：${userPrompt.trim()}\n\n请根据用户的要求，结合图像内容，生成符合要求的5s视频镜头描述。`;
+    }
+    
+    promptText += `\n请直接输出英文描述。`;
+    
+    console.log("Photo to Live prompt with user requirements:", userPrompt || "无");
 
     // Try to use Gemini FileData API to avoid base64 token limit
     // This uploads the file to Gemini first, then uses fileUri instead of base64
