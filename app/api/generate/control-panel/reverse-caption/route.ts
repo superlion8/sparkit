@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
             temperature: 0.5,
             topP: 0.8,
             topK: 40,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 4096, // Increased to handle complete JSON output
           },
         }),
       }
@@ -191,6 +191,15 @@ export async function POST(request: NextRequest) {
     }
 
     const candidate = data.candidates[0];
+    
+    // Check finish reason
+    const finishReason = candidate.finishReason;
+    const isMaxTokens = finishReason === "MAX_TOKENS";
+    
+    if (finishReason === "SAFETY" || finishReason === "RECITATION") {
+      console.error("内容被安全过滤阻止:", finishReason);
+      throw new Error("内容被安全过滤阻止，请尝试其他图片");
+    }
 
     // Extract text from response
     let text = "";
@@ -203,6 +212,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("原始响应:", text);
+    console.log("Finish reason:", finishReason);
 
     // Try to extract JSON from the response
     let jsonText = text.trim();
@@ -218,19 +228,121 @@ export async function POST(request: NextRequest) {
     let captionData;
     try {
       captionData = JSON.parse(jsonText);
-    } catch (parseError) {
+    } catch (parseError: any) {
       console.error("JSON解析失败:", parseError);
       console.error("尝试解析的文本:", jsonText);
-      // Try to extract JSON object using regex
-      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
+      console.error("尝试解析的文本结尾:", jsonText.substring(Math.max(0, jsonText.length - 500)));
+      
+      // If MAX_TOKENS, try to fix incomplete JSON
+      if (isMaxTokens) {
+        console.warn("由于 MAX_TOKENS，尝试修复不完整的 JSON...");
         try {
-          captionData = JSON.parse(jsonMatch[0]);
-        } catch (e) {
-          throw new Error("无法解析JSON格式的提示词。原始响应: " + text.substring(0, 200));
+          // Try to find JSON object start
+          const jsonMatch = jsonText.match(/\{[\s\S]*/);
+          if (jsonMatch) {
+            let incompleteJson = jsonMatch[0];
+            
+            // Count braces and brackets to see what's missing
+            let openBraces = (incompleteJson.match(/\{/g) || []).length;
+            let closeBraces = (incompleteJson.match(/\}/g) || []).length;
+            let openBrackets = (incompleteJson.match(/\[/g) || []).length;
+            let closeBrackets = (incompleteJson.match(/\]/g) || []).length;
+            
+            // Check if we're in the middle of a string by parsing backwards
+            // Find the last quote that's not escaped
+            let lastUnescapedQuote = -1;
+            for (let i = incompleteJson.length - 1; i >= 0; i--) {
+              if (incompleteJson[i] === '"') {
+                // Check if it's escaped
+                let escapeCount = 0;
+                for (let j = i - 1; j >= 0 && incompleteJson[j] === '\\'; j--) {
+                  escapeCount++;
+                }
+                if (escapeCount % 2 === 0) {
+                  // Found unescaped quote
+                  lastUnescapedQuote = i;
+                  break;
+                }
+              }
+            }
+            
+            // If we found a quote, check if we're in a string value
+            if (lastUnescapedQuote !== -1) {
+              // Look backwards from the quote to find the colon
+              let colonIndex = incompleteJson.lastIndexOf(':', lastUnescapedQuote);
+              let commaIndex = incompleteJson.lastIndexOf(',', lastUnescapedQuote);
+              let openBraceIndex = incompleteJson.lastIndexOf('{', lastUnescapedQuote);
+              
+              // If colon is after the last comma/brace, we're likely in a string value
+              if (colonIndex > Math.max(commaIndex, openBraceIndex)) {
+                // Check if the quote is the start of a string (followed by colon or comma)
+                const afterQuote = incompleteJson.substring(lastUnescapedQuote + 1);
+                // If there's no closing quote after this one, we're in an unclosed string
+                if (!afterQuote.includes('"') || afterQuote.trim()[0] !== '"') {
+                  // Close the string
+                  incompleteJson += '"';
+                }
+              }
+            } else {
+              // No quote found, but we might be in the middle of a string value
+              // Check if the last non-whitespace character before end is a colon
+              const trimmed = incompleteJson.trim();
+              if (trimmed.endsWith(':')) {
+                // We're starting a value, might be a string
+                // Add empty string as fallback
+                incompleteJson += '""';
+              }
+            }
+            
+            // Add missing closing brackets
+            for (let i = 0; i < openBrackets - closeBrackets; i++) {
+              incompleteJson += ']';
+            }
+            
+            // Add missing closing braces
+            for (let i = 0; i < openBraces - closeBraces; i++) {
+              incompleteJson += '}';
+            }
+            
+            console.log("修复后的 JSON 预览:", incompleteJson.substring(0, 500));
+            
+            try {
+              captionData = JSON.parse(incompleteJson);
+              console.log("成功修复并解析 JSON");
+            } catch (fixError) {
+              // If fixing failed, try to extract individual fields
+              console.warn("修复失败，尝试提取字段...");
+              throw fixError;
+            }
+          } else {
+            throw new Error("无法找到 JSON 对象");
+          }
+        } catch (fixError: any) {
+          console.error("修复 JSON 失败:", fixError);
+          // Try to extract JSON object using regex as fallback
+          const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              captionData = JSON.parse(jsonMatch[0]);
+            } catch (e) {
+              throw new Error(`无法解析JSON格式的提示词。原因: ${finishReason}。错误: ${parseError.message}。原始响应预览: ${text.substring(0, 300)}`);
+            }
+          } else {
+            throw new Error(`无法解析JSON格式的提示词。原因: ${finishReason}。错误: ${parseError.message}。原始响应预览: ${text.substring(0, 300)}`);
+          }
         }
       } else {
-        throw new Error("无法解析JSON格式的提示词。原始响应: " + text.substring(0, 200));
+        // Not MAX_TOKENS, try simple extraction
+        const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            captionData = JSON.parse(jsonMatch[0]);
+          } catch (e) {
+            throw new Error(`无法解析JSON格式的提示词。错误: ${parseError.message}。原始响应预览: ${text.substring(0, 300)}`);
+          }
+        } else {
+          throw new Error(`无法解析JSON格式的提示词。错误: ${parseError.message}。原始响应预览: ${text.substring(0, 300)}`);
+        }
       }
     }
 
