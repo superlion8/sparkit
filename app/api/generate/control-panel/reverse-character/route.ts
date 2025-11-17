@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
     const prompt = `用英文反推下这张图片的提示词，用以下json格式来输出：
 
 {
+  "scene": "",
   "subject_desc": {
     "gender_presentation": "",
     "age_bracket": "",
@@ -38,6 +39,36 @@ export async function POST(request: NextRequest) {
     "build": "",
     "skin_tone": "",
     "hair": { "length": "", "style": "", "color": "" }
+  },
+  "subject_pose": "",
+  "subject_expression": "",
+  "subject_wardrobe": {
+    "top": "",
+    "bottom": "",
+    "socks": "",
+    "accessories": {}
+  },
+  "environment": {
+    "description": "",
+    "objects": [],
+    "lighting": {
+      "source": "",
+      "quality": "",
+      "white_balance_K": ""
+    }
+  },
+  "camera": {
+    "mode": "",
+    "focal_length_eq_mm": "",
+    "exposure": { "aperture_f": "", "iso": "", "shutter_s": "", "ev_comp": "" },
+    "focus": "",
+    "depth_of_field": "",
+    "framing": {
+      "aspect_ratio": "",
+      "crop": "",
+      "angle": "",
+      "composition_notes": ""
+    }
   }
 }
 

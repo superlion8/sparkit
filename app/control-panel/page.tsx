@@ -23,6 +23,7 @@ interface CaptionPrompt {
     };
   };
   subject_pose: string;
+  subject_expression: string;
   subject_wardrobe: {
     top: string;
     bottom: string;
@@ -58,20 +59,8 @@ interface CaptionPrompt {
   };
 }
 
-interface CharacterPrompt {
-  subject_desc: {
-    gender_presentation: string;
-    age_bracket: string;
-    ethnicity: string;
-    build: string;
-    skin_tone: string;
-    hair: {
-      length: string;
-      style: string;
-      color: string;
-    };
-  };
-}
+// CharacterPrompt now has the same structure as CaptionPrompt
+type CharacterPrompt = CaptionPrompt;
 
 export default function ControlPanelPage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
@@ -87,6 +76,7 @@ export default function ControlPanelPage() {
     scene: "",
     subject_desc: "",
     subject_pose: "",
+    subject_expression: "",
     subject_wardrobe: "",
     environment: "",
     camera: "",
@@ -95,14 +85,24 @@ export default function ControlPanelPage() {
   // Block 2: Reverse Character
   const [reverseCharacterLoading, setReverseCharacterLoading] = useState(false);
   const [characterPrompt, setCharacterPrompt] = useState<CharacterPrompt | null>(null);
-  const [characterDesc, setCharacterDesc] = useState("");
+  const [characterFields, setCharacterFields] = useState({
+    scene: "",
+    subject_desc: "",
+    subject_pose: "",
+    subject_expression: "",
+    subject_wardrobe: "",
+    environment: "",
+    camera: "",
+  });
   
   // Block 3: Control Dimensions
+  // Each dimension has 3 options: "ref" (按参考图), "char" (按角色图), "adjust" (微调)
   const [controlDimensions, setControlDimensions] = useState({
-    pose: "keep", // "keep" or "adjust"
-    wardrobe: "keep",
-    environment: "keep",
-    camera: "keep",
+    pose: "ref", // "ref", "char", or "adjust"
+    expression: "ref",
+    wardrobe: "ref",
+    environment: "ref",
+    camera: "ref",
   });
   const [adjustingPrompt, setAdjustingPrompt] = useState(false);
   const [variatePrompt, setVariatePrompt] = useState<CaptionPrompt | null>(null);
@@ -110,6 +110,7 @@ export default function ControlPanelPage() {
     scene: "",
     subject_desc: "",
     subject_pose: "",
+    subject_expression: "",
     subject_wardrobe: "",
     environment: "",
     camera: "",
@@ -166,6 +167,7 @@ export default function ControlPanelPage() {
         scene: cp.scene || "",
         subject_desc: JSON.stringify(cp.subject_desc || {}, null, 2),
         subject_pose: cp.subject_pose || "",
+        subject_expression: cp.subject_expression || "",
         subject_wardrobe: JSON.stringify(cp.subject_wardrobe || {}, null, 2),
         environment: JSON.stringify(cp.environment || {}, null, 2),
         camera: JSON.stringify(cp.camera || {}, null, 2),
@@ -214,7 +216,18 @@ export default function ControlPanelPage() {
 
       const data = await response.json();
       setCharacterPrompt(data.characterPrompt);
-      setCharacterDesc(JSON.stringify(data.characterPrompt.subject_desc || {}, null, 2));
+      
+      // Parse and set fields for display (same as caption)
+      const cp = data.characterPrompt;
+      setCharacterFields({
+        scene: cp.scene || "",
+        subject_desc: JSON.stringify(cp.subject_desc || {}, null, 2),
+        subject_pose: cp.subject_pose || "",
+        subject_expression: cp.subject_expression || "",
+        subject_wardrobe: JSON.stringify(cp.subject_wardrobe || {}, null, 2),
+        environment: JSON.stringify(cp.environment || {}, null, 2),
+        camera: JSON.stringify(cp.camera || {}, null, 2),
+      });
     } catch (err: any) {
       setError(err.message || "反推失败");
       setErrorDetails(err);
@@ -236,22 +249,43 @@ export default function ControlPanelPage() {
       return;
     }
 
-    // Reconstruct captionPrompt from edited fields
-    let updatedCaptionPrompt: any = { ...captionPrompt };
+    // Reconstruct prompts from edited fields
+    let updatedRefPrompt: any = { ...captionPrompt };
+    let updatedCharPrompt: any = { ...characterPrompt };
+    
     try {
-      if (captionFields.scene) updatedCaptionPrompt.scene = captionFields.scene;
+      // Update ref prompt from edited fields
+      if (captionFields.scene) updatedRefPrompt.scene = captionFields.scene;
       if (captionFields.subject_desc) {
-        updatedCaptionPrompt.subject_desc = JSON.parse(captionFields.subject_desc);
+        updatedRefPrompt.subject_desc = JSON.parse(captionFields.subject_desc);
       }
-      if (captionFields.subject_pose) updatedCaptionPrompt.subject_pose = captionFields.subject_pose;
+      if (captionFields.subject_pose) updatedRefPrompt.subject_pose = captionFields.subject_pose;
+      if (captionFields.subject_expression) updatedRefPrompt.subject_expression = captionFields.subject_expression;
       if (captionFields.subject_wardrobe) {
-        updatedCaptionPrompt.subject_wardrobe = JSON.parse(captionFields.subject_wardrobe);
+        updatedRefPrompt.subject_wardrobe = JSON.parse(captionFields.subject_wardrobe);
       }
       if (captionFields.environment) {
-        updatedCaptionPrompt.environment = JSON.parse(captionFields.environment);
+        updatedRefPrompt.environment = JSON.parse(captionFields.environment);
       }
       if (captionFields.camera) {
-        updatedCaptionPrompt.camera = JSON.parse(captionFields.camera);
+        updatedRefPrompt.camera = JSON.parse(captionFields.camera);
+      }
+      
+      // Update char prompt from edited fields
+      if (characterFields.scene) updatedCharPrompt.scene = characterFields.scene;
+      if (characterFields.subject_desc) {
+        updatedCharPrompt.subject_desc = JSON.parse(characterFields.subject_desc);
+      }
+      if (characterFields.subject_pose) updatedCharPrompt.subject_pose = characterFields.subject_pose;
+      if (characterFields.subject_expression) updatedCharPrompt.subject_expression = characterFields.subject_expression;
+      if (characterFields.subject_wardrobe) {
+        updatedCharPrompt.subject_wardrobe = JSON.parse(characterFields.subject_wardrobe);
+      }
+      if (characterFields.environment) {
+        updatedCharPrompt.environment = JSON.parse(characterFields.environment);
+      }
+      if (characterFields.camera) {
+        updatedCharPrompt.camera = JSON.parse(characterFields.camera);
       }
     } catch (e) {
       setError("JSON 格式错误，请检查编辑的字段");
@@ -261,6 +295,7 @@ export default function ControlPanelPage() {
     // Check if any dimension needs adjustment
     const needsAdjustment = 
       controlDimensions.pose === "adjust" ||
+      controlDimensions.expression === "adjust" ||
       controlDimensions.wardrobe === "adjust" ||
       controlDimensions.environment === "adjust" ||
       controlDimensions.camera === "adjust";
@@ -279,9 +314,9 @@ export default function ControlPanelPage() {
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
-            captionPromptJson: updatedCaptionPrompt,
-            characterPromptJson: characterPrompt,
-            adjustDimensions: controlDimensions,
+            refPromptJson: updatedRefPrompt,
+            charPromptJson: updatedCharPrompt,
+            controlDimensions: controlDimensions,
           }),
         });
 
@@ -299,6 +334,7 @@ export default function ControlPanelPage() {
           scene: adjustedPrompt.scene || "",
           subject_desc: JSON.stringify(adjustedPrompt.subject_desc || {}, null, 2),
           subject_pose: adjustedPrompt.subject_pose || "",
+          subject_expression: adjustedPrompt.subject_expression || "",
           subject_wardrobe: JSON.stringify(adjustedPrompt.subject_wardrobe || {}, null, 2),
           environment: JSON.stringify(adjustedPrompt.environment || {}, null, 2),
           camera: JSON.stringify(adjustedPrompt.camera || {}, null, 2),
@@ -314,14 +350,29 @@ export default function ControlPanelPage() {
         setAdjustingPrompt(false);
       }
     } else {
-      // All keep - use original prompt with character description
+      // Build final prompt based on control dimensions
+      // subject_desc always uses char_prompt
+      // scene follows environment choice
       const finalData: any = {
-        scene: updatedCaptionPrompt.scene,
-        subject_desc: characterPrompt.subject_desc, // Always use character description
-        subject_pose: updatedCaptionPrompt.subject_pose,
-        subject_wardrobe: updatedCaptionPrompt.subject_wardrobe,
-        environment: updatedCaptionPrompt.environment,
-        camera: updatedCaptionPrompt.camera,
+        scene: controlDimensions.environment === "ref" 
+          ? updatedRefPrompt.scene 
+          : updatedCharPrompt.scene,
+        subject_desc: updatedCharPrompt.subject_desc, // Always use character description
+        subject_pose: controlDimensions.pose === "ref" 
+          ? updatedRefPrompt.subject_pose 
+          : updatedCharPrompt.subject_pose,
+        subject_expression: controlDimensions.expression === "ref" 
+          ? updatedRefPrompt.subject_expression 
+          : updatedCharPrompt.subject_expression,
+        subject_wardrobe: controlDimensions.wardrobe === "ref" 
+          ? updatedRefPrompt.subject_wardrobe 
+          : updatedCharPrompt.subject_wardrobe,
+        environment: controlDimensions.environment === "ref" 
+          ? updatedRefPrompt.environment 
+          : updatedCharPrompt.environment,
+        camera: controlDimensions.camera === "ref" 
+          ? updatedRefPrompt.camera 
+          : updatedCharPrompt.camera,
       };
 
       setVariatePrompt(finalData);
@@ -329,6 +380,7 @@ export default function ControlPanelPage() {
         scene: finalData.scene || "",
         subject_desc: JSON.stringify(finalData.subject_desc || {}, null, 2),
         subject_pose: finalData.subject_pose || "",
+        subject_expression: finalData.subject_expression || "",
         subject_wardrobe: JSON.stringify(finalData.subject_wardrobe || {}, null, 2),
         environment: JSON.stringify(finalData.environment || {}, null, 2),
         camera: JSON.stringify(finalData.camera || {}, null, 2),
@@ -350,6 +402,7 @@ export default function ControlPanelPage() {
           ? JSON.parse(variateFields.subject_desc) 
           : variatePrompt.subject_desc,
         subject_pose: variateFields.subject_pose || variatePrompt.subject_pose,
+        subject_expression: variateFields.subject_expression || variatePrompt.subject_expression,
         subject_wardrobe: variateFields.subject_wardrobe
           ? JSON.parse(variateFields.subject_wardrobe)
           : variatePrompt.subject_wardrobe,
@@ -387,6 +440,7 @@ export default function ControlPanelPage() {
             ? JSON.parse(variateFields.subject_desc) 
             : variatePrompt.subject_desc,
           subject_pose: variateFields.subject_pose || variatePrompt.subject_pose,
+          subject_expression: variateFields.subject_expression || variatePrompt.subject_expression,
           subject_wardrobe: variateFields.subject_wardrobe
             ? JSON.parse(variateFields.subject_wardrobe)
             : variatePrompt.subject_wardrobe,
@@ -505,7 +559,7 @@ export default function ControlPanelPage() {
               )}
             </button>
             
-            {/* Output Fields - 2 columns, 3 rows */}
+            {/* Output Fields - 2 columns, 4 rows (7 fields total) */}
             {captionPrompt && (
               <div className="flex-1 grid grid-cols-2 gap-3 overflow-y-auto">
                 <div>
@@ -531,6 +585,15 @@ export default function ControlPanelPage() {
                   <textarea
                     value={captionFields.subject_pose}
                     onChange={(e) => setCaptionFields({ ...captionFields, subject_pose: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">人物表情</label>
+                  <textarea
+                    value={captionFields.subject_expression}
+                    onChange={(e) => setCaptionFields({ ...captionFields, subject_expression: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                     rows={3}
                   />
@@ -596,15 +659,72 @@ export default function ControlPanelPage() {
               )}
             </button>
             
-            {/* Character Description Field */}
+            {/* Character Fields - Same structure as reference */}
             {characterPrompt && (
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">角色描述</label>
-                <textarea
-                  value={characterDesc}
-                  onChange={(e) => setCharacterDesc(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono h-full min-h-[200px]"
-                />
+              <div className="flex-1 grid grid-cols-2 gap-3 overflow-y-auto">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">场景</label>
+                  <textarea
+                    value={characterFields.scene}
+                    onChange={(e) => setCharacterFields({ ...characterFields, scene: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">人物样貌描述</label>
+                  <textarea
+                    value={characterFields.subject_desc}
+                    onChange={(e) => setCharacterFields({ ...characterFields, subject_desc: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">人物动作</label>
+                  <textarea
+                    value={characterFields.subject_pose}
+                    onChange={(e) => setCharacterFields({ ...characterFields, subject_pose: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">人物表情</label>
+                  <textarea
+                    value={characterFields.subject_expression}
+                    onChange={(e) => setCharacterFields({ ...characterFields, subject_expression: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">人物着装</label>
+                  <textarea
+                    value={characterFields.subject_wardrobe}
+                    onChange={(e) => setCharacterFields({ ...characterFields, subject_wardrobe: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">环境</label>
+                  <textarea
+                    value={characterFields.environment}
+                    onChange={(e) => setCharacterFields({ ...characterFields, environment: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">镜头</label>
+                  <textarea
+                    value={characterFields.camera}
+                    onChange={(e) => setCharacterFields({ ...characterFields, camera: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
+                    rows={3}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -625,7 +745,20 @@ export default function ControlPanelPage() {
                     onChange={(e) => setControlDimensions({ ...controlDimensions, pose: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                   >
-                    <option value="keep">保持</option>
+                    <option value="ref">按参考图</option>
+                    <option value="char">按角色图</option>
+                    <option value="adjust">微调</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">表情</label>
+                  <select
+                    value={controlDimensions.expression}
+                    onChange={(e) => setControlDimensions({ ...controlDimensions, expression: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                  >
+                    <option value="ref">按参考图</option>
+                    <option value="char">按角色图</option>
                     <option value="adjust">微调</option>
                   </select>
                 </div>
@@ -636,7 +769,8 @@ export default function ControlPanelPage() {
                     onChange={(e) => setControlDimensions({ ...controlDimensions, wardrobe: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                   >
-                    <option value="keep">保持</option>
+                    <option value="ref">按参考图</option>
+                    <option value="char">按角色图</option>
                     <option value="adjust">微调</option>
                   </select>
                 </div>
@@ -647,7 +781,8 @@ export default function ControlPanelPage() {
                     onChange={(e) => setControlDimensions({ ...controlDimensions, environment: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                   >
-                    <option value="keep">保持</option>
+                    <option value="ref">按参考图</option>
+                    <option value="char">按角色图</option>
                     <option value="adjust">微调</option>
                   </select>
                 </div>
@@ -658,7 +793,8 @@ export default function ControlPanelPage() {
                     onChange={(e) => setControlDimensions({ ...controlDimensions, camera: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                   >
-                    <option value="keep">保持</option>
+                    <option value="ref">按参考图</option>
+                    <option value="char">按角色图</option>
                     <option value="adjust">微调</option>
                   </select>
                 </div>
@@ -707,6 +843,15 @@ export default function ControlPanelPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">人物动作</label>
                     <textarea
                       value={variateFields.subject_pose}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm"
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">人物表情</label>
+                    <textarea
+                      value={variateFields.subject_expression}
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm"
                       rows={3}

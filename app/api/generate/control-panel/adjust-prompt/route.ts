@@ -9,11 +9,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { captionPromptJson, characterPromptJson, adjustDimensions } = body;
+    const { refPromptJson, charPromptJson, controlDimensions } = body;
 
-    if (!captionPromptJson || !characterPromptJson) {
+    if (!refPromptJson || !charPromptJson) {
       return NextResponse.json(
-        { error: "需要提供 caption prompt 和 character prompt" },
+        { error: "需要提供 ref prompt 和 char prompt" },
         { status: 400 }
       );
     }
@@ -27,68 +27,82 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("=== Control Panel: 微调 Prompt ===");
-    console.log("Adjust dimensions:", adjustDimensions);
+    console.log("Control dimensions:", controlDimensions);
 
-    // Build prompt for adjustment
+    // Build prompt for adjustment - only fields that need "adjust"
     const adjustParts: string[] = [];
-    if (adjustDimensions.pose === "adjust") {
+    if (controlDimensions.pose === "adjust") {
       adjustParts.push("subject_pose");
     }
-    if (adjustDimensions.wardrobe === "adjust") {
+    if (controlDimensions.expression === "adjust") {
+      adjustParts.push("subject_expression");
+    }
+    if (controlDimensions.wardrobe === "adjust") {
       adjustParts.push("subject_wardrobe");
     }
-    if (adjustDimensions.environment === "adjust") {
+    if (controlDimensions.environment === "adjust") {
       adjustParts.push("environment");
     }
-    if (adjustDimensions.camera === "adjust") {
+    if (controlDimensions.camera === "adjust") {
       adjustParts.push("camera");
     }
 
-    // Build prompt according to new requirements
-    // Always use character description for subject_desc
-    const characterDesc = characterPromptJson.subject_desc || characterPromptJson;
-    
-    // Create a copy of captionPromptJson and replace subject_desc with character description
-    const captionPromptWithCharacter = {
-      ...captionPromptJson,
-      subject_desc: characterDesc,
-    };
-    
-    const originalPromptStr = JSON.stringify(captionPromptWithCharacter, null, 2);
-    const characterDescStr = JSON.stringify(characterDesc, null, 2);
+    // If no fields need adjustment, build final prompt directly from control dimensions
+    if (adjustParts.length === 0) {
+      const finalPrompt: any = {
+        scene: controlDimensions.environment === "ref" 
+          ? refPromptJson.scene 
+          : charPromptJson.scene,
+        subject_desc: charPromptJson.subject_desc, // Always use char
+        subject_pose: controlDimensions.pose === "ref" 
+          ? refPromptJson.subject_pose 
+          : charPromptJson.subject_pose,
+        subject_expression: controlDimensions.expression === "ref" 
+          ? refPromptJson.subject_expression 
+          : charPromptJson.subject_expression,
+        subject_wardrobe: controlDimensions.wardrobe === "ref" 
+          ? refPromptJson.subject_wardrobe 
+          : charPromptJson.subject_wardrobe,
+        environment: controlDimensions.environment === "ref" 
+          ? refPromptJson.environment 
+          : charPromptJson.environment,
+        camera: controlDimensions.camera === "ref" 
+          ? refPromptJson.camera 
+          : charPromptJson.camera,
+      };
+      
+      return NextResponse.json({
+        adjustedPrompt: finalPrompt,
+      });
+    }
+
+    // Build base prompt - start with ref_prompt, but use char_prompt for subject_desc
+    const charDesc = charPromptJson.subject_desc;
+    const refPromptStr = JSON.stringify(refPromptJson, null, 2);
+    const charDescStr = JSON.stringify(charDesc, null, 2);
     
     // Map adjust parts to Chinese names for prompt
     const adjustPartsMap: Record<string, string> = {
-      "subject_pose": "pose",
-      "subject_wardrobe": "wardrobe",
-      "environment": "environment",
-      "camera": "camera",
+      "subject_pose": "pose (人物动作)",
+      "subject_expression": "expression (人物表情)",
+      "subject_wardrobe": "wardrobe (人物着装)",
+      "environment": "environment (环境)",
+      "camera": "camera (镜头)",
     };
     
-    const adjustPartsChinese = adjustParts.map(part => adjustPartsMap[part] || part).join("和");
-    
-    // Build explicit field list for adjustment
-    const adjustFieldsList = adjustParts.map(part => {
-      if (part === "subject_pose") return "subject_pose (人物动作)";
-      if (part === "subject_wardrobe") return "subject_wardrobe (人物着装)";
-      if (part === "environment") return "environment (环境)";
-      if (part === "camera") return "camera (镜头)";
-      return part;
-    }).join("、");
+    const adjustFieldsList = adjustParts.map(part => adjustPartsMap[part] || part).join("、");
     
     const prompt = `你是一个人像拍摄大师，擅长拍摄适合instagram的人像照片。
 
-你要拍的角色是${characterDescStr}，参考的图像是${originalPromptStr}。
+你要拍的角色是${charDescStr}，参考的图像是${refPromptStr}。
 
-现在，你的用户想要调整以下字段：${adjustFieldsList}。
-
-请根据角色描述 ${characterDescStr} 和参考图像 ${originalPromptStr}，重新生成这些字段的值，使其更适合角色 ${characterDescStr}。
+现在，你的用户想要调整${refPromptStr}中的${adjustFieldsList}，请你不要修改${refPromptStr}中的其他部分，重新输出一个包含${charDescStr}信息的完整JSON prompt。
 
 重要要求：
 1. 只调整以下字段：${adjustFieldsList}
-2. 其他字段（scene, subject_desc等）必须保持与参考图像 ${originalPromptStr} 完全一致
-3. subject_desc 必须使用角色描述 ${characterDescStr}，不要使用参考图中的 subject_desc
-4. 输出格式必须和原始prompt完全一致，包含所有字段：scene, subject_desc, subject_pose, subject_wardrobe, environment, camera
+2. 其他字段必须保持与参考图像 ${refPromptStr} 完全一致
+3. subject_desc 必须使用角色描述 ${charDescStr}，不要使用参考图中的 subject_desc
+4. 输出格式必须和原始prompt完全一致，包含所有字段：scene, subject_desc, subject_pose, subject_expression, subject_wardrobe, environment, camera
 
 请直接输出JSON格式，不要包含其他文字说明。`;
 
@@ -252,12 +266,12 @@ export async function POST(request: NextRequest) {
       if (isMaxTokens) {
         console.warn("由于 MAX_TOKENS，尝试合并原始 prompt 和部分调整...");
         try {
-          // Start with original prompt
-          adjustedPrompt = JSON.parse(JSON.stringify(captionPromptJson)); // Deep copy
+          // Start with ref prompt as base
+          adjustedPrompt = JSON.parse(JSON.stringify(refPromptJson)); // Deep copy
           
           // Try to extract individual fields from partial JSON
           // For simple string fields
-          const stringFields = ['scene', 'subject_pose'];
+          const stringFields = ['scene', 'subject_pose', 'subject_expression'];
           for (const field of stringFields) {
             const fieldRegex = new RegExp(`"${field}"\\s*:\\s*"([^"]*(?:\\\\.[^"]*)*)"`, 's');
             const fieldMatch = jsonText.match(fieldRegex);
@@ -325,10 +339,27 @@ export async function POST(request: NextRequest) {
     console.log("解析后的JSON字段:", Object.keys(adjustedPrompt));
     console.log("解析后的JSON预览:", JSON.stringify(adjustedPrompt, null, 2).substring(0, 500));
 
-    // Ensure subject_desc always uses character description
-    const finalAdjustedPrompt = {
-      ...adjustedPrompt,
-      subject_desc: characterDesc, // Always use character description
+    // Build final prompt: use adjusted fields + non-adjusted fields based on controlDimensions
+    const finalAdjustedPrompt: any = {
+      scene: controlDimensions.environment === "ref" 
+        ? (adjustedPrompt.scene || refPromptJson.scene)
+        : charPromptJson.scene,
+      subject_desc: charPromptJson.subject_desc, // Always use char
+      subject_pose: controlDimensions.pose === "adjust"
+        ? adjustedPrompt.subject_pose
+        : (controlDimensions.pose === "ref" ? refPromptJson.subject_pose : charPromptJson.subject_pose),
+      subject_expression: controlDimensions.expression === "adjust"
+        ? adjustedPrompt.subject_expression
+        : (controlDimensions.expression === "ref" ? refPromptJson.subject_expression : charPromptJson.subject_expression),
+      subject_wardrobe: controlDimensions.wardrobe === "adjust"
+        ? adjustedPrompt.subject_wardrobe
+        : (controlDimensions.wardrobe === "ref" ? refPromptJson.subject_wardrobe : charPromptJson.subject_wardrobe),
+      environment: controlDimensions.environment === "adjust"
+        ? adjustedPrompt.environment
+        : (controlDimensions.environment === "ref" ? refPromptJson.environment : charPromptJson.environment),
+      camera: controlDimensions.camera === "adjust"
+        ? adjustedPrompt.camera
+        : (controlDimensions.camera === "ref" ? refPromptJson.camera : charPromptJson.camera),
     };
 
     console.log("最终返回的 prompt (已替换 subject_desc):", JSON.stringify(finalAdjustedPrompt, null, 2).substring(0, 500));

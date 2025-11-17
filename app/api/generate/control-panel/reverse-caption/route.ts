@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
     "hair": { "length": "", "style": "", "color": "" }
   },
   "subject_pose": "",
+  "subject_expression": "",
   "subject_wardrobe": {
     "top": "",
     "bottom": "",

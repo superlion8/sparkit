@@ -51,10 +51,11 @@ export async function POST(request: NextRequest) {
     console.log("Final prompt data:", JSON.stringify(finalPromptData, null, 2));
 
     // Construct the final prompt
-    const sceneSetupJson = JSON.stringify(finalPromptData);
+    // Extract variate_prompt from finalPromptData (which contains the adjusted JSON)
+    const variatePromptJson = JSON.stringify(finalPromptData);
     const finalPrompt = `take autentic photo of the character, use instagram friendly composition. Shot on the character should have identical face. 
 
-scene setup: ${sceneSetupJson}
+scene setup: ${variatePromptJson}
 
 negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorted anatomy, fake portrait-mode blur, CGI/illustration look`;
 
