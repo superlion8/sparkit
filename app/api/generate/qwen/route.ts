@@ -78,11 +78,23 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log("Qwen API response:", {
-      code: data.code,
-      hasImage: !!data.data?.image,
-      imageLength: data.data?.image?.length || 0
-    });
+    
+    // Log the full response structure for debugging
+    console.log("=== Qwen API Full Response ===");
+    console.log("Response keys:", Object.keys(data));
+    console.log("Code:", data.code);
+    console.log("Data keys:", data.data ? Object.keys(data.data) : "No data");
+    console.log("Has image:", !!data.data?.image);
+    console.log("Image length:", data.data?.image?.length || 0);
+    
+    // Check if input image and output image are the same (first 100 chars)
+    if (data.data?.image) {
+      const outputImagePreview = data.data.image.substring(0, 100);
+      const inputImagePreview = imageBase64.substring(0, 100);
+      console.log("Output image preview:", outputImagePreview);
+      console.log("Input image preview:", inputImagePreview);
+      console.log("Are they the same?", outputImagePreview === inputImagePreview);
+    }
 
     if (data.code !== 0) {
       console.error("Qwen API returned error code:", data.code);
