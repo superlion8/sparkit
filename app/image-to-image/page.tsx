@@ -8,13 +8,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
 import { ImagePlus } from "lucide-react";
 
-type Model = "gemini" | "flux";
+type Model = "gemini" | "flux" | "qwen";
 type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
 
 export default function ImageToImagePage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState<Model>("gemini");
+  const [hotMode, setHotMode] = useState(false);
   const [numImages, setNumImages] = useState(1);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
@@ -71,6 +72,80 @@ export default function ImageToImagePage() {
 
       // Step 2: Generate images
       const allImages: string[] = [];
+
+      // For Hot Mode (Qwen), only generate 1 image per request
+      if (hotMode) {
+        if (uploadedImages.length === 0) {
+          throw new Error("请至少上传一张图片");
+        }
+        
+        const formData = new FormData();
+        formData.append("prompt", prompt);
+        formData.append("image", uploadedImages[0]);
+        formData.append("seed", String(Math.floor(Math.random() * 1000000)));
+
+        console.log(`[Image-to-Image] Hot Mode enabled - calling Qwen API`);
+
+        const response = await fetch("/api/generate/qwen", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData,
+        });
+
+        console.log(`[Image-to-Image] Qwen API response - Status: ${response.status}`);
+
+        if (!response.ok) {
+          let errorData: any;
+          const contentType = response.headers.get("content-type");
+          try {
+            if (contentType && contentType.includes("application/json")) {
+              errorData = await response.json();
+            } else {
+              const errorText = await response.text();
+              errorData = {
+                status: response.status,
+                statusText: response.statusText,
+                error: errorText,
+                contentType,
+              };
+            }
+          } catch (parseError) {
+            errorData = {
+              status: response.status,
+              statusText: response.statusText,
+              error: "无法解析错误响应",
+            };
+          }
+
+          console.error(`[Image-to-Image] Qwen API failed - Error:`, errorData);
+          setErrorDetails(errorData);
+          throw new Error(errorData.error || errorData.statusText || "Generation failed");
+        }
+
+        const data = await response.json();
+        console.log(`[Image-to-Image] Qwen response - Images count: ${data.images?.length || 0}`);
+
+        if (data.images && data.images.length > 0) {
+          const taskId = generateClientTaskId("image_to_image_qwen");
+          const inputImageUrl = uploadedImageUrls[0] ?? null;
+
+          await logTaskEvent(accessToken, {
+            taskId,
+            taskType: "image_to_image_qwen",
+            prompt,
+            inputImageUrl,
+            outputImageUrl: data.images[0],
+          });
+
+          allImages.push(...data.images);
+        }
+
+        setGeneratedImages(allImages);
+        setLoading(false);
+        return;
+      }
 
       // For Flux/Kontext Pro, only generate 1 image per request (API limitation)
       const actualNumImages = model === "flux" ? 1 : numImages;
@@ -206,7 +281,7 @@ export default function ImageToImagePage() {
 
             <div className="space-y-6">
               <ImageUpload
-                maxImages={model === "gemini" ? 4 : 1}
+                maxImages={hotMode || model === "flux" ? 1 : (model === "gemini" ? 4 : 1)}
                 onImagesChange={setUploadedImages}
                 label="上传图片"
               />
@@ -230,9 +305,12 @@ export default function ImageToImagePage() {
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => setModel("gemini")}
+                    onClick={() => {
+                      setModel("gemini");
+                      setHotMode(false);
+                    }}
                     className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                      model === "gemini"
+                      model === "gemini" && !hotMode
                         ? "bg-primary-600 text-white"
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
@@ -240,7 +318,10 @@ export default function ImageToImagePage() {
                     Nano Banana
                   </button>
                   <button
-                    onClick={() => setModel("flux")}
+                    onClick={() => {
+                      setModel("flux");
+                      setHotMode(false);
+                    }}
                     className={`px-4 py-2 rounded-lg font-medium transition-all ${
                       model === "flux"
                         ? "bg-primary-600 text-white"
@@ -260,6 +341,29 @@ export default function ImageToImagePage() {
               {model === "gemini" && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Hot Mode 🔥
+                  </label>
+                  <button
+                    onClick={() => setHotMode(!hotMode)}
+                    className={`w-full px-4 py-2 rounded-lg font-medium transition-all ${
+                      hotMode
+                        ? "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {hotMode ? "🔥 Hot Mode 已开启" : "开启 Hot Mode"}
+                  </button>
+                  {hotMode && (
+                    <p className="text-xs text-orange-600 mt-2">
+                      Hot Mode 使用 Qwen 模型，仅支持单张图片输入
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {model === "gemini" && !hotMode && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     生成数量: {numImages}
                   </label>
                   <input
@@ -274,6 +378,11 @@ export default function ImageToImagePage() {
                     <span>1张</span>
                     <span>4张</span>
                   </div>
+                </div>
+              )}
+              {hotMode && (
+                <div className="text-sm text-orange-600 bg-orange-50 p-3 rounded-lg">
+                  <p>🔥 Hot Mode 每次生成 1 张图片</p>
                 </div>
               )}
               {model === "flux" && (
