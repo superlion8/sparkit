@@ -149,13 +149,20 @@ const QWEN_WORKFLOW_BASE64 = Buffer.from(JSON.stringify({
       "_meta": { "title": "HOXI_BasePixelResizeImage" }
     }
   },
+  "meta_data": {},
   "extra_data": {
     "extra_pnginfo": {
       "workflow": {
         "id": "91f6bbe2-ed41-4fd6-bac7-71d5b5864ecb",
         "revision": 0,
         "last_node_id": 273,
-        "last_link_id": 435
+        "last_link_id": 435,
+        "nodes": [],
+        "links": [],
+        "groups": [],
+        "config": {},
+        "extra": {},
+        "version": 0.4
       }
     }
   }
