@@ -152,24 +152,6 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
             topP: 0.95,
             topK: 40,
           },
-          safetySettings: [
-            {
-              category: "HARM_CATEGORY_HATE_SPEECH",
-              threshold: "BLOCK_ONLY_HIGH"
-            },
-            {
-              category: "HARM_CATEGORY_HARASSMENT",
-              threshold: "BLOCK_ONLY_HIGH"
-            },
-            {
-              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-              threshold: "BLOCK_ONLY_HIGH"
-            },
-            {
-              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-              threshold: "BLOCK_ONLY_HIGH"
-            }
-          ],
         }),
       }
     );
@@ -186,6 +168,21 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
     if (data.error) {
       console.error("Gemini API 返回错误:", data.error);
       throw new Error(`Gemini API 错误: ${data.error.message || "未知错误"}`);
+    }
+
+    // Check promptFeedback FIRST
+    if (data.promptFeedback) {
+      const blockReason = data.promptFeedback.blockReason;
+      console.error("Prompt被阻止 (control panel generate):", {
+        blockReason,
+        blockReasonMessage: data.promptFeedback.blockReasonMessage
+      });
+      
+      if (blockReason === "IMAGE_SAFETY" || blockReason === "PROHIBITED_CONTENT") {
+        throw new Error(`内容被安全过滤阻止: ${blockReason}`);
+      } else if (blockReason) {
+        throw new Error(`请求被阻止: ${data.promptFeedback.blockReasonMessage || blockReason}`);
+      }
     }
 
     // Check for candidates

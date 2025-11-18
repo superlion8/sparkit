@@ -105,24 +105,6 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
         body: JSON.stringify({ 
           contents,
           generationConfig,
-          safetySettings: [
-            {
-              category: "HARM_CATEGORY_HATE_SPEECH",
-              threshold: "BLOCK_ONLY_HIGH"
-            },
-            {
-              category: "HARM_CATEGORY_HARASSMENT",
-              threshold: "BLOCK_ONLY_HIGH"
-            },
-            {
-              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-              threshold: "BLOCK_ONLY_HIGH"
-            },
-            {
-              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-              threshold: "BLOCK_ONLY_HIGH"
-            }
-          ],
         }),
       }
     );
@@ -163,6 +145,37 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
         { error: `Gemini API 错误: ${data.error.message || '未知错误'}` },
         { status: 500 }
       );
+    }
+    
+    // Check promptFeedback FIRST (before checking candidates)
+    if (data.promptFeedback) {
+      const blockReason = data.promptFeedback.blockReason;
+      console.error("Prompt被阻止:", {
+        blockReason,
+        blockReasonMessage: data.promptFeedback.blockReasonMessage,
+        safetyRatings: data.promptFeedback.safetyRatings
+      });
+      
+      if (blockReason === "IMAGE_SAFETY" || blockReason === "PROHIBITED_CONTENT") {
+        return NextResponse.json(
+          { 
+            error: `内容被安全过滤阻止: ${blockReason}`,
+            details: {
+              blockReason,
+              blockReasonMessage: data.promptFeedback.blockReasonMessage
+            }
+          },
+          { status: 400 }
+        );
+      } else if (blockReason) {
+        return NextResponse.json(
+          { 
+            error: `请求被阻止: ${data.promptFeedback.blockReasonMessage || blockReason}`,
+            details: data.promptFeedback
+          },
+          { status: 400 }
+        );
+      }
     }
     
     // Extract generated images
