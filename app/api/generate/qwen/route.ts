@@ -8,7 +8,9 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const prompt = formData.get("prompt") as string;
     const image = formData.get("image") as File;
-    const seed = formData.get("seed") as string || "10";
+    // Generate a random seed if not provided
+    const providedSeed = formData.get("seed") as string;
+    const seed = providedSeed || Math.floor(Math.random() * 1000000).toString();
 
     if (!prompt) {
       return NextResponse.json(
@@ -27,7 +29,7 @@ export async function POST(request: NextRequest) {
     console.log("=== Qwen Hot Mode API ===");
     console.log("Prompt:", prompt);
     console.log("Image size:", image.size);
-    console.log("Seed:", seed);
+    console.log("Seed:", seed, "(", providedSeed ? "provided" : "random", ")");
 
     // Convert image to base64
     const imageBuffer = Buffer.from(await image.arrayBuffer());
@@ -44,11 +46,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare request body
-    // Note: The API expects "propmt" (typo in the API, not "prompt")
     const requestBody = {
       workflow: QWEN_WORKFLOW_BASE64,
       image: imageBase64,
-      propmt: prompt,  // API expects "propmt" (typo)
+      prompt: prompt,  // Changed from "propmt" to "prompt"
       seed: parseInt(seed),
       output_image: ""
     };
