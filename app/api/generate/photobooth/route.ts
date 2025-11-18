@@ -966,11 +966,23 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
   const poseMap = new Map<number, Partial<PoseDescription>>();
   
   // Strategy 1: Find all Pose blocks using matchAll
-  // Support both {{Pose1}}: and Pose1: formats
-  const poseBlockRegex = /(?:^|\n)\s*[-*]?\s*\{\{?Pose\s*(\d+)\}?\}?\s*:?\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*\{\{?Pose\s*\d+\}?\}?\s*:?|$)/gi;
+  // Support formats: {{Pose1}}:, Pose1:, **Pose1**:, - **Pose1**:, etc.
+  // Match pattern: optional -, optional *, **Pose1**: or Pose1: or {{Pose1}}:
+  const poseBlockRegex = /(?:^|\n)\s*[-*]?\s*\*?\*?\{\{?Pose\s*(\d+)\}?\}?\*?\*?\s*:?\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*\*?\*?\{\{?Pose\s*\d+\}?\}?\*?\*?\s*:?|$)/gi;
   const poseBlockMatches = Array.from(text.matchAll(poseBlockRegex));
   
   console.log(`找到 ${poseBlockMatches.length} 个pose区块`);
+  
+  // If no matches found with standard regex, try alternative format: **Pose1**: (with ** markers)
+  if (poseBlockMatches.length === 0) {
+    console.log("尝试备用格式：**Pose1**:");
+    const altPoseBlockRegex = /(?:^|\n)\s*[-*]?\s*\*\*Pose\s*(\d+)\s*:\*\*\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*\*\*Pose\s*\d+\s*:\*\*|$)/gi;
+    const altMatches = Array.from(text.matchAll(altPoseBlockRegex));
+    if (altMatches.length > 0) {
+      console.log(`备用格式找到 ${altMatches.length} 个pose区块`);
+      poseBlockMatches.push(...altMatches);
+    }
+  }
   
   // Process each pose block - extract pose field (Action/Pose)
   for (const match of poseBlockMatches) {
@@ -985,26 +997,56 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
     const poseData: Partial<PoseDescription> = {};
     
     // Try to extract fields with ** markers first (most common format)
-    // Format: - **Pose:** or **Action:** content (may span multiple lines, may have - prefix)
+    // Format: - **Pose:** or **Action:** or **Pose1**: content (may span multiple lines, may have - prefix, may have numbers)
     // Match until next field (with or without ** markers, with or without numbers) or end of block
-    // Support both **Pose:** and **Action:** as pose field
+    // Support both **Pose:** and **Action:** as pose field, also support **Pose1**: format
     // Next field could be: Camera Position, Composition, or another Pose/Action
-    const poseWithMarkers = block.match(/(?:^|\n)\s*[-*]?\s*\*\*(?:Pose|Action):\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:\*\*(?:Camera\s*Position|Composition|Pose|Action):|(?:Camera\s*Position|Composition)\s*\d+|$))/i);
-    if (poseWithMarkers && poseWithMarkers[1]) {
-      poseData.pose = poseWithMarkers[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-      console.log(`找到 **Pose/Action:** 字段: ${poseData.pose.substring(0, 50)}...`);
+    // First try: **Pose1**: or **Pose**: (with optional number)
+    const poseWithMarkersAndNumber = block.match(/(?:^|\n)\s*[-*]?\s*\*\*Pose\s*\d*\s*:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Camera\s*Position|Composition|Pose)\s*\d*\s*:\*\*|$)/i);
+    if (poseWithMarkersAndNumber && poseWithMarkersAndNumber[1]) {
+      poseData.pose = poseWithMarkersAndNumber[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+      console.log(`找到 **Pose1**: 字段: ${poseData.pose.substring(0, 50)}...`);
     }
     
-    const cameraWithMarkers = block.match(/(?:^|\n)\s*[-*]?\s*\*\*Camera\s*Position:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Pose|Action|Composition):|$)/i);
-    if (cameraWithMarkers && cameraWithMarkers[1]) {
-      poseData.cameraPosition = cameraWithMarkers[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-      console.log(`找到 **Camera Position:** 字段: ${poseData.cameraPosition.substring(0, 50)}...`);
+    // Also try: **Pose:** or **Action:** (without number)
+    if (!poseData.pose) {
+      const poseWithMarkers = block.match(/(?:^|\n)\s*[-*]?\s*\*\*(?:Pose|Action):\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:\*\*(?:Camera\s*Position|Composition|Pose|Action):|(?:Camera\s*Position|Composition)\s*\d+|$))/i);
+      if (poseWithMarkers && poseWithMarkers[1]) {
+        poseData.pose = poseWithMarkers[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+        console.log(`找到 **Pose/Action:** 字段: ${poseData.pose.substring(0, 50)}...`);
+      }
     }
     
-    const compositionWithMarkers = block.match(/(?:^|\n)\s*[-*]?\s*\*\*Composition:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Pose|Action|Camera\s*Position):|$)/i);
-    if (compositionWithMarkers && compositionWithMarkers[1]) {
-      poseData.composition = compositionWithMarkers[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-      console.log(`找到 **Composition:** 字段: ${poseData.composition.substring(0, 50)}...`);
+    // Try: **Camera Position1**: or **Camera Position**: (with optional number)
+    const cameraWithMarkersAndNumber = block.match(/(?:^|\n)\s*[-*]?\s*\*\*Camera\s*Position\s*\d*\s*:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Pose|Action|Composition|Camera\s*Position)\s*\d*\s*:\*\*|$)/i);
+    if (cameraWithMarkersAndNumber && cameraWithMarkersAndNumber[1]) {
+      poseData.cameraPosition = cameraWithMarkersAndNumber[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+      console.log(`找到 **Camera Position1**: 字段: ${poseData.cameraPosition.substring(0, 50)}...`);
+    }
+    
+    // Also try: **Camera Position:** (without number)
+    if (!poseData.cameraPosition) {
+      const cameraWithMarkers = block.match(/(?:^|\n)\s*[-*]?\s*\*\*Camera\s*Position:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Pose|Action|Composition):|$)/i);
+      if (cameraWithMarkers && cameraWithMarkers[1]) {
+        poseData.cameraPosition = cameraWithMarkers[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+        console.log(`找到 **Camera Position:** 字段: ${poseData.cameraPosition.substring(0, 50)}...`);
+      }
+    }
+    
+    // Try: **Composition1**: or **Composition**: (with optional number)
+    const compositionWithMarkersAndNumber = block.match(/(?:^|\n)\s*[-*]?\s*\*\*Composition\s*\d*\s*:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Pose|Action|Camera\s*Position|Composition)\s*\d*\s*:\*\*|$)/i);
+    if (compositionWithMarkersAndNumber && compositionWithMarkersAndNumber[1]) {
+      poseData.composition = compositionWithMarkersAndNumber[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+      console.log(`找到 **Composition1**: 字段: ${poseData.composition.substring(0, 50)}...`);
+    }
+    
+    // Also try: **Composition:** (without number)
+    if (!poseData.composition) {
+      const compositionWithMarkers = block.match(/(?:^|\n)\s*[-*]?\s*\*\*Composition:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Pose|Action|Camera\s*Position):|$)/i);
+      if (compositionWithMarkers && compositionWithMarkers[1]) {
+        poseData.composition = compositionWithMarkers[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+        console.log(`找到 **Composition:** 字段: ${poseData.composition.substring(0, 50)}...`);
+      }
     }
     
     // If we didn't find pose field, try Action field without ** markers or Pose without markers
@@ -1162,8 +1204,10 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
   // This handles formats where fields are outside the pose block or in the block but not yet found
   console.log("在全文查找带数字的字段...");
   
-  // Improved regex to match {{Camera Position1}}: or Camera Position1: format more reliably
-  const cameraPositionRegex = /(?:^|\n)\s*[-*]?\s*\{\{?Camera\s*Position\s*(\d+)\}?\}?\s*:?\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*(?:\{\{?Camera\s*Position|Composition|Pose)\s*(?:\d+)?\}?\}?\s*:?|$)/gi;
+  // Improved regex to match formats:
+  // - **Camera Position1**: or **Camera Position**: (with ** markers)
+  // - {{Camera Position1}}: or Camera Position1: (without ** markers)
+  const cameraPositionRegex = /(?:^|\n)\s*[-*]?\s*\*?\*?\{\{?Camera\s*Position\s*(\d+)\}?\}?\*?\*?\s*:?\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*\*?\*?(?:\{\{?Camera\s*Position|Composition|Pose)\s*(?:\d+)?\}?\}?\*?\*?\s*:?|$)/gi;
   const cameraPositionMatches = Array.from(text.matchAll(cameraPositionRegex));
   console.log(`找到 ${cameraPositionMatches.length} 个Camera Position字段（全文查找）`);
   
@@ -1185,8 +1229,10 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
     }
   }
   
-  // Improved regex to match {{Composition1}}: or Composition1: format more reliably
-  const compositionRegex = /(?:^|\n)\s*[-*]?\s*\{\{?Composition\s*(\d+)\}?\}?\s*:?\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*(?:\{\{?Camera\s*Position|Composition|Pose)\s*(?:\d+)?\}?\}?\s*:?|$)/gi;
+  // Improved regex to match formats:
+  // - **Composition1**: or **Composition**: (with ** markers)
+  // - {{Composition1}}: or Composition1: (without ** markers)
+  const compositionRegex = /(?:^|\n)\s*[-*]?\s*\*?\*?\{\{?Composition\s*(\d+)\}?\}?\*?\*?\s*:?\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*\*?\*?(?:\{\{?Camera\s*Position|Composition|Pose)\s*(?:\d+)?\}?\}?\*?\*?\s*:?|$)/gi;
   const compositionMatches = Array.from(text.matchAll(compositionRegex));
   console.log(`找到 ${compositionMatches.length} 个Composition字段（全文查找）`);
   
@@ -1278,37 +1324,82 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
   // If we still don't have poses, try a more flexible approach
   if (poses.length === 0) {
     console.warn("未能使用区块解析，尝试逐行解析...");
-    // Split by Pose markers (supporting {{}} format) and try to extract from each section
-    const sections = text.split(/(?:^|\n)\s*\{\{?Pose\s*\d+\}?\}?\s*:?\s*/i).filter(s => s.trim().length > 0);
     
-    for (let i = 0; i < sections.length && i < 6; i++) {
-      const section = sections[i];
-      const poseData: Partial<PoseDescription> = {};
-      
-      // Try to extract each field with flexible matching (supports - prefix, ** markers, and {{}} format)
-      const poseMatch = section.match(/(?:^|\n)\s*[-*]?\s*(?:\{\{?Pose\}?\}?|Pose)\s*:?\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:\{\{?Camera\s*Position|Composition|Pose)\}?\}?\s*:?|$)/i);
-      if (poseMatch && poseMatch[1]) {
-        poseData.pose = poseMatch[1].trim().replace(/\{\{|\}\}/g, '').replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    // Strategy: Direct line-by-line parsing for **Pose1**: format
+    // First try: Split by **Pose1**: markers
+    // Use matchAll to find all **Pose1**: patterns with their numbers
+    const poseMatches = Array.from(text.matchAll(/(?:^|\n)\s*[-*]?\s*\*\*Pose\s*(\d+)\s*:\*\*\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*\*\*Pose\s*\d+\s*:\*\*|$)/gi));
+    if (poseMatches.length > 0) {
+      console.log(`使用 **Pose1**: 格式匹配，找到 ${poseMatches.length} 个区块`);
+      for (const match of poseMatches) {
+        const poseNumber = parseInt(match[1]);
+        const section = match[2];
+        const poseData: Partial<PoseDescription> = {};
+        
+        // Extract pose content (everything until next **Camera Position** or **Composition**)
+        const poseMatch = section.match(/^([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Camera\s*Position|Composition)\s*\d*\s*:\*\*|$)/i);
+        if (poseMatch && poseMatch[1]) {
+          poseData.pose = poseMatch[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+        
+        // Extract Camera Position
+        const cameraMatch = section.match(/\*\*Camera\s*Position\s*\d*\s*:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Composition|Pose)\s*\d*\s*:\*\*|$)/i);
+        if (cameraMatch && cameraMatch[1]) {
+          poseData.cameraPosition = cameraMatch[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+        
+        // Extract Composition
+        const compositionMatch = section.match(/\*\*Composition\s*\d*\s*:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Pose|Camera\s*Position)\s*\d*\s*:\*\*|$)/i);
+        if (compositionMatch && compositionMatch[1]) {
+          poseData.composition = compositionMatch[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+        
+        if (poseData.pose && poseData.cameraPosition && poseData.composition) {
+          if (poseData.pose.length > 10 && poseData.cameraPosition.length > 5 && poseData.composition.length > 5) {
+            poses.push({
+              pose: poseData.pose,
+              cameraPosition: poseData.cameraPosition,
+              composition: poseData.composition,
+            });
+            console.log(`成功解析 Pose ${poseNumber}（**Pose1**: 格式）`);
+          }
+        }
       }
+    }
+    
+    // If still no poses, try splitting by Pose markers (supporting {{}} format) and try to extract from each section
+    if (poses.length === 0) {
+      const sections = text.split(/(?:^|\n)\s*[-*]?\s*\*?\*?\{\{?Pose\s*\d+\}?\}?\*?\*?\s*:?\s*/i).filter(s => s.trim().length > 0);
       
-      const cameraMatch = section.match(/(?:^|\n)\s*[-*]?\s*(?:\{\{?Camera\s*Position\}?\}?|Camera\s*Position)\s*:?\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:\{\{?Pose|Composition|Camera\s*Position)\}?\}?\s*:?|$)/i);
-      if (cameraMatch && cameraMatch[1]) {
-        poseData.cameraPosition = cameraMatch[1].trim().replace(/\{\{|\}\}/g, '').replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-      }
-      
-      const compositionMatch = section.match(/(?:^|\n)\s*[-*]?\s*(?:\{\{?Composition\}?\}?|Composition)\s*:?\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:\{\{?Pose|Camera\s*Position|Composition)\}?\}?\s*:?|$)/i);
-      if (compositionMatch && compositionMatch[1]) {
-        poseData.composition = compositionMatch[1].trim().replace(/\{\{|\}\}/g, '').replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-      }
-      
-      if (poseData.pose && poseData.cameraPosition && poseData.composition) {
-        if (poseData.pose.length > 10 && poseData.cameraPosition.length > 5 && poseData.composition.length > 5) {
-          poses.push({
-            pose: poseData.pose,
-            cameraPosition: poseData.cameraPosition,
-            composition: poseData.composition,
-          });
-          console.log(`逐行解析成功，添加 Pose ${poses.length}`);
+      for (let i = 0; i < sections.length && i < 6; i++) {
+        const section = sections[i];
+        const poseData: Partial<PoseDescription> = {};
+        
+        // Try to extract each field with flexible matching (supports - prefix, ** markers, and {{}} format)
+        const poseMatch = section.match(/(?:^|\n)\s*[-*]?\s*\*?\*?(?:\{\{?Pose\}?\}?|Pose)\s*\d*\s*:?\*?\*?\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*?\*?(?:\{\{?Camera\s*Position|Composition|Pose)\s*\d*\}?\}?\*?\*?\s*:?|$)/i);
+        if (poseMatch && poseMatch[1]) {
+          poseData.pose = poseMatch[1].trim().replace(/\{\{|\}\}/g, '').replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+        
+        const cameraMatch = section.match(/(?:^|\n)\s*[-*]?\s*\*?\*?(?:\{\{?Camera\s*Position\}?\}?|Camera\s*Position)\s*\d*\s*:?\*?\*?\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*?\*?(?:\{\{?Pose|Composition|Camera\s*Position)\s*\d*\}?\}?\*?\*?\s*:?|$)/i);
+        if (cameraMatch && cameraMatch[1]) {
+          poseData.cameraPosition = cameraMatch[1].trim().replace(/\{\{|\}\}/g, '').replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+        
+        const compositionMatch = section.match(/(?:^|\n)\s*[-*]?\s*\*?\*?(?:\{\{?Composition\}?\}?|Composition)\s*\d*\s*:?\*?\*?\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*?\*?(?:\{\{?Pose|Camera\s*Position|Composition)\s*\d*\}?\}?\*?\*?\s*:?|$)/i);
+        if (compositionMatch && compositionMatch[1]) {
+          poseData.composition = compositionMatch[1].trim().replace(/\{\{|\}\}/g, '').replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+        
+        if (poseData.pose && poseData.cameraPosition && poseData.composition) {
+          if (poseData.pose.length > 10 && poseData.cameraPosition.length > 5 && poseData.composition.length > 5) {
+            poses.push({
+              pose: poseData.pose,
+              cameraPosition: poseData.cameraPosition,
+              composition: poseData.composition,
+            });
+            console.log(`逐行解析成功，添加 Pose ${poses.length}`);
+          }
         }
       }
     }
