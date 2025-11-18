@@ -967,21 +967,26 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
   
   // Strategy 1: Find all Pose blocks using matchAll
   // Support formats: {{Pose1}}:, Pose1:, **Pose1**:, - **Pose1**:, etc.
-  // Match pattern: optional -, optional *, **Pose1**: or Pose1: or {{Pose1}}:
-  const poseBlockRegex = /(?:^|\n)\s*[-*]?\s*\*?\*?\{\{?Pose\s*(\d+)\}?\}?\*?\*?\s*:?\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*\*?\*?\{\{?Pose\s*\d+\}?\}?\*?\*?\s*:?|$)/gi;
-  const poseBlockMatches = Array.from(text.matchAll(poseBlockRegex));
+  // Try multiple regex patterns to handle different formats
+  let poseBlockMatches: RegExpMatchArray[] = [];
   
-  console.log(`找到 ${poseBlockMatches.length} 个pose区块`);
+  // Pattern 1: Try **Pose1**: format first (most common in recent outputs)
+  const pose1Regex = /(?:^|\n)\s*[-*]?\s*\*\*Pose\s*(\d+)\s*:\*\*\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*\*\*Pose\s*\d+\s*:\*\*|$)/gi;
+  poseBlockMatches = Array.from(text.matchAll(pose1Regex));
+  console.log(`Pattern 1 (**Pose1**:) 找到 ${poseBlockMatches.length} 个pose区块`);
   
-  // If no matches found with standard regex, try alternative format: **Pose1**: (with ** markers)
+  // Pattern 2: If not found, try {{Pose1}}: format
   if (poseBlockMatches.length === 0) {
-    console.log("尝试备用格式：**Pose1**:");
-    const altPoseBlockRegex = /(?:^|\n)\s*[-*]?\s*\*\*Pose\s*(\d+)\s*:\*\*\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*\*\*Pose\s*\d+\s*:\*\*|$)/gi;
-    const altMatches = Array.from(text.matchAll(altPoseBlockRegex));
-    if (altMatches.length > 0) {
-      console.log(`备用格式找到 ${altMatches.length} 个pose区块`);
-      poseBlockMatches.push(...altMatches);
-    }
+    const pose2Regex = /(?:^|\n)\s*[-*]?\s*\{\{Pose\s*(\d+)\}\}\s*:?\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*\{\{Pose\s*\d+\}\}|$)/gi;
+    poseBlockMatches = Array.from(text.matchAll(pose2Regex));
+    console.log(`Pattern 2 ({{Pose1}}:) 找到 ${poseBlockMatches.length} 个pose区块`);
+  }
+  
+  // Pattern 3: If still not found, try simple Pose1: format
+  if (poseBlockMatches.length === 0) {
+    const pose3Regex = /(?:^|\n)\s*[-*]?\s*Pose\s*(\d+)\s*:?\s*([\s\S]+?)(?=(?:^|\n)\s*[-*]?\s*Pose\s*\d+\s*:?|$)/gi;
+    poseBlockMatches = Array.from(text.matchAll(pose3Regex));
+    console.log(`Pattern 3 (Pose1:) 找到 ${poseBlockMatches.length} 个pose区块`);
   }
   
   // Process each pose block - extract pose field (Action/Pose)
@@ -996,57 +1001,29 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
     
     const poseData: Partial<PoseDescription> = {};
     
-    // Try to extract fields with ** markers first (most common format)
-    // Format: - **Pose:** or **Action:** or **Pose1**: content (may span multiple lines, may have - prefix, may have numbers)
-    // Match until next field (with or without ** markers, with or without numbers) or end of block
-    // Support both **Pose:** and **Action:** as pose field, also support **Pose1**: format
-    // Next field could be: Camera Position, Composition, or another Pose/Action
-    // First try: **Pose1**: or **Pose**: (with optional number)
-    const poseWithMarkersAndNumber = block.match(/(?:^|\n)\s*[-*]?\s*\*\*Pose\s*\d*\s*:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Camera\s*Position|Composition|Pose)\s*\d*\s*:\*\*|$)/i);
-    if (poseWithMarkersAndNumber && poseWithMarkersAndNumber[1]) {
-      poseData.pose = poseWithMarkersAndNumber[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-      console.log(`找到 **Pose1**: 字段: ${poseData.pose.substring(0, 50)}...`);
+    // Try to extract fields with ** markers
+    // Support formats: **Pose1**: or **Pose**: or - **Pose1**: etc.
+    // The block should already contain content from **Pose1**: to the next **Pose2**:
+    
+    // Extract pose content (first line/section of the block, before **Camera Position** or **Composition**)
+    const poseMatch = block.match(/^([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Camera\s*Position|Composition)\s*\d*\s*:\*\*|$)/i);
+    if (poseMatch && poseMatch[1]) {
+      poseData.pose = poseMatch[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+      console.log(`找到 Pose 字段 (Pose ${poseNumber}): ${poseData.pose.substring(0, 50)}...`);
     }
     
-    // Also try: **Pose:** or **Action:** (without number)
-    if (!poseData.pose) {
-      const poseWithMarkers = block.match(/(?:^|\n)\s*[-*]?\s*\*\*(?:Pose|Action):\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*(?:\*\*(?:Camera\s*Position|Composition|Pose|Action):|(?:Camera\s*Position|Composition)\s*\d+|$))/i);
-      if (poseWithMarkers && poseWithMarkers[1]) {
-        poseData.pose = poseWithMarkers[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-        console.log(`找到 **Pose/Action:** 字段: ${poseData.pose.substring(0, 50)}...`);
-      }
+    // Extract Camera Position (supports **Camera Position1**: format)
+    const cameraMatch = block.match(/(?:^|\n)\s*[-*]?\s*\*\*Camera\s*Position\s*\d*\s*:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Composition|Pose)\s*\d*\s*:\*\*|$)/i);
+    if (cameraMatch && cameraMatch[1]) {
+      poseData.cameraPosition = cameraMatch[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+      console.log(`找到 Camera Position 字段 (Pose ${poseNumber}): ${poseData.cameraPosition.substring(0, 50)}...`);
     }
     
-    // Try: **Camera Position1**: or **Camera Position**: (with optional number)
-    const cameraWithMarkersAndNumber = block.match(/(?:^|\n)\s*[-*]?\s*\*\*Camera\s*Position\s*\d*\s*:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Pose|Action|Composition|Camera\s*Position)\s*\d*\s*:\*\*|$)/i);
-    if (cameraWithMarkersAndNumber && cameraWithMarkersAndNumber[1]) {
-      poseData.cameraPosition = cameraWithMarkersAndNumber[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-      console.log(`找到 **Camera Position1**: 字段: ${poseData.cameraPosition.substring(0, 50)}...`);
-    }
-    
-    // Also try: **Camera Position:** (without number)
-    if (!poseData.cameraPosition) {
-      const cameraWithMarkers = block.match(/(?:^|\n)\s*[-*]?\s*\*\*Camera\s*Position:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Pose|Action|Composition):|$)/i);
-      if (cameraWithMarkers && cameraWithMarkers[1]) {
-        poseData.cameraPosition = cameraWithMarkers[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-        console.log(`找到 **Camera Position:** 字段: ${poseData.cameraPosition.substring(0, 50)}...`);
-      }
-    }
-    
-    // Try: **Composition1**: or **Composition**: (with optional number)
-    const compositionWithMarkersAndNumber = block.match(/(?:^|\n)\s*[-*]?\s*\*\*Composition\s*\d*\s*:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Pose|Action|Camera\s*Position|Composition)\s*\d*\s*:\*\*|$)/i);
-    if (compositionWithMarkersAndNumber && compositionWithMarkersAndNumber[1]) {
-      poseData.composition = compositionWithMarkersAndNumber[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-      console.log(`找到 **Composition1**: 字段: ${poseData.composition.substring(0, 50)}...`);
-    }
-    
-    // Also try: **Composition:** (without number)
-    if (!poseData.composition) {
-      const compositionWithMarkers = block.match(/(?:^|\n)\s*[-*]?\s*\*\*Composition:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Pose|Action|Camera\s*Position):|$)/i);
-      if (compositionWithMarkers && compositionWithMarkers[1]) {
-        poseData.composition = compositionWithMarkers[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-        console.log(`找到 **Composition:** 字段: ${poseData.composition.substring(0, 50)}...`);
-      }
+    // Extract Composition (supports **Composition1**: format)
+    const compositionMatch = block.match(/(?:^|\n)\s*[-*]?\s*\*\*Composition\s*\d*\s*:\*\*\s*([\s\S]+?)(?=\n\s*[-*]?\s*\*\*(?:Pose|Camera\s*Position)\s*\d*\s*:\*\*|$)/i);
+    if (compositionMatch && compositionMatch[1]) {
+      poseData.composition = compositionMatch[1].trim().replace(/\*\*/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+      console.log(`找到 Composition 字段 (Pose ${poseNumber}): ${poseData.composition.substring(0, 50)}...`);
     }
     
     // If we didn't find pose field, try Action field without ** markers or Pose without markers
