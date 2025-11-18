@@ -53,6 +53,11 @@ export async function POST(request: NextRequest) {
       output_image: ""
     };
 
+    console.log("=== Qwen API Request ===");
+    console.log("Prompt:", prompt);
+    console.log("Seed:", seed);
+    console.log("Image size (bytes):", imageBase64.length);
+    console.log("Workflow size (bytes):", QWEN_WORKFLOW_BASE64.length);
     console.log("Calling Qwen API...");
     const startTime = Date.now();
 
