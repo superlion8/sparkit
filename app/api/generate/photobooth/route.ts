@@ -986,6 +986,79 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
   console.log("文本长度:", text.length);
   console.log("文本预览:", text.substring(0, 1000));
   
+  // 新策略：直接按编号查找每个字段
+  // 支持格式：- **Pose1**: , - **Camera Position1**: , - **Composition1**:
+  for (let i = 1; i <= 10; i++) { // 尝试查找前10个pose
+    const poseData: Partial<PoseDescription> = {};
+    
+    // 查找 Pose N
+    const poseRegex = new RegExp(`[-*\\s]*\\*?\\*?Pose\\s*${i}\\s*\\*?\\*?\\s*:[\\s\\S]*?([\\s\\S]+?)(?=[-*\\s]*\\*?\\*?Camera\\s*Position\\s*${i}\\s*\\*?\\*?\\s*:|$)`, 'i');
+    const poseMatch = text.match(poseRegex);
+    if (poseMatch && poseMatch[1]) {
+      poseData.pose = poseMatch[1]
+        .trim()
+        .replace(/\*\*/g, '')
+        .replace(/\n+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+    
+    // 查找 Camera Position N
+    const cameraRegex = new RegExp(`[-*\\s]*\\*?\\*?Camera\\s*Position\\s*${i}\\s*\\*?\\*?\\s*:[\\s\\S]*?([\\s\\S]+?)(?=[-*\\s]*\\*?\\*?Composition\\s*${i}\\s*\\*?\\*?\\s*:|$)`, 'i');
+    const cameraMatch = text.match(cameraRegex);
+    if (cameraMatch && cameraMatch[1]) {
+      poseData.cameraPosition = cameraMatch[1]
+        .trim()
+        .replace(/\*\*/g, '')
+        .replace(/\n+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+    
+    // 查找 Composition N
+    const compositionRegex = new RegExp(`[-*\\s]*\\*?\\*?Composition\\s*${i}\\s*\\*?\\*?\\s*:[\\s\\S]*?([\\s\\S]+?)(?=[-*\\s]*\\*?\\*?(?:Pose|Camera\\s*Position|Composition)\\s*${i + 1}\\s*\\*?\\*?\\s*:|$)`, 'i');
+    const compositionMatch = text.match(compositionRegex);
+    if (compositionMatch && compositionMatch[1]) {
+      poseData.composition = compositionMatch[1]
+        .trim()
+        .replace(/\*\*/g, '')
+        .replace(/\n+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+    
+    // 验证并添加
+    if (poseData.pose && poseData.cameraPosition && poseData.composition) {
+      if (poseData.pose.length >= 10 && poseData.cameraPosition.length >= 5 && poseData.composition.length >= 5) {
+        poses.push({
+          pose: poseData.pose,
+          cameraPosition: poseData.cameraPosition,
+          composition: poseData.composition,
+        });
+        console.log(`✅ 成功解析 Pose ${i}:`);
+        console.log(`  Pose (${poseData.pose.length} chars): ${poseData.pose.substring(0, 60)}...`);
+        console.log(`  Camera (${poseData.cameraPosition.length} chars): ${poseData.cameraPosition.substring(0, 60)}...`);
+        console.log(`  Composition (${poseData.composition.length} chars): ${poseData.composition.substring(0, 60)}...`);
+      } else {
+        console.warn(`⚠️ Pose ${i} 字段长度不足，跳过`);
+        break; // 如果某个pose字段太短，停止查找
+      }
+    } else {
+      // 如果找不到完整的pose，停止查找（假设后面也不会有）
+      console.log(`未找到完整的 Pose ${i}，停止查找`);
+      break;
+    }
+  }
+  
+  // 如果新策略成功，直接返回
+  if (poses.length > 0) {
+    console.log(`✅ 新策略成功解析 ${poses.length} 个pose`);
+    return poses.slice(0, 6); // 最多返回6个
+  }
+  
+  // 否则尝试旧的备用策略
+  console.log("⚠️ 新策略失败，尝试备用策略...");
+  
   // Strategy 1: Find all Pose blocks using matchAll
   // This handles formats like:
   // - Pose1:
