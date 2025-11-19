@@ -222,11 +222,22 @@ export default function MimicPage() {
       formData.append("aspectRatio", aspectRatio);
       formData.append("numImages", hotMode ? "1" : numImages.toString());
       formData.append("hotMode", hotMode.toString());
-      // 传入用户修改后的 captionPrompt，告诉后端跳过 Step 1 & 2
+      formData.append("keepBackground", keepBackground.toString()); // 传递 keepBackground 状态
+      // 传入用户修改后的 captionPrompt，告诉后端跳过 Step 1
       formData.append("customCaptionPrompt", editableCaptionPrompt);
-      // 如果有 backgroundImage，也传入（虽然后端会跳过生成）
-      if (backgroundImage) {
-        formData.append("skipBackgroundGeneration", "true");
+      // 如果用户选择了保留背景且有背景图，将背景图转换为 File 传给后端
+      if (keepBackground && backgroundImage) {
+        try {
+          // 将 base64/URL 背景图转换为 Blob 然后 File
+          const response = await fetch(backgroundImage);
+          const blob = await response.blob();
+          const bgFile = new File([blob], "background.png", { type: "image/png" });
+          formData.append("existingBackgroundImage", bgFile);
+          console.log("已将背景图添加到重新生成请求");
+        } catch (err) {
+          console.error("转换背景图失败:", err);
+          // 如果转换失败，继续执行，让后端重新生成背景图
+        }
       }
 
       const response = await fetch("/api/generate/mimic", {

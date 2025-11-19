@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     const hotMode = formData.get("hotMode") === "true";
     const keepBackground = formData.get("keepBackground") === "true";
     const customCaptionPrompt = formData.get("customCaptionPrompt") as string | null;
-    const skipBackgroundGeneration = formData.get("skipBackgroundGeneration") === "true";
+    const existingBackgroundImage = formData.get("existingBackgroundImage") as File | null;
 
     // 如果提供了自定义 captionPrompt，说明是重新生成，不需要参考图
     if (customCaptionPrompt && !characterImage) {
@@ -109,11 +109,42 @@ export async function POST(request: NextRequest) {
     
     if (customCaptionPrompt) {
       // 使用用户提供的自定义 prompt
-      console.log("=== 重新生成模式：使用自定义 captionPrompt，跳过 Step 1 & Step 2 ===");
+      console.log("=== 重新生成模式：使用自定义 captionPrompt，跳过 Step 1 ===");
       console.log("自定义 captionPrompt:", customCaptionPrompt);
+      console.log("keepBackground:", keepBackground);
+      console.log("existingBackgroundImage 是否提供:", existingBackgroundImage ? "Yes" : "No");
       captionPrompt = customCaptionPrompt;
-      // 在重新生成模式下，不使用背景图，让 AI 根据 captionPrompt 自由生成场景
-      console.log("重新生成模式：不使用背景图，仅使用 character image + captionPrompt");
+      
+      // Step 2: 处理背景图
+      if (keepBackground && existingBackgroundImage) {
+        // 如果用户选择了保留背景，且提供了背景图，使用它
+        console.log("重新生成模式 Step 2: 使用前端提供的现有背景图");
+        const bgBuffer = await existingBackgroundImage.arrayBuffer();
+        const bgBase64 = Buffer.from(bgBuffer).toString("base64");
+        backgroundImage = `data:${existingBackgroundImage.type};base64,${bgBase64}`;
+        backgroundImageBase64 = bgBase64;
+        console.log("背景图已加载，长度:", bgBase64.length);
+      } else if (keepBackground && referenceImage) {
+        // 如果选择了保留背景但没提供背景图，说明是首次生成，需要去人物
+        console.log("重新生成模式 Step 2: 需要从参考图去掉人物生成背景");
+        const refBuffer = await referenceImage.arrayBuffer();
+        const refBase64 = Buffer.from(refBuffer).toString("base64");
+        backgroundImage = await removeCharacter(
+          refBase64,
+          referenceImage.type,
+          aspectRatio,
+          apiKey
+        );
+        if (backgroundImage.startsWith("data:")) {
+          backgroundImageBase64 = backgroundImage.split(",")[1];
+        } else {
+          backgroundImageBase64 = backgroundImage;
+        }
+        console.log("背景图生成完成");
+      } else {
+        // 不保留背景，让 AI 根据 captionPrompt 自由发挥
+        console.log("重新生成模式 Step 2: 不使用背景图，仅使用 character image + captionPrompt");
+      }
     } else {
       // 正常流程：反推提示词和生成背景图
       // Step 1: 反推提示词（使用 gemini-2.5-flash 文本模型）
