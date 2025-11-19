@@ -234,11 +234,11 @@ export async function POST(request: NextRequest) {
     
     // 按照原始顺序排序结果（Promise.all保持顺序）
     imageResults.forEach((result) => {
-      if (result.success && 'image' in result) {
+      if (result.success && 'image' in result && result.image) {
         generatedImages.push({ index: result.index, image: result.image });
       } else if (!result.success && 'error' in result) {
         // Sanitize error message immediately when collecting
-        const sanitizedError = sanitizeString(result.error);
+        const sanitizedError = sanitizeString(result.error || "未知错误");
         generatedImageErrors.push(`第 ${result.index + 1} 张: ${sanitizedError}`);
       }
     });
