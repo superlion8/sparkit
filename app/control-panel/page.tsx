@@ -421,6 +421,68 @@ export default function ControlPanelPage() {
     }
   };
 
+  // 辅助函数：从 variateFields 重建完整的 prompt 对象
+  const rebuildPromptFromFields = () => {
+    if (!variatePrompt) return null;
+    
+    const parseJsonOrKeep = (value: string, fallback: any) => {
+      if (!value || !value.trim()) return fallback;
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    };
+
+    return {
+      scene: variateFields.scene || variatePrompt.scene,
+      subject_desc: parseJsonOrKeep(variateFields.subject_desc, variatePrompt.subject_desc),
+      subject_pose: variateFields.subject_pose || variatePrompt.subject_pose,
+      subject_expression: variateFields.subject_expression || variatePrompt.subject_expression,
+      subject_wardrobe: parseJsonOrKeep(variateFields.subject_wardrobe, variatePrompt.subject_wardrobe),
+      environment: parseJsonOrKeep(variateFields.environment, variatePrompt.environment),
+      camera: parseJsonOrKeep(variateFields.camera, variatePrompt.camera),
+    };
+  };
+
+  // 辅助函数：更新单个字段并同步更新 finalPromptJson
+  const updateVariateField = (fieldName: string, value: string) => {
+    const updatedFields = { ...variateFields, [fieldName]: value };
+    setVariateFields(updatedFields);
+    
+    // 立即重建 prompt 并更新 finalPromptJson
+    try {
+      const tempFields = { ...variateFields, [fieldName]: value };
+      const parseJsonOrKeep = (val: string, fallback: any) => {
+        if (!val || !val.trim()) return fallback;
+        try {
+          return JSON.parse(val);
+        } catch {
+          return val;
+        }
+      };
+
+      if (variatePrompt) {
+        const rebuiltPrompt = {
+          scene: tempFields.scene || variatePrompt.scene,
+          subject_desc: parseJsonOrKeep(tempFields.subject_desc, variatePrompt.subject_desc),
+          subject_pose: tempFields.subject_pose || variatePrompt.subject_pose,
+          subject_expression: tempFields.subject_expression || variatePrompt.subject_expression,
+          subject_wardrobe: parseJsonOrKeep(tempFields.subject_wardrobe, variatePrompt.subject_wardrobe),
+          environment: parseJsonOrKeep(tempFields.environment, variatePrompt.environment),
+          camera: parseJsonOrKeep(tempFields.camera, variatePrompt.camera),
+        };
+        
+        const jsonString = JSON.stringify(rebuiltPrompt, null, 2);
+        setFinalPromptJson(jsonString);
+        setFinalPromptData(rebuiltPrompt);
+        console.log(`✍️ 字段 "${fieldName}" 已更新，同步更新 finalPromptJson`);
+      }
+    } catch (e) {
+      console.error("更新字段时重建 prompt 失败:", e);
+    }
+  };
+
   // Generate Final Image
   const handleGenerate = async () => {
     if (!characterImage.length) {
@@ -428,32 +490,58 @@ export default function ControlPanelPage() {
       return;
     }
 
-    // Use variateFields if available (user edited), otherwise use finalPromptData
-    let promptToUse = finalPromptData;
+    // 优先使用用户编辑后的 finalPromptJson（最底部的 JSON 编辑框）
+    // 如果没有，则从 variateFields 重建
+    let promptToUse: any = null;
+    let promptJsonString = "";
     
-    if (variatePrompt && variateFields) {
-      // Reconstruct from variateFields (user may have edited)
+    // 1. 首先尝试使用 finalPromptJson（用户可能直接编辑了 JSON）
+    if (finalPromptJson && finalPromptJson.trim()) {
       try {
+        promptToUse = JSON.parse(finalPromptJson);
+        promptJsonString = finalPromptJson;
+        console.log("✅ 使用 finalPromptJson (用户编辑的完整 JSON)");
+      } catch (e) {
+        console.error("finalPromptJson 解析失败，尝试从 variateFields 重建:", e);
+      }
+    }
+    
+    // 2. 如果 finalPromptJson 解析失败，从 variateFields 重建
+    if (!promptToUse && variatePrompt && variateFields) {
+      console.log("从 variateFields 重建 prompt...");
+      try {
+        // 辅助函数：尝试解析 JSON，如果失败返回原值
+        const parseJsonOrKeep = (value: string, fallback: any) => {
+          if (!value || !value.trim()) return fallback;
+          try {
+            return JSON.parse(value);
+          } catch {
+            // 如果不是 JSON，检查是否是简单字符串
+            return value;
+          }
+        };
+
         promptToUse = {
           scene: variateFields.scene || variatePrompt.scene,
-          subject_desc: variateFields.subject_desc 
-            ? JSON.parse(variateFields.subject_desc) 
-            : variatePrompt.subject_desc,
+          subject_desc: parseJsonOrKeep(variateFields.subject_desc, variatePrompt.subject_desc),
           subject_pose: variateFields.subject_pose || variatePrompt.subject_pose,
           subject_expression: variateFields.subject_expression || variatePrompt.subject_expression,
-          subject_wardrobe: variateFields.subject_wardrobe
-            ? JSON.parse(variateFields.subject_wardrobe)
-            : variatePrompt.subject_wardrobe,
-          environment: variateFields.environment
-            ? JSON.parse(variateFields.environment)
-            : variatePrompt.environment,
-          camera: variateFields.camera
-            ? JSON.parse(variateFields.camera)
-            : variatePrompt.camera,
+          subject_wardrobe: parseJsonOrKeep(variateFields.subject_wardrobe, variatePrompt.subject_wardrobe),
+          environment: parseJsonOrKeep(variateFields.environment, variatePrompt.environment),
+          camera: parseJsonOrKeep(variateFields.camera, variatePrompt.camera),
         };
+        promptJsonString = JSON.stringify(promptToUse, null, 2);
+        console.log("✅ 从 variateFields 重建成功");
       } catch (e) {
-        console.error("解析 variateFields 失败，使用 finalPromptData:", e);
+        console.error("从 variateFields 重建失败:", e);
       }
+    }
+    
+    // 3. 最后尝试使用 finalPromptData
+    if (!promptToUse && finalPromptData) {
+      promptToUse = finalPromptData;
+      promptJsonString = JSON.stringify(promptToUse, null, 2);
+      console.log("✅ 使用 finalPromptData (备用)");
     }
 
     if (!promptToUse) {
@@ -467,6 +555,9 @@ export default function ControlPanelPage() {
       return;
     }
 
+    console.log("=== 发送给后端的 prompt ===");
+    console.log(JSON.stringify(promptToUse, null, 2));
+
     setGenerating(true);
     setError("");
     setErrorDetails(null);
@@ -474,7 +565,7 @@ export default function ControlPanelPage() {
     try {
       const formData = new FormData();
       formData.append("characterImage", characterImage[0]);
-      formData.append("finalPromptJson", JSON.stringify(promptToUse));
+      formData.append("finalPromptJson", promptJsonString || JSON.stringify(promptToUse));
 
       const response = await fetch("/api/generate/control-panel/generate", {
         method: "POST",
@@ -827,7 +918,7 @@ export default function ControlPanelPage() {
                     </label>
                     <textarea
                       value={variateFields.scene}
-                      onChange={(e) => setVariateFields({...variateFields, scene: e.target.value})}
+                      onChange={(e) => updateVariateField('scene', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                       rows={3}
                     />
@@ -838,7 +929,7 @@ export default function ControlPanelPage() {
                     </label>
                     <textarea
                       value={variateFields.subject_desc}
-                      onChange={(e) => setVariateFields({...variateFields, subject_desc: e.target.value})}
+                      onChange={(e) => updateVariateField('subject_desc', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
                       rows={3}
                     />
@@ -849,7 +940,7 @@ export default function ControlPanelPage() {
                     </label>
                     <textarea
                       value={variateFields.subject_pose}
-                      onChange={(e) => setVariateFields({...variateFields, subject_pose: e.target.value})}
+                      onChange={(e) => updateVariateField('subject_pose', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                       rows={3}
                     />
@@ -860,7 +951,7 @@ export default function ControlPanelPage() {
                     </label>
                     <textarea
                       value={variateFields.subject_expression}
-                      onChange={(e) => setVariateFields({...variateFields, subject_expression: e.target.value})}
+                      onChange={(e) => updateVariateField('subject_expression', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                       rows={3}
                     />
@@ -871,7 +962,7 @@ export default function ControlPanelPage() {
                     </label>
                     <textarea
                       value={variateFields.subject_wardrobe}
-                      onChange={(e) => setVariateFields({...variateFields, subject_wardrobe: e.target.value})}
+                      onChange={(e) => updateVariateField('subject_wardrobe', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
                       rows={3}
                     />
@@ -882,7 +973,7 @@ export default function ControlPanelPage() {
                     </label>
                     <textarea
                       value={variateFields.environment}
-                      onChange={(e) => setVariateFields({...variateFields, environment: e.target.value})}
+                      onChange={(e) => updateVariateField('environment', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
                       rows={3}
                     />
@@ -893,7 +984,7 @@ export default function ControlPanelPage() {
                     </label>
                     <textarea
                       value={variateFields.camera}
-                      onChange={(e) => setVariateFields({...variateFields, camera: e.target.value})}
+                      onChange={(e) => updateVariateField('camera', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
                       rows={3}
                     />
