@@ -856,6 +856,19 @@ ${formatExample}`;
     throw new Error(`Gemini API 错误: ${data.error.message || '未知错误'}`);
   }
 
+  // Check for promptFeedback before checking candidates
+  if (data.promptFeedback) {
+    console.log("promptFeedback:", JSON.stringify(data.promptFeedback, null, 2));
+    if (data.promptFeedback.blockReason) {
+      console.error(`请求被阻止: ${data.promptFeedback.blockReason}`);
+      // Log safety ratings if available
+      if (data.promptFeedback.safetyRatings) {
+        console.error("Safety Ratings:", JSON.stringify(data.promptFeedback.safetyRatings, null, 2));
+      }
+      throw new Error(`Gemini API 阻止了请求 (原因: ${data.promptFeedback.blockReason})。请尝试使用其他图片或调整内容。`);
+    }
+  }
+
   // Check for candidates
   if (!data.candidates || data.candidates.length === 0) {
     console.error("没有 candidates 或为空");
@@ -1577,24 +1590,7 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
       body: JSON.stringify({
         contents,
         generationConfig,
-        safetySettings: [
-          {
-            category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_ONLY_HIGH"
-          },
-          {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_ONLY_HIGH"
-          },
-          {
-            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            threshold: "BLOCK_ONLY_HIGH"
-          },
-          {
-            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_ONLY_HIGH"
-          }
-        ],
+        // No explicit safetySettings for Image model (use Gemini defaults)
       }),
     }
   );
@@ -1613,6 +1609,8 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
     candidatesCount: data.candidates?.length || 0,
     hasError: !!data.error,
     error: data.error || null,
+    hasPromptFeedback: !!data.promptFeedback,
+    blockReason: data.promptFeedback?.blockReason || null,
     firstCandidateFinishReason: data.candidates?.[0]?.finishReason || null,
     firstCandidateHasInlineData: !!data.candidates?.[0]?.content?.parts?.[0]?.inlineData,
     // Log data length instead of full data
@@ -1623,6 +1621,15 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
   if (data.error) {
     console.error("Gemini API 返回错误:", data.error);
     throw new Error(`Gemini API 错误: ${data.error.message || '未知错误'}`);
+  }
+
+  // Check for promptFeedback before checking candidates
+  if (data.promptFeedback?.blockReason) {
+    console.error(`请求被阻止: ${data.promptFeedback.blockReason}`);
+    if (data.promptFeedback.safetyRatings) {
+      console.error("Safety Ratings:", JSON.stringify(data.promptFeedback.safetyRatings, null, 2));
+    }
+    throw new Error(`Gemini 阻止了图片生成 (原因: ${data.promptFeedback.blockReason})。请尝试使用其他图片。`);
   }
 
   // Check for candidates
