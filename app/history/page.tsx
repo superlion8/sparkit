@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download, Copy, Check } from "lucide-react";
+import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download, Copy, Check, X, ZoomIn } from "lucide-react";
 import { downloadImage, downloadVideo } from "@/lib/downloadUtils";
 
 interface GenerationTask {
@@ -84,12 +84,25 @@ export default function HistoryPage() {
   });
   const [filterType, setFilterType] = useState("all");
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAuthenticated && accessToken) {
       fetchHistory(1);
     }
   }, [isAuthenticated, accessToken, filterType]);
+
+  // 监听ESC键关闭预览
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && previewImage) {
+        setPreviewImage(null);
+      }
+    };
+    
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [previewImage]);
 
   const fetchHistory = async (page: number) => {
     if (!accessToken) return;
@@ -275,7 +288,8 @@ export default function HistoryPage() {
                     <img
                               src={parsedUrls.urls.poses[0]}
                               alt="Generated"
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => setPreviewImage(parsedUrls.urls.poses[0])}
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
                                 target.style.display = 'none';
@@ -298,7 +312,8 @@ export default function HistoryPage() {
                               <img
                                 src={url}
                                 alt={`Pose ${index + 1}`}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => setPreviewImage(url)}
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   target.style.display = 'none';
@@ -337,7 +352,8 @@ export default function HistoryPage() {
                             <img
                               src={parsedUrls.urls.snapshots[0]}
                               alt="Generated"
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => setPreviewImage(parsedUrls.urls.snapshots[0])}
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
                                 target.style.display = 'none';
@@ -360,7 +376,8 @@ export default function HistoryPage() {
                               <img
                                 src={url}
                                 alt={`Snapshot ${index + 1}`}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => setPreviewImage(url)}
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   target.style.display = 'none';
@@ -400,7 +417,8 @@ export default function HistoryPage() {
                             <img
                               src={firstImage}
                       alt="Generated"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => setPreviewImage(firstImage)}
                     />
                             {imageCount > 1 && (
                               <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
@@ -418,7 +436,8 @@ export default function HistoryPage() {
                         <img
                           src={parsedUrls.urls}
                           alt="Generated"
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => setPreviewImage(parsedUrls.urls)}
                         />
                       );
                     }
@@ -601,6 +620,36 @@ export default function HistoryPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <button
+            onClick={() => setPreviewImage(null)}
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+            aria-label="关闭预览"
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+          <div 
+            className="relative max-w-7xl max-h-[90vh] w-full h-full flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={previewImage}
+              alt="Preview"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white/80 text-sm">
+            点击背景或按 ESC 关闭
+          </div>
+        </div>
       )}
     </div>
   );
