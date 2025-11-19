@@ -20,6 +20,7 @@ export default function PhotoBoothPage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [image, setImage] = useState<File[]>([]);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
+  const [hotMode, setHotMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [poseDescriptions, setPoseDescriptions] = useState<PoseDescription[]>([]);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
@@ -65,6 +66,7 @@ export default function PhotoBoothPage() {
       const formData = new FormData();
       formData.append("image", image[0]);
       formData.append("aspectRatio", aspectRatio);
+      formData.append("hotMode", hotMode.toString());
 
       // Cancel previous request if exists
       if (abortControllerRef.current) {
@@ -371,6 +373,25 @@ export default function PhotoBoothPage() {
                   <option value="4:3">4:3 (标准横屏)</option>
                   <option value="3:4">3:4 (标准竖屏)</option>
                 </select>
+              </div>
+
+              {/* Hot Mode Toggle */}
+              <div>
+                <button
+                  onClick={() => setHotMode(!hotMode)}
+                  className={`w-full py-2.5 px-4 rounded-lg font-medium transition-all duration-200 ${
+                    hotMode
+                      ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/50'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {hotMode ? '🔥 Hot Mode (已开启)' : 'Hot Mode 🔥'}
+                </button>
+                {hotMode && (
+                  <p className="text-xs text-orange-600 mt-2 text-center">
+                    Hot Mode 使用 Qwen 模型生成 6 张图片
+                  </p>
+                )}
               </div>
 
               {/* Workflow Info */}

@@ -22,6 +22,9 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const image = formData.get("image") as File;
     const aspectRatio = formData.get("aspectRatio") as string;
+    const hotMode = formData.get("hotMode") === "true";
+
+    console.log(`=== PhotoBooth Generation Started (Hot Mode: ${hotMode}) ===`);
 
     if (!image) {
       return NextResponse.json(
@@ -42,7 +45,6 @@ export async function POST(request: NextRequest) {
     const imageBuffer = await image.arrayBuffer();
     const imageBase64 = Buffer.from(imageBuffer).toString("base64");
 
-    console.log("=== PhotoBooth Generation Started ===");
     const startTime = Date.now();
 
     // Upload input image to Aimovely first
@@ -96,8 +98,8 @@ export async function POST(request: NextRequest) {
       console.log(`成功解析 ${poseDescriptions.length} 个pose描述`);
     }
 
-    // Step 2: 根据pose描述并行生成图片（使用 gemini-2.5-flash-image 图像生成模型）
-    console.log(`Step 2: 根据 ${poseDescriptions.length} 个pose描述并行生成图片...`);
+    // Step 2: 根据pose描述并行生成图片
+    console.log(`Step 2: 根据 ${poseDescriptions.length} 个pose描述并行生成图片 (${hotMode ? 'Qwen' : 'Gemini'})...`);
     const step2Start = Date.now();
     
     // 并行生成所有图片
@@ -105,13 +107,11 @@ export async function POST(request: NextRequest) {
       const imageStart = Date.now();
       console.log(`启动第 ${index + 1}/${poseDescriptions.length} 张图片的生成任务...`);
       
-      return generatePoseImage(
-        imageBase64,
-        image.type,
-        poseDesc,
-        aspectRatio,
-        apiKey
-      )
+      const generatePromise = hotMode
+        ? generatePoseImageWithQwen(image, poseDesc)
+        : generatePoseImage(imageBase64, image.type, poseDesc, aspectRatio, apiKey);
+      
+      return generatePromise
         .then((generatedImage) => {
           const imageTime = ((Date.now() - imageStart) / 1000).toFixed(2);
           console.log(`第 ${index + 1} 张图片生成成功，耗时: ${imageTime} 秒`);
@@ -1625,5 +1625,78 @@ async function uploadImageToAimovely(dataUrl: string, token: string, prefix: str
     url: result.data?.url,
     resource_id: result.data?.resource_id,
   };
+}
+
+// Generate pose image using Qwen API (Hot Mode)
+async function generatePoseImageWithQwen(
+  characterImage: File,
+  poseDesc: PoseDescription
+): Promise<string> {
+  const qwenApiUrl = process.env.QWEN_API_URL;
+  if (!qwenApiUrl) {
+    throw new Error("Qwen API URL not configured");
+  }
+
+  // Construct prompt from pose description
+  const prompt = `${poseDesc.pose}, ${poseDesc.cameraPosition}, ${poseDesc.composition}`;
+  console.log("=== Calling Qwen API (PhotoBooth Hot Mode) ===");
+  console.log("Prompt:", prompt);
+
+  // Generate random seed
+  const seed = Math.floor(Math.random() * 1000000);
+
+  // Convert character image to base64
+  const imageBuffer = Buffer.from(await characterImage.arrayBuffer());
+  const imageBase64 = imageBuffer.toString('base64');
+
+  // Import the Qwen workflow
+  const { QWEN_WORKFLOW_BASE64 } = await import("@/lib/qwen-workflow");
+
+  // Prepare request body
+  const requestBody = {
+    workflow: QWEN_WORKFLOW_BASE64,
+    image: imageBase64,
+    prompt: prompt,
+    seed: seed,
+    output_image: ""
+  };
+
+  console.log("Seed:", seed);
+  const startTime = Date.now();
+
+  // Call Qwen API
+  const response = await fetch(qwenApiUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+  console.log(`Qwen API response (${elapsed}s), status: ${response.status}`);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Qwen API error:", errorText);
+    throw new Error(`Qwen API 错误: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (data.code !== 0) {
+    console.error("Qwen API returned error code:", data.code);
+    throw new Error(`Qwen API 返回错误代码: ${data.code}`);
+  }
+
+  if (!data.data?.image) {
+    console.error("No image in Qwen API response");
+    throw new Error("Qwen API 未返回图片");
+  }
+
+  console.log(`Successfully generated image with Qwen (${elapsed}s)`);
+
+  // Return as data URL
+  return `data:image/png;base64,${data.data.image}`;
 }
 

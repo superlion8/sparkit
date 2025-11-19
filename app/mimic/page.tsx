@@ -18,6 +18,7 @@ export default function MimicPage() {
   const [numImages, setNumImages] = useState(1);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
   const [keepBackground, setKeepBackground] = useState(true);
+  const [hotMode, setHotMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [captionPrompt, setCaptionPrompt] = useState("");
   const [backgroundImage, setBackgroundImage] = useState<string>("");
@@ -60,8 +61,9 @@ export default function MimicPage() {
         formData.append("characterImage", charImage);
       }
       formData.append("aspectRatio", aspectRatio);
-      formData.append("numImages", numImages.toString());
+      formData.append("numImages", hotMode ? "1" : numImages.toString());
       formData.append("keepBackground", keepBackground.toString());
+      formData.append("hotMode", hotMode.toString());
 
       setCurrentStep("正在去掉参考图中的人物...");
 
@@ -213,28 +215,49 @@ export default function MimicPage() {
               />
 
               <ImageUpload
-                maxImages={10}
+                maxImages={hotMode ? 1 : 10}
                 onImagesChange={setCharacterImage}
-                label="上传角色图 (可多张)"
+                label={hotMode ? "上传角色图" : "上传角色图 (可多张)"}
               />
 
+              {/* Hot Mode Toggle */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  生成数量: {numImages}
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="4"
-                  value={numImages}
-                  onChange={(e) => setNumImages(parseInt(e.target.value))}
-                  className="w-full accent-primary-600"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>1张</span>
-                  <span>4张</span>
-                </div>
+                <button
+                  onClick={() => setHotMode(!hotMode)}
+                  className={`w-full py-2.5 px-4 rounded-lg font-medium transition-all duration-200 ${
+                    hotMode
+                      ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/50'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {hotMode ? '🔥 Hot Mode (已开启)' : 'Hot Mode 🔥'}
+                </button>
+                {hotMode && (
+                  <p className="text-xs text-orange-600 mt-2 text-center">
+                    Hot Mode 使用 Qwen 模型生成，每次生成 1 张图片
+                  </p>
+                )}
               </div>
+
+              {!hotMode && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    生成数量: {numImages}
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="4"
+                    value={numImages}
+                    onChange={(e) => setNumImages(parseInt(e.target.value))}
+                    className="w-full accent-primary-600"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>1张</span>
+                    <span>4张</span>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">

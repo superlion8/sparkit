@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
     const characterImage = formData.get("characterImage") as File;
     const aspectRatio = formData.get("aspectRatio") as string;
     const numImages = parseInt(formData.get("numImages") as string) || 1;
+    const hotMode = formData.get("hotMode") === "true";
 
     if (!referenceImage || !characterImage) {
       return NextResponse.json(
@@ -22,6 +23,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    console.log(`=== Mimic Generation Started (Hot Mode: ${hotMode}) ===`);
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -36,8 +39,6 @@ export async function POST(request: NextRequest) {
     const referenceBase64 = Buffer.from(referenceBuffer).toString("base64");
     const characterBuffer = await characterImage.arrayBuffer();
     const characterBase64 = Buffer.from(characterBuffer).toString("base64");
-
-    console.log("=== Mimic Generation Started ===");
 
     // Upload input images to Aimovely first
     const aimovelyEmail = process.env.AIMOVELY_EMAIL;
@@ -101,8 +102,8 @@ export async function POST(request: NextRequest) {
     );
     console.log("背景图生成完成");
 
-    // Step 3: 生成最终图片（使用 gemini-2.5-flash-image 图像生成模型）
-    console.log("Step 3: 生成最终图片...");
+    // Step 3: 生成最终图片
+    console.log(`Step 3: 生成最终图片 (${hotMode ? 'Qwen' : 'Gemini'})...`);
     const finalImages: string[] = [];
     const finalImageErrors: string[] = [];
 
@@ -110,14 +111,26 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < numImages; i++) {
       try {
         console.log(`正在生成第 ${i + 1}/${numImages} 张图片...`);
-        const finalImage = await generateFinalImage(
-          characterBase64,
-          characterImage.type,
-          backgroundImage,
-          captionPrompt,
-          aspectRatio,
-          apiKey
-        );
+        
+        let finalImage: string;
+        if (hotMode) {
+          // Use Qwen API for Hot Mode
+          finalImage = await generateFinalImageWithQwen(
+            characterImage,
+            captionPrompt
+          );
+        } else {
+          // Use Gemini API
+          finalImage = await generateFinalImage(
+            characterBase64,
+            characterImage.type,
+            backgroundImage,
+            captionPrompt,
+            aspectRatio,
+            apiKey
+          );
+        }
+        
         finalImages.push(finalImage);
         console.log(`第 ${i + 1} 张图片生成成功`);
       } catch (error: any) {
@@ -762,5 +775,78 @@ async function uploadImageToAimovely(
     url: result.data?.url,
     resource_id: result.data?.resource_id,
   };
+}
+
+// Generate final image using Qwen API (Hot Mode)
+async function generateFinalImageWithQwen(
+  characterImage: File,
+  captionPrompt: string
+): Promise<string> {
+  const qwenApiUrl = process.env.QWEN_API_URL;
+  if (!qwenApiUrl) {
+    throw new Error("Qwen API URL not configured");
+  }
+
+  console.log("=== Calling Qwen API (Mimic Hot Mode) ===");
+  console.log("Prompt:", captionPrompt);
+  console.log("Character image size:", characterImage.size);
+
+  // Generate random seed
+  const seed = Math.floor(Math.random() * 1000000);
+
+  // Convert character image to base64
+  const imageBuffer = Buffer.from(await characterImage.arrayBuffer());
+  const imageBase64 = imageBuffer.toString('base64');
+
+  // Import the Qwen workflow
+  const { QWEN_WORKFLOW_BASE64 } = await import("@/lib/qwen-workflow");
+
+  // Prepare request body
+  const requestBody = {
+    workflow: QWEN_WORKFLOW_BASE64,
+    image: imageBase64,
+    prompt: captionPrompt,
+    seed: seed,
+    output_image: ""
+  };
+
+  console.log("Seed:", seed);
+  console.log("Calling Qwen API...");
+  const startTime = Date.now();
+
+  // Call Qwen API
+  const response = await fetch(qwenApiUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+  console.log(`Qwen API response received (${elapsed}s), status: ${response.status}`);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Qwen API error:", errorText);
+    throw new Error(`Qwen API 错误: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (data.code !== 0) {
+    console.error("Qwen API returned error code:", data.code);
+    throw new Error(`Qwen API 返回错误代码: ${data.code}`);
+  }
+
+  if (!data.data?.image) {
+    console.error("No image in Qwen API response");
+    throw new Error("Qwen API 未返回图片");
+  }
+
+  console.log(`Successfully generated image with Qwen (total time: ${elapsed}s)`);
+
+  // Return as data URL
+  return `data:image/png;base64,${data.data.image}`;
 }
 
