@@ -109,8 +109,11 @@ export async function POST(request: NextRequest) {
     
     if (customCaptionPrompt) {
       // 使用用户提供的自定义 prompt
-      console.log("使用自定义 captionPrompt，跳过 Step 1 & Step 2");
+      console.log("=== 重新生成模式：使用自定义 captionPrompt，跳过 Step 1 & Step 2 ===");
+      console.log("自定义 captionPrompt:", customCaptionPrompt);
       captionPrompt = customCaptionPrompt;
+      // 在重新生成模式下，不使用背景图，让 AI 根据 captionPrompt 自由生成场景
+      console.log("重新生成模式：不使用背景图，仅使用 character image + captionPrompt");
     } else {
       // 正常流程：反推提示词和生成背景图
       // Step 1: 反推提示词（使用 gemini-2.5-flash 文本模型）
@@ -624,42 +627,55 @@ async function generateFinalImage(
   aspectRatio: string | null,
   apiKey: string
 ): Promise<string> {
-  // Convert background image (data URL) back to base64 if needed
-  let backgroundBase64 = backgroundImage;
-  let backgroundMimeType = "image/png";
-
-  if (backgroundImage.startsWith("data:")) {
-    const parts = backgroundImage.split(",");
-    const metadata = parts[0];
-    backgroundBase64 = parts[1];
-    const mimeMatch = metadata.match(/data:(.*?);base64/);
-    if (mimeMatch) {
-      backgroundMimeType = mimeMatch[1];
-    }
-  }
-
   // Build final prompt: take autentic photo of the character, use instagram friendly composition, keep character features identical
   const finalPrompt = `take autentic photo of the character, use instagram friendly composition. Shot on the character should have identical face, features, skin tone, hairstyle, body proportions, and vibe. 
 
 scene setup: ${captionPrompt}`;
 
+  // Build image parts - only include background if provided
+  const imageParts: any[] = [
+    {
+      inlineData: {
+        mimeType: characterMimeType,
+        data: characterBase64,
+      },
+    },
+  ];
+
+  console.log(`Background image provided: ${backgroundImage ? 'Yes' : 'No'}, length: ${backgroundImage?.length || 0}`);
+
+  // Add background image if available
+  if (backgroundImage && backgroundImage.length > 0) {
+    let backgroundBase64 = backgroundImage;
+    let backgroundMimeType = "image/png";
+
+    if (backgroundImage.startsWith("data:")) {
+      const parts = backgroundImage.split(",");
+      const metadata = parts[0];
+      backgroundBase64 = parts[1];
+      const mimeMatch = metadata.match(/data:(.*?);base64/);
+      if (mimeMatch) {
+        backgroundMimeType = mimeMatch[1];
+      }
+    }
+
+    imageParts.push({
+      inlineData: {
+        mimeType: backgroundMimeType,
+        data: backgroundBase64,
+      },
+    });
+    console.log("已添加背景图到生成请求");
+  } else {
+    console.log("未使用背景图，仅使用 character image 生成");
+  }
+
+  // Add prompt
+  imageParts.push({ text: finalPrompt });
+
   const contents = [
     {
-      parts: [
-        {
-          inlineData: {
-            mimeType: characterMimeType,
-            data: characterBase64,
-          },
-        },
-        {
-          inlineData: {
-            mimeType: backgroundMimeType,
-            data: backgroundBase64,
-          },
-        },
-        { text: finalPrompt },
-      ],
+      parts: imageParts,
     },
   ];
 
