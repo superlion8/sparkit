@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download, Copy, Check } from "lucide-react";
 import { downloadImage, downloadVideo } from "@/lib/downloadUtils";
 
 interface GenerationTask {
@@ -83,6 +83,7 @@ export default function HistoryPage() {
     totalPages: 0,
   });
   const [filterType, setFilterType] = useState("all");
+  const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAuthenticated && accessToken) {
@@ -161,6 +162,16 @@ export default function HistoryPage() {
         downloadImage(url, filename);
       }, index * 200);
     });
+  };
+
+  const handleCopyPrompt = async (taskId: string, prompt: string) => {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopiedPromptId(taskId);
+      setTimeout(() => setCopiedPromptId(null), 2000); // 2秒后重置
+    } catch (err) {
+      console.error('复制失败:', err);
+    }
   };
 
   if (authLoading) {
@@ -283,7 +294,7 @@ export default function HistoryPage() {
                       return (
                         <div className={`grid ${gridColsClass} gap-1 p-1`}>
                           {parsedUrls.urls.poses.map((url: string, index: number) => (
-                            <div key={index} className="aspect-square relative bg-gray-200 rounded overflow-hidden">
+                            <div key={index} className="aspect-square relative bg-gray-200 rounded overflow-hidden group">
                               <img
                                 src={url}
                                 alt={`Pose ${index + 1}`}
@@ -300,6 +311,17 @@ export default function HistoryPage() {
                               <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded">
                                 {index + 1}
                               </div>
+                              {/* 单独下载按钮 */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  downloadImage(url, `photobooth-pose-${index + 1}-${task.task_id}.png`);
+                                }}
+                                className="absolute top-1 right-1 bg-black/70 hover:bg-black/90 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                title={`下载图片 ${index + 1}`}
+                              >
+                                <Download className="w-3 h-3" />
+                              </button>
                             </div>
                           ))}
                         </div>
@@ -334,7 +356,7 @@ export default function HistoryPage() {
                       return (
                         <div className={`grid ${gridColsClass} gap-1 p-1`}>
                           {parsedUrls.urls.snapshots.map((url: string, index: number) => (
-                            <div key={index} className="aspect-square relative bg-gray-200 rounded overflow-hidden">
+                            <div key={index} className="aspect-square relative bg-gray-200 rounded overflow-hidden group">
                               <img
                                 src={url}
                                 alt={`Snapshot ${index + 1}`}
@@ -351,6 +373,17 @@ export default function HistoryPage() {
                               <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded">
                                 {index + 1}
                               </div>
+                              {/* 单独下载按钮 */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  downloadImage(url, `snapshot-${index + 1}-${task.task_id}.png`);
+                                }}
+                                className="absolute top-1 right-1 bg-black/70 hover:bg-black/90 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                title={`下载图片 ${index + 1}`}
+                              >
+                                <Download className="w-3 h-3" />
+                              </button>
                             </div>
                           ))}
                         </div>
@@ -428,40 +461,55 @@ export default function HistoryPage() {
                   </div>
 
                   {task.prompt && (
-                    <p className="text-sm text-gray-700 mb-3 line-clamp-2">
-                      {(() => {
-                        // Try to parse PhotoBooth prompt (JSON format)
-                        if (task.task_type === 'photobooth') {
-                          try {
-                            const poseDescriptions = JSON.parse(task.prompt);
-                            if (Array.isArray(poseDescriptions) && poseDescriptions.length > 0) {
-                              // Display first pose description as preview
-                              const firstPose = poseDescriptions[0];
-                              const preview = `Pose 1: ${firstPose.pose || ''} | Camera: ${firstPose.cameraPosition || ''} | Composition: ${firstPose.composition || ''}`;
-                              return preview.length > 150 ? preview.substring(0, 150) + '...' : preview;
+                    <div className="mb-3">
+                      <div className="flex items-start gap-2">
+                        <p className="flex-1 text-sm text-gray-700 line-clamp-2">
+                          {(() => {
+                            // Try to parse PhotoBooth prompt (JSON format)
+                            if (task.task_type === 'photobooth') {
+                              try {
+                                const poseDescriptions = JSON.parse(task.prompt);
+                                if (Array.isArray(poseDescriptions) && poseDescriptions.length > 0) {
+                                  // Display first pose description as preview
+                                  const firstPose = poseDescriptions[0];
+                                  const preview = `Pose 1: ${firstPose.pose || ''} | Camera: ${firstPose.cameraPosition || ''} | Composition: ${firstPose.composition || ''}`;
+                                  return preview.length > 150 ? preview.substring(0, 150) + '...' : preview;
+                                }
+                              } catch {
+                                // If parsing fails, display as is
+                              }
                             }
-                          } catch {
-                            // If parsing fails, display as is
-                          }
-                        }
-                        // Try to parse Snapshot prompt (JSON format)
-                        if (task.task_type === 'snapshot') {
-                          try {
-                            const snapshotPrompts = JSON.parse(task.prompt);
-                            if (Array.isArray(snapshotPrompts) && snapshotPrompts.length > 0) {
-                              // Display first snapshot prompt as preview
-                              const firstSnapshot = snapshotPrompts[0];
-                              const preview = firstSnapshot.snapshotPrompt || '';
-                              return preview.length > 150 ? preview.substring(0, 150) + '...' : preview;
+                            // Try to parse Snapshot prompt (JSON format)
+                            if (task.task_type === 'snapshot') {
+                              try {
+                                const snapshotPrompts = JSON.parse(task.prompt);
+                                if (Array.isArray(snapshotPrompts) && snapshotPrompts.length > 0) {
+                                  // Display first snapshot prompt as preview
+                                  const firstSnapshot = snapshotPrompts[0];
+                                  const preview = firstSnapshot.snapshotPrompt || '';
+                                  return preview.length > 150 ? preview.substring(0, 150) + '...' : preview;
+                                }
+                              } catch {
+                                // If parsing fails, display as is
+                              }
                             }
-                          } catch {
-                            // If parsing fails, display as is
-                          }
-                        }
-                        // For other task types or if parsing fails, display prompt directly
-                        return task.prompt.length > 150 ? task.prompt.substring(0, 150) + '...' : task.prompt;
-                      })()}
-                    </p>
+                            // For other task types or if parsing fails, display prompt directly
+                            return task.prompt.length > 150 ? task.prompt.substring(0, 150) + '...' : task.prompt;
+                          })()}
+                        </p>
+                        <button
+                          onClick={() => handleCopyPrompt(task.id, task.prompt!)}
+                          className="flex-shrink-0 p-1.5 hover:bg-gray-100 rounded transition-colors"
+                          title="复制完整 prompt"
+                        >
+                          {copiedPromptId === task.id ? (
+                            <Check className="w-4 h-4 text-green-600" />
+                          ) : (
+                            <Copy className="w-4 h-4 text-gray-500" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
                   )}
 
                   {/* Download buttons */}
