@@ -19,6 +19,7 @@ interface PoseDescription {
 export default function PhotoBoothPage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [image, setImage] = useState<File[]>([]);
+  const [characterImage, setCharacterImage] = useState<File[]>([]); // 可选的角色面部图
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
   const [hotMode, setHotMode] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -65,6 +66,9 @@ export default function PhotoBoothPage() {
     try {
       const formData = new FormData();
       formData.append("image", image[0]);
+      if (characterImage.length > 0) {
+        formData.append("characterImage", characterImage[0]);
+      }
       formData.append("aspectRatio", aspectRatio);
       formData.append("hotMode", hotMode.toString());
 
@@ -334,7 +338,7 @@ export default function PhotoBoothPage() {
           PhotoBooth (写真组图)
         </h1>
         <p className="text-gray-600 mt-2">
-          上传一张图片，AI 将分析模特的pose和环境，生成5个不同的pose描述，并生成5张Instagram风格的组图。
+          上传一张图片，AI 将分析模特的pose和环境，生成6个不同的pose描述，并生成6张Instagram风格的组图。可选上传角色面部图以保持一致的脸部特征。
         </p>
         {!authLoading && !isAuthenticated && (
           <div className="mt-4 rounded-lg border border-dashed border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
@@ -354,8 +358,20 @@ export default function PhotoBoothPage() {
               <ImageUpload
                 maxImages={1}
                 onImagesChange={setImage}
-                label="上传图片 (最多1张)"
+                label="上传起始图片 (最多1张)"
               />
+
+              {/* Character Face Image Upload (Optional) */}
+              <div>
+                <ImageUpload
+                  maxImages={1}
+                  onImagesChange={setCharacterImage}
+                  label="上传角色面部图 (可选，最多1张)"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  提供更清晰的面部特征图，AI 会保持一致的脸部特征
+                </p>
+              </div>
 
               {/* Aspect Ratio */}
               <div>

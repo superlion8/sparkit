@@ -21,14 +21,15 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const image = formData.get("image") as File;
+    const characterImage = formData.get("characterImage") as File | null;
     const aspectRatio = formData.get("aspectRatio") as string;
     const hotMode = formData.get("hotMode") === "true";
 
-    console.log(`=== PhotoBooth Generation Started (Hot Mode: ${hotMode}) ===`);
+    console.log(`=== PhotoBooth Generation Started (Hot Mode: ${hotMode}, Character Image: ${characterImage ? 'Yes' : 'No'}) ===`);
 
     if (!image) {
       return NextResponse.json(
-        { error: "需要提供图片" },
+        { error: "需要提供起始图片" },
         { status: 400 }
       );
     }
@@ -41,9 +42,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert image to base64
+    // Convert images to base64
     const imageBuffer = await image.arrayBuffer();
     const imageBase64 = Buffer.from(imageBuffer).toString("base64");
+    
+    let characterImageBase64: string | null = null;
+    let characterImageType: string | null = null;
+    if (characterImage) {
+      const charImageBuffer = await characterImage.arrayBuffer();
+      characterImageBase64 = Buffer.from(charImageBuffer).toString("base64");
+      characterImageType = characterImage.type;
+      console.log("角色面部图已转换为 base64");
+    }
 
     const startTime = Date.now();
 
@@ -155,7 +165,7 @@ export async function POST(request: NextRequest) {
         const imageStart = Date.now();
         console.log(`启动第 ${index + 1}/${poseDescriptions.length} 张图片的生成任务...`);
         
-        return generatePoseImage(imageBase64, image.type, poseDesc, aspectRatio, apiKey)
+        return generatePoseImage(imageBase64, image.type, poseDesc, aspectRatio, apiKey, characterImageBase64, characterImageType)
           .then((generatedImage) => {
             const imageTime = ((Date.now() - imageStart) / 1000).toFixed(2);
             console.log(`第 ${index + 1} 张图片生成成功，耗时: ${imageTime} 秒`);
@@ -769,7 +779,7 @@ async function generatePoseDescriptions(
     return `- {{Pose${num}}}:\n\n- {{Camera Position${num}}}:\n\n- {{Composition${num}}}:`;
   }).join('\n\n');
 
-  const prompt = `你现在是一个专门拍摄ins风格写真照的职业摄影师，请你分析一下这个模特所在的环境、模特的特征还有她现在在做的动作，让她换${count}个不同的pose，可以把这几个连续的pose发成一个instagram的组图，请你给出这${count}个pose的指令。
+  const prompt = `你现在是一个专门拍摄ins风格写真照的职业摄影师，请你分析一下这个模特所在的环境、模特的特征还有她现在在做的动作，让她换${count - 1}个不同的pose，可以把这几个连续的pose发成一个instagram的组图，请你给出这${count}个pose的指令。
 
 尽量避免指令过于复杂，导致在一张图片里传达了过多的信息、或者让模特做出过于dramatic的姿势，不要改变光影。
 
@@ -1424,11 +1434,17 @@ async function generatePoseImage(
   mimeType: string,
   poseDescription: PoseDescription,
   aspectRatio: string | null,
-  apiKey: string
+  apiKey: string,
+  characterImageBase64?: string | null,
+  characterImageType?: string | null
 ): Promise<string> {
   // Build prompt combining pose, camera position, and composition
-  // Format: base instruction + pose + camera_position + composition
-  const prompt = `take autentic photo of the character, use instagram friendly composition. Shot on the character should have identical face, features, skin tone, hairstyle, body proportions, and vibe. 
+  // Format: base instruction + char_image mention + pose + camera_position + composition
+  const charImageText = characterImageBase64 
+    ? " A more clear version of the character's face is {{char_image}}." 
+    : "";
+  
+  const prompt = `take autentic photo of the character, use instagram friendly composition. Shot on the character should have identical face, features, skin tone, hairstyle, body proportions, and vibe.${charImageText}
 
 pose:${poseDescription.pose}
 
@@ -1438,17 +1454,33 @@ composition:${poseDescription.composition}
 
 negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorted anatomy, fake portrait-mode blur, CGI/illustration look`;
 
+  // Build image parts - include characterImage if provided
+  const imageParts: any[] = [
+    {
+      inlineData: {
+        mimeType: mimeType,
+        data: imageBase64,
+      },
+    },
+  ];
+
+  // Add character image if provided
+  if (characterImageBase64 && characterImageType) {
+    imageParts.push({
+      inlineData: {
+        mimeType: characterImageType,
+        data: characterImageBase64,
+      },
+    });
+    console.log("已添加角色面部图到生成请求");
+  }
+
+  // Add prompt
+  imageParts.push({ text: prompt });
+
   const contents = [
     {
-      parts: [
-        {
-          inlineData: {
-            mimeType: mimeType,
-            data: imageBase64,
-          },
-        },
-        { text: prompt },
-      ],
+      parts: imageParts,
     },
   ];
 
