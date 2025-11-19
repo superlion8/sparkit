@@ -243,7 +243,7 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
     }
 
     console.log("生成的图片数量:", generatedImages.length);
-    
+
     // Check if generation was blocked by safety filters
     if (finishReason === "SAFETY" || finishReason === "RECITATION") {
       console.error("内容被安全过滤阻止:", finishReason);
@@ -285,7 +285,7 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
         } else {
           errorMessage += `。原因: ${finishReason}`;
           console.error(`未知的 finishReason: ${finishReason}`);
-        }
+    }
       } else {
         errorMessage += "。请检查提示词和图片内容，或稍后重试";
         console.error("没有 finishReason，可能是 API 响应格式异常");
@@ -352,21 +352,21 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
         const aimovelyToken = await fetchAimovelyToken(aimovelyEmail, aimovelyVcode);
         if (aimovelyToken) {
           // Upload images to Aimovely
-          for (let index = 0; index < generatedImages.length; index++) {
-            const dataUrl = generatedImages[index];
-            
-            try {
-              const result = await uploadImageToAimovely(dataUrl, aimovelyToken, index);
-              if (result?.url) {
-                uploadedUrls.push(result.url);
-              } else {
-                console.warn("Upload result missing URL, keeping base64 fallback");
-                uploadedUrls.push(dataUrl);
-              }
-            } catch (uploadError) {
-              console.error("上传生成图片失败:", uploadError);
-              uploadedUrls.push(dataUrl);
-            }
+    for (let index = 0; index < generatedImages.length; index++) {
+      const dataUrl = generatedImages[index];
+      
+      try {
+        const result = await uploadImageToAimovely(dataUrl, aimovelyToken, index);
+        if (result?.url) {
+          uploadedUrls.push(result.url);
+        } else {
+          console.warn("Upload result missing URL, keeping base64 fallback");
+          uploadedUrls.push(dataUrl);
+        }
+      } catch (uploadError) {
+        console.error("上传生成图片失败:", uploadError);
+        uploadedUrls.push(dataUrl);
+      }
           }
         } else {
           console.warn("Failed to acquire Aimovely token, using base64 images");

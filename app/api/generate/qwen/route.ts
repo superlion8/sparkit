@@ -59,17 +59,72 @@ export async function POST(request: NextRequest) {
     console.log("Seed:", seed);
     console.log("Image size (bytes):", imageBase64.length);
     console.log("Workflow size (bytes):", QWEN_WORKFLOW_BASE64.length);
+    console.log("Qwen API URL:", qwenApiUrl);
     console.log("Calling Qwen API...");
     const startTime = Date.now();
 
-    // Call Qwen API
-    const response = await fetch(qwenApiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
+    // Set up timeout (120 seconds for image generation)
+    const timeoutMs = 120000; // 2 minutes
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      console.error(`[Qwen] Request timeout after ${timeoutMs}ms`);
+    }, timeoutMs);
+
+    let response: Response;
+    try {
+      // Call Qwen API with timeout
+      response = await fetch(qwenApiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      
+      // Handle timeout specifically
+      if (fetchError.name === 'AbortError' || fetchError.code === 'UND_ERR_CONNECT_TIMEOUT') {
+        console.error("[Qwen] Connection timeout - API server may be unreachable or slow");
+        return NextResponse.json(
+          { 
+            error: "Qwen API 连接超时",
+            details: "服务器响应时间过长，请稍后重试。如果问题持续，请联系管理员。"
+          },
+          { status: 504 } // Gateway Timeout
+        );
+      }
+      
+      // Handle other network errors
+      if (fetchError.code === 'UND_ERR_CONNECT_TIMEOUT' || fetchError.message?.includes('timeout')) {
+        console.error("[Qwen] Network timeout:", fetchError.message);
+        return NextResponse.json(
+          { 
+            error: "Qwen API 连接超时",
+            details: "无法连接到 Qwen 服务器，请检查网络连接或稍后重试。"
+          },
+          { status: 504 }
+        );
+      }
+      
+      // Handle connection errors
+      if (fetchError.message?.includes('fetch failed') || fetchError.cause) {
+        console.error("[Qwen] Connection failed:", fetchError.message, fetchError.cause);
+        return NextResponse.json(
+          { 
+            error: "Qwen API 连接失败",
+            details: "无法连接到 Qwen 服务器。请检查服务器状态或稍后重试。"
+          },
+          { status: 503 } // Service Unavailable
+        );
+      }
+      
+      // Re-throw other errors
+      throw fetchError;
+    }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log(`Qwen API response received (${elapsed}s), status: ${response.status}`);
