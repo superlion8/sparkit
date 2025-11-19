@@ -21,6 +21,7 @@ export default function MimicPage() {
   const [hotMode, setHotMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [captionPrompt, setCaptionPrompt] = useState("");
+  const [editableCaptionPrompt, setEditableCaptionPrompt] = useState("");
   const [backgroundImage, setBackgroundImage] = useState<string>("");
   const [finalImages, setFinalImages] = useState<string[]>([]);
   const [error, setError] = useState("");
@@ -49,6 +50,7 @@ export default function MimicPage() {
     setError("");
     setErrorDetails(null);
     setCaptionPrompt("");
+    setEditableCaptionPrompt("");
     setBackgroundImage("");
     setFinalImages([]);
     setCurrentStep("正在反推提示词...");
@@ -108,6 +110,7 @@ export default function MimicPage() {
 
       if (data.captionPrompt) {
         setCaptionPrompt(data.captionPrompt);
+        setEditableCaptionPrompt(data.captionPrompt); // 同时设置可编辑版本
       }
 
       // Use base64 images for display if available (avoids CORS issues)
@@ -180,6 +183,106 @@ export default function MimicPage() {
       }
       setError(err.message || "生成失败，请重试");
       setCurrentStep("");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 使用修改后的 prompt 重新生成
+  const handleRegenerate = async () => {
+    if (!editableCaptionPrompt) {
+      setError("请先生成初始结果，获取反推提示词");
+      return;
+    }
+
+    if (characterImage.length === 0) {
+      setError("请上传角色图");
+      return;
+    }
+
+    if (!isAuthenticated || !accessToken) {
+      setError("登录后才能使用 Mimic 功能");
+      setErrorDetails(null);
+      promptLogin();
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setErrorDetails(null);
+    setFinalImages([]);
+    setCurrentStep("正在使用修改后的提示词重新生成...");
+
+    try {
+      const formData = new FormData();
+      // Append all character images
+      for (const charImage of characterImage) {
+        formData.append("characterImage", charImage);
+      }
+      formData.append("aspectRatio", aspectRatio);
+      formData.append("numImages", hotMode ? "1" : numImages.toString());
+      formData.append("hotMode", hotMode.toString());
+      // 传入用户修改后的 captionPrompt，告诉后端跳过 Step 1 & 2
+      formData.append("customCaptionPrompt", editableCaptionPrompt);
+      // 如果有 backgroundImage，也传入（虽然后端会跳过生成）
+      if (backgroundImage) {
+        formData.append("skipBackgroundGeneration", "true");
+      }
+
+      const response = await fetch("/api/generate/mimic", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        setError(errorData.error || "生成失败");
+        setErrorDetails(errorData.details || null);
+        return;
+      }
+
+      const data = await response.json();
+
+      // Use finalImageUrls if available, otherwise fallback to base64
+      const displayFinalImages =
+        data.finalImageUrls && data.finalImageUrls.length > 0
+          ? data.finalImageUrls
+          : data.finalImagesBase64 && data.finalImagesBase64.length > 0
+          ? data.finalImagesBase64
+          : data.finalImages || [];
+      setFinalImages(displayFinalImages);
+
+      // Log task event
+      if (accessToken && displayFinalImages.length > 0) {
+        const taskId = generateClientTaskId("mimic");
+        
+        const inputImageUrls = {
+          character: data.characterImageUrls || [],
+        };
+        const outputImageUrls = {
+          final: data.finalImageUrls || displayFinalImages,
+        };
+        
+        const inputImageUrlJson = JSON.stringify(inputImageUrls);
+        const outputImageUrlJson = JSON.stringify(outputImageUrls);
+        
+        await logTaskEvent(accessToken, {
+          taskId,
+          taskType: "mimic",
+          prompt: editableCaptionPrompt, // 使用用户修改后的 prompt
+          inputImageUrl: inputImageUrlJson,
+          outputImageUrl: outputImageUrlJson,
+        });
+      }
+
+      setCurrentStep("生成完成！");
+    } catch (err: any) {
+      setError(err.message || "生成失败");
+      setErrorDetails(err);
+      console.error("Regenerate error:", err);
     } finally {
       setLoading(false);
     }
@@ -379,10 +482,26 @@ export default function MimicPage() {
 
             {!loading && !authLoading && !error && captionPrompt && (
               <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">反推的提示词</h3>
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{captionPrompt}</p>
-                </div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">
+                  反推的提示词
+                  <span className="text-xs text-gray-500 ml-2">（可修改后重新生成）</span>
+                </h3>
+                <textarea
+                  value={editableCaptionPrompt}
+                  onChange={(e) => setEditableCaptionPrompt(e.target.value)}
+                  className="w-full min-h-[120px] p-4 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-y"
+                  placeholder="修改提示词后，点击下方重新生成按钮..."
+                />
+                <button
+                  onClick={handleRegenerate}
+                  disabled={loading || !editableCaptionPrompt}
+                  className="mt-3 w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2.5 rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 text-sm font-medium"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  使用修改后的提示词重新生成
+                </button>
               </div>
             )}
 

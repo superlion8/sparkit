@@ -819,68 +819,82 @@ export default function ControlPanelPage() {
             {/* 输出prompt - Show individual fields like reference module */}
             {variatePrompt && variateFields ? (
               <div className="flex-1 flex flex-col space-y-3">
-                {/* Individual Fields - Same structure as reference module */}
+                {/* Individual Fields - Same structure as reference module, but EDITABLE */}
                 <div className="flex-1 grid grid-cols-3 gap-3 overflow-y-auto">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">场景</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      场景 <span className="text-xs text-gray-500">(可编辑)</span>
+                    </label>
                     <textarea
                       value={variateFields.scene}
-                      readOnly
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm"
+                      onChange={(e) => setVariateFields({...variateFields, scene: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                       rows={3}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">人物样貌描述</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      人物样貌描述 <span className="text-xs text-gray-500">(可编辑)</span>
+                    </label>
                     <textarea
                       value={variateFields.subject_desc}
-                      readOnly
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
+                      onChange={(e) => setVariateFields({...variateFields, subject_desc: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
                       rows={3}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">人物动作</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      人物动作 <span className="text-xs text-gray-500">(可编辑)</span>
+                    </label>
                     <textarea
                       value={variateFields.subject_pose}
-                      readOnly
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm"
+                      onChange={(e) => setVariateFields({...variateFields, subject_pose: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                       rows={3}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">人物表情</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      人物表情 <span className="text-xs text-gray-500">(可编辑)</span>
+                    </label>
                     <textarea
                       value={variateFields.subject_expression}
-                      readOnly
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm"
+                      onChange={(e) => setVariateFields({...variateFields, subject_expression: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                       rows={3}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">人物着装</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      人物着装 <span className="text-xs text-gray-500">(可编辑)</span>
+                    </label>
                     <textarea
                       value={variateFields.subject_wardrobe}
-                      readOnly
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
+                      onChange={(e) => setVariateFields({...variateFields, subject_wardrobe: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
                       rows={3}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">环境</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      环境 <span className="text-xs text-gray-500">(可编辑)</span>
+                    </label>
                     <textarea
                       value={variateFields.environment}
-                      readOnly
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
+                      onChange={(e) => setVariateFields({...variateFields, environment: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
                       rows={3}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">镜头</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      镜头 <span className="text-xs text-gray-500">(可编辑)</span>
+                    </label>
                     <textarea
                       value={variateFields.camera}
-                      readOnly
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
+                      onChange={(e) => setVariateFields({...variateFields, camera: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
                       rows={3}
                     />
                   </div>
@@ -888,7 +902,9 @@ export default function ControlPanelPage() {
                 
                 {/* Summary Prompt */}
                 <div className="flex-1 flex flex-col">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">final prompt</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    final prompt <span className="text-xs text-gray-500">(可编辑JSON)</span>
+                  </label>
                   <textarea
                     value={finalPromptJson || ""}
                     onChange={(e) => {
@@ -929,18 +945,39 @@ export default function ControlPanelPage() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">生成结果</h2>
           <div className="flex-1 flex flex-col">
             {finalImage ? (
-              <div className="flex-1 relative bg-gray-100 rounded-lg overflow-hidden">
-                <img
-                  src={finalImage}
-                  alt="Generated"
-                  className="w-full h-full object-contain"
-                />
+              <div className="flex-1 flex flex-col gap-3">
+                <div className="flex-1 relative bg-gray-100 rounded-lg overflow-hidden">
+                  <img
+                    src={finalImage}
+                    alt="Generated"
+                    className="w-full h-full object-contain"
+                  />
+                  <button
+                    onClick={() => downloadImage(finalImage, "control-panel-result.png")}
+                    className="absolute top-2 right-2 bg-primary-600 text-white px-3 py-2 rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2 text-sm shadow-lg"
+                  >
+                    <Download className="w-4 h-4" />
+                    下载
+                  </button>
+                </div>
                 <button
-                  onClick={() => downloadImage(finalImage, "control-panel-result.png")}
-                  className="absolute top-2 right-2 bg-primary-600 text-white px-3 py-2 rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2 text-sm shadow-lg"
+                  onClick={handleGenerate}
+                  disabled={generating || !finalPromptData || characterImage.length === 0}
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2.5 rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 text-sm font-medium"
                 >
-                  <Download className="w-4 h-4" />
-                  下载
+                  {generating ? (
+                    <>
+                      <Sparkles className="w-4 h-4 animate-spin" />
+                      重新生成中...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      使用修改后的提示词重新生成
+                    </>
+                  )}
                 </button>
               </div>
             ) : (

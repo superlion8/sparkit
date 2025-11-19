@@ -17,8 +17,18 @@ export async function POST(request: NextRequest) {
     const numImages = parseInt(formData.get("numImages") as string) || 1;
     const hotMode = formData.get("hotMode") === "true";
     const keepBackground = formData.get("keepBackground") === "true";
+    const customCaptionPrompt = formData.get("customCaptionPrompt") as string | null;
+    const skipBackgroundGeneration = formData.get("skipBackgroundGeneration") === "true";
 
-    if (!referenceImage || !characterImage) {
+    // 如果提供了自定义 captionPrompt，说明是重新生成，不需要参考图
+    if (customCaptionPrompt && !characterImage) {
+      return NextResponse.json(
+        { error: "需要提供角色图" },
+        { status: 400 }
+      );
+    }
+
+    if (!customCaptionPrompt && (!referenceImage || !characterImage)) {
       return NextResponse.json(
         { error: "需要提供参考图和角色图" },
         { status: 400 }
@@ -36,8 +46,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Convert images to base64
-    const referenceBuffer = await referenceImage.arrayBuffer();
-    const referenceBase64 = Buffer.from(referenceBuffer).toString("base64");
+    let referenceBase64: string = "";
+    let uploadedReferenceImageUrl: string | null = null;
+    
+    if (referenceImage) {
+      const referenceBuffer = await referenceImage.arrayBuffer();
+      referenceBase64 = Buffer.from(referenceBuffer).toString("base64");
+    }
+    
     const characterBuffer = await characterImage.arrayBuffer();
     const characterBase64 = Buffer.from(characterBuffer).toString("base64");
 
@@ -45,7 +61,6 @@ export async function POST(request: NextRequest) {
     const aimovelyEmail = process.env.AIMOVELY_EMAIL;
     const aimovelyVcode = process.env.AIMOVELY_VCODE;
     let aimovelyToken: string | null = null;
-    let uploadedReferenceImageUrl: string | null = null;
     let uploadedCharacterImageUrl: string | null = null;
 
     if (aimovelyEmail && aimovelyVcode) {
@@ -54,16 +69,18 @@ export async function POST(request: NextRequest) {
         if (aimovelyToken) {
           console.log("开始上传输入图片到 Aimovely...");
           
-          // Upload reference image
-          const referenceDataUrl = `data:${referenceImage.type};base64,${referenceBase64}`;
-          const referenceUploadResult = await uploadImageToAimovely(
-            referenceDataUrl,
-            aimovelyToken,
-            "reference"
-          );
-          if (referenceUploadResult?.url) {
-            uploadedReferenceImageUrl = referenceUploadResult.url;
-            console.log("参考图上传成功:", uploadedReferenceImageUrl);
+          // Upload reference image (only if not using custom prompt)
+          if (referenceImage && !customCaptionPrompt) {
+            const referenceDataUrl = `data:${referenceImage.type};base64,${referenceBase64}`;
+            const referenceUploadResult = await uploadImageToAimovely(
+              referenceDataUrl,
+              aimovelyToken,
+              "reference"
+            );
+            if (referenceUploadResult?.url) {
+              uploadedReferenceImageUrl = referenceUploadResult.url;
+              console.log("参考图上传成功:", uploadedReferenceImageUrl);
+            }
           }
 
           // Upload character image
@@ -84,31 +101,67 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 1: 反推提示词（使用 gemini-2.5-flash 文本模型）
-    console.log("Step 1: 反推提示词...");
-    const captionPrompt = await reverseCaptionPrompt(
-      referenceBase64,
-      referenceImage.type,
-      apiKey
-    );
-    console.log("反推得到的提示词:", captionPrompt);
-
-    // Step 2: 准备背景图
-    let backgroundImage: string;
-    if (keepBackground) {
-      // 如果保留背景，去掉人物得到纯背景图（保留场景环境）
-      console.log("Step 2: 去掉人物生成纯背景图（keepBackground=true，保留参考图场景）...");
-      backgroundImage = await removeCharacter(
+    // Step 1 & 2: 如果提供了自定义 captionPrompt，跳过反推和背景图生成
+    let captionPrompt: string;
+    let backgroundImage: string = "";
+    let backgroundImageBase64: string = "";
+    let uploadedBackgroundImageUrl: string | null = null;
+    
+    if (customCaptionPrompt) {
+      // 使用用户提供的自定义 prompt
+      console.log("使用自定义 captionPrompt，跳过 Step 1 & Step 2");
+      captionPrompt = customCaptionPrompt;
+    } else {
+      // 正常流程：反推提示词和生成背景图
+      // Step 1: 反推提示词（使用 gemini-2.5-flash 文本模型）
+      console.log("Step 1: 反推提示词...");
+      captionPrompt = await reverseCaptionPrompt(
         referenceBase64,
         referenceImage.type,
-        aspectRatio,
         apiKey
       );
-      console.log("背景图生成完成");
-    } else {
-      // 如果不保留背景，直接使用原始参考图（让AI自由发挥）
-      console.log("Step 2: 使用原始参考图（keepBackground=false，不保留参考图背景）");
-      backgroundImage = `data:${referenceImage.type};base64,${referenceBase64}`;
+      console.log("反推得到的提示词:", captionPrompt);
+
+      // Step 2: 准备背景图
+      if (keepBackground) {
+        // 如果保留背景，去掉人物得到纯背景图（保留场景环境）
+        console.log("Step 2: 去掉人物生成纯背景图（keepBackground=true，保留参考图场景）...");
+        backgroundImage = await removeCharacter(
+          referenceBase64,
+          referenceImage.type,
+          aspectRatio,
+          apiKey
+        );
+        console.log("背景图生成完成");
+      } else {
+        // 如果不保留背景，直接使用原始参考图（让AI自由发挥）
+        console.log("Step 2: 使用原始参考图（keepBackground=false，不保留参考图背景）");
+        backgroundImage = `data:${referenceImage.type};base64,${referenceBase64}`;
+      }
+      
+      // Extract base64 for upload
+      if (backgroundImage.startsWith("data:")) {
+        backgroundImageBase64 = backgroundImage.split(",")[1];
+      } else {
+        backgroundImageBase64 = backgroundImage;
+      }
+      
+      // Upload background image to Aimovely
+      if (aimovelyToken && backgroundImageBase64) {
+        try {
+          const backgroundUploadResult = await uploadImageToAimovely(
+            backgroundImage.startsWith("data:") ? backgroundImage : `data:image/png;base64,${backgroundImage}`,
+            aimovelyToken,
+            "background"
+          );
+          if (backgroundUploadResult?.url) {
+            uploadedBackgroundImageUrl = backgroundUploadResult.url;
+            console.log("背景图上传成功:", uploadedBackgroundImageUrl);
+          }
+        } catch (uploadError) {
+          console.error("上传背景图到 Aimovely 失败:", uploadError);
+        }
+      }
     }
 
     // Step 3: 生成最终图片
@@ -163,22 +216,23 @@ export async function POST(request: NextRequest) {
     console.log("=== Mimic Generation Completed ===");
 
     // Upload generated images to Aimovely
-    let uploadedBackgroundImageUrl: string | null = null;
     const uploadedFinalImageUrls: string[] = [];
 
     if (aimovelyToken) {
       try {
         console.log("开始上传生成的图片到 Aimovely...");
         
-        // Upload background image
-        const bgUploadResult = await uploadImageToAimovely(
-          backgroundImage,
-          aimovelyToken,
-          "background"
-        );
-        if (bgUploadResult?.url) {
-          uploadedBackgroundImageUrl = bgUploadResult.url;
-          console.log("背景图上传成功:", uploadedBackgroundImageUrl);
+        // Upload background image (only if not already uploaded and exists)
+        if (backgroundImage && !uploadedBackgroundImageUrl) {
+          const bgUploadResult = await uploadImageToAimovely(
+            backgroundImage,
+            aimovelyToken,
+            "background"
+          );
+          if (bgUploadResult?.url) {
+            uploadedBackgroundImageUrl = bgUploadResult.url;
+            console.log("背景图上传成功:", uploadedBackgroundImageUrl);
+          }
         }
 
         // Upload final images
