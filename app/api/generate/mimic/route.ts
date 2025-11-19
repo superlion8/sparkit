@@ -96,12 +96,8 @@ export async function POST(request: NextRequest) {
     // Step 2: 准备背景图
     let backgroundImage: string;
     if (keepBackground) {
-      // 如果保留背景，直接使用原始参考图
-      console.log("Step 2: 使用原始参考图作为背景（keepBackground=true）");
-      backgroundImage = `data:${referenceImage.type};base64,${referenceBase64}`;
-    } else {
-      // 如果不保留背景，去掉人物生成纯背景图
-      console.log("Step 2: 去掉人物生成背景图（keepBackground=false）...");
+      // 如果保留背景，去掉人物得到纯背景图（保留场景环境）
+      console.log("Step 2: 去掉人物生成纯背景图（keepBackground=true，保留参考图场景）...");
       backgroundImage = await removeCharacter(
         referenceBase64,
         referenceImage.type,
@@ -109,6 +105,10 @@ export async function POST(request: NextRequest) {
         apiKey
       );
       console.log("背景图生成完成");
+    } else {
+      // 如果不保留背景，直接使用原始参考图（让AI自由发挥）
+      console.log("Step 2: 使用原始参考图（keepBackground=false，不保留参考图背景）");
+      backgroundImage = `data:${referenceImage.type};base64,${referenceBase64}`;
     }
 
     // Step 3: 生成最终图片
