@@ -98,45 +98,87 @@ export async function POST(request: NextRequest) {
       console.log(`成功解析 ${poseDescriptions.length} 个pose描述`);
     }
 
-    // Step 2: 根据pose描述并行生成图片
-    console.log(`Step 2: 根据 ${poseDescriptions.length} 个pose描述并行生成图片 (${hotMode ? 'Qwen' : 'Gemini'})...`);
+    // Step 2: 根据pose描述生成图片
+    console.log(`Step 2: 根据 ${poseDescriptions.length} 个pose描述生成图片 (${hotMode ? 'Qwen串行' : 'Gemini并行'})...`);
     const step2Start = Date.now();
     
-    // 并行生成所有图片
-    const imagePromises = poseDescriptions.map((poseDesc, index) => {
-      const imageStart = Date.now();
-      console.log(`启动第 ${index + 1}/${poseDescriptions.length} 张图片的生成任务...`);
-      
-      const generatePromise = hotMode
-        ? generatePoseImageWithQwen(image, poseDesc)
-        : generatePoseImage(imageBase64, image.type, poseDesc, aspectRatio, apiKey);
-      
-      return generatePromise
-        .then((generatedImage) => {
+    let imageResults: Array<{
+      index: number;
+      success: boolean;
+      image?: string;
+      error?: string;
+      time: string;
+    }> = [];
+
+    if (hotMode) {
+      // Hot Mode: 串行生成（避免 Qwen API 并发限制）
+      console.log("Hot Mode: 串行生成图片，避免并发限制...");
+      for (let index = 0; index < poseDescriptions.length; index++) {
+        const poseDesc = poseDescriptions[index];
+        const imageStart = Date.now();
+        console.log(`\n[${index + 1}/${poseDescriptions.length}] 开始生成...`);
+        
+        try {
+          const generatedImage = await generatePoseImageWithQwen(image, poseDesc);
           const imageTime = ((Date.now() - imageStart) / 1000).toFixed(2);
-          console.log(`第 ${index + 1} 张图片生成成功，耗时: ${imageTime} 秒`);
-          return {
+          console.log(`[${index + 1}/${poseDescriptions.length}] ✅ 成功，耗时: ${imageTime}秒`);
+          imageResults.push({
             index,
             success: true,
             image: generatedImage,
             time: imageTime,
-          };
-        })
-        .catch((error: any) => {
+          });
+        } catch (error: any) {
           const imageTime = ((Date.now() - imageStart) / 1000).toFixed(2);
-          console.error(`第 ${index + 1} 张图片生成失败（耗时: ${imageTime} 秒）:`, error);
-          return {
+          console.error(`[${index + 1}/${poseDescriptions.length}] ❌ 失败，耗时: ${imageTime}秒`);
+          console.error("错误详情:", error.message || error);
+          imageResults.push({
             index,
             success: false,
             error: error.message || "未知错误",
             time: imageTime,
-          };
-        });
-    });
+          });
+        }
+        
+        // 添加小延迟，避免过快请求
+        if (index < poseDescriptions.length - 1) {
+          console.log("等待 1 秒后继续...");
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    } else {
+      // Gemini Mode: 并行生成
+      console.log("Gemini Mode: 并行生成图片...");
+      const imagePromises = poseDescriptions.map((poseDesc, index) => {
+        const imageStart = Date.now();
+        console.log(`启动第 ${index + 1}/${poseDescriptions.length} 张图片的生成任务...`);
+        
+        return generatePoseImage(imageBase64, image.type, poseDesc, aspectRatio, apiKey)
+          .then((generatedImage) => {
+            const imageTime = ((Date.now() - imageStart) / 1000).toFixed(2);
+            console.log(`第 ${index + 1} 张图片生成成功，耗时: ${imageTime} 秒`);
+            return {
+              index,
+              success: true,
+              image: generatedImage,
+              time: imageTime,
+            };
+          })
+          .catch((error: any) => {
+            const imageTime = ((Date.now() - imageStart) / 1000).toFixed(2);
+            console.error(`第 ${index + 1} 张图片生成失败（耗时: ${imageTime} 秒）:`, error);
+            return {
+              index,
+              success: false,
+              error: error.message || "未知错误",
+              time: imageTime,
+            };
+          });
+      });
 
-    // 等待所有图片生成完成（并行）
-    console.log(`等待 ${imagePromises.length} 个图片生成任务完成（并行执行）...`);
-    const imageResults = await Promise.all(imagePromises);
+      console.log(`等待 ${imagePromises.length} 个图片生成任务完成（并行执行）...`);
+      imageResults = await Promise.all(imagePromises);
+    }
 
     // 处理结果：收集成功和失败的图片，保持索引对应关系
     const generatedImages: Array<{ index: number; image: string }> = [];
@@ -1634,69 +1676,87 @@ async function generatePoseImageWithQwen(
 ): Promise<string> {
   const qwenApiUrl = process.env.QWEN_API_URL;
   if (!qwenApiUrl) {
-    throw new Error("Qwen API URL not configured");
+    const error = "Qwen API URL not configured";
+    console.error("[Qwen Error]", error);
+    throw new Error(error);
   }
 
   // Construct prompt from pose description
   const prompt = `${poseDesc.pose}, ${poseDesc.cameraPosition}, ${poseDesc.composition}`;
-  console.log("=== Calling Qwen API (PhotoBooth Hot Mode) ===");
-  console.log("Prompt:", prompt);
-
+  
   // Generate random seed
   const seed = Math.floor(Math.random() * 1000000);
 
-  // Convert character image to base64
-  const imageBuffer = Buffer.from(await characterImage.arrayBuffer());
-  const imageBase64 = imageBuffer.toString('base64');
-
-  // Import the Qwen workflow
-  const { QWEN_WORKFLOW_BASE64 } = await import("@/lib/qwen-workflow");
-
-  // Prepare request body
-  const requestBody = {
-    workflow: QWEN_WORKFLOW_BASE64,
-    image: imageBase64,
-    prompt: prompt,
-    seed: seed,
-    output_image: ""
-  };
-
+  console.log("=== Calling Qwen API (PhotoBooth) ===");
+  console.log("Prompt:", prompt.substring(0, 100) + (prompt.length > 100 ? "..." : ""));
   console.log("Seed:", seed);
-  const startTime = Date.now();
 
-  // Call Qwen API
-  const response = await fetch(qwenApiUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(requestBody),
-  });
+  try {
+    // Convert character image to base64
+    const imageBuffer = Buffer.from(await characterImage.arrayBuffer());
+    const imageBase64 = imageBuffer.toString('base64');
+    console.log("Image size (base64):", imageBase64.length, "chars");
 
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
-  console.log(`Qwen API response (${elapsed}s), status: ${response.status}`);
+    // Import the Qwen workflow
+    const { QWEN_WORKFLOW_BASE64 } = await import("@/lib/qwen-workflow");
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Qwen API error:", errorText);
-    throw new Error(`Qwen API 错误: ${response.status}`);
+    // Prepare request body
+    const requestBody = {
+      workflow: QWEN_WORKFLOW_BASE64,
+      image: imageBase64,
+      prompt: prompt,
+      seed: seed,
+      output_image: ""
+    };
+
+    const startTime = Date.now();
+
+    // Call Qwen API with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
+
+    const response = await fetch(qwenApiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeoutId));
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`[Qwen] Response received (${elapsed}s), status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[Qwen Error] HTTP error:", response.status, errorText.substring(0, 200));
+      throw new Error(`Qwen API HTTP错误 ${response.status}: ${errorText.substring(0, 100)}`);
+    }
+
+    const data = await response.json();
+    console.log("[Qwen] Response parsed, code:", data.code);
+
+    if (data.code !== 0) {
+      console.error("[Qwen Error] API error code:", data.code, "message:", data.message);
+      throw new Error(`Qwen API错误 (code ${data.code}): ${data.message || '未知错误'}`);
+    }
+
+    if (!data.data?.image) {
+      console.error("[Qwen Error] No image in response, data keys:", Object.keys(data.data || {}));
+      throw new Error("Qwen API未返回图片数据");
+    }
+
+    console.log(`[Qwen] ✅ Success (${elapsed}s), image length:`, data.data.image.length);
+
+    // Return as data URL
+    return `data:image/png;base64,${data.data.image}`;
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.error("[Qwen Error] Request timeout (2 minutes)");
+      throw new Error("Qwen API请求超时（2分钟）");
+    }
+    console.error("[Qwen Error] Exception:", error.message || error);
+    throw error;
   }
-
-  const data = await response.json();
-
-  if (data.code !== 0) {
-    console.error("Qwen API returned error code:", data.code);
-    throw new Error(`Qwen API 返回错误代码: ${data.code}`);
-  }
-
-  if (!data.data?.image) {
-    console.error("No image in Qwen API response");
-    throw new Error("Qwen API 未返回图片");
-  }
-
-  console.log(`Successfully generated image with Qwen (${elapsed}s)`);
-
-  // Return as data URL
-  return `data:image/png;base64,${data.data.image}`;
 }
 
