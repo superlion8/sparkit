@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
     const aspectRatio = formData.get("aspectRatio") as string;
     const numImages = parseInt(formData.get("numImages") as string) || 1;
     const hotMode = formData.get("hotMode") === "true";
+    const keepBackground = formData.get("keepBackground") === "true";
 
     if (!referenceImage || !characterImage) {
       return NextResponse.json(
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`=== Mimic Generation Started (Hot Mode: ${hotMode}) ===`);
+    console.log(`=== Mimic Generation Started (Hot Mode: ${hotMode}, Keep Background: ${keepBackground}) ===`);
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -92,15 +93,23 @@ export async function POST(request: NextRequest) {
     );
     console.log("反推得到的提示词:", captionPrompt);
 
-    // Step 2: 去掉人物（使用 gemini-2.5-flash-image 图像生成模型）
-    console.log("Step 2: 去掉人物...");
-    const backgroundImage = await removeCharacter(
-      referenceBase64,
-      referenceImage.type,
-      aspectRatio,
-      apiKey
-    );
-    console.log("背景图生成完成");
+    // Step 2: 准备背景图
+    let backgroundImage: string;
+    if (keepBackground) {
+      // 如果保留背景，直接使用原始参考图
+      console.log("Step 2: 使用原始参考图作为背景（keepBackground=true）");
+      backgroundImage = `data:${referenceImage.type};base64,${referenceBase64}`;
+    } else {
+      // 如果不保留背景，去掉人物生成纯背景图
+      console.log("Step 2: 去掉人物生成背景图（keepBackground=false）...");
+      backgroundImage = await removeCharacter(
+        referenceBase64,
+        referenceImage.type,
+        aspectRatio,
+        apiKey
+      );
+      console.log("背景图生成完成");
+    }
 
     // Step 3: 生成最终图片
     console.log(`Step 3: 生成最终图片 (${hotMode ? 'Qwen' : 'Gemini'})...`);
