@@ -294,19 +294,19 @@ async function reverseCaptionPrompt(
         safetySettings: [
           {
             category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_ONLY_HIGH"
+            threshold: "BLOCK_NONE"
           },
           {
             category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_ONLY_HIGH"
+            threshold: "BLOCK_NONE"
           },
           {
             category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            threshold: "BLOCK_ONLY_HIGH"
+            threshold: "BLOCK_NONE"
           },
           {
             category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_ONLY_HIGH"
+            threshold: "BLOCK_NONE"
           }
         ],
       }),
@@ -584,8 +584,10 @@ async function generateFinalImage(
     }
   }
 
-  // Build final prompt: take autentic photo of the character, use instagram friendly composition, scene setup from caption prompt
-  const finalPrompt = `take autentic photo of the character, use instagram friendly composition. scene setup: ${captionPrompt}`;
+  // Build final prompt: take autentic photo of the character, use instagram friendly composition, keep character features identical
+  const finalPrompt = `take autentic photo of the character, use instagram friendly composition. Shot on the character should have identical face, features, skin tone, hairstyle, body proportions, and vibe. 
+
+scene setup: ${captionPrompt}`;
 
   const contents = [
     {
