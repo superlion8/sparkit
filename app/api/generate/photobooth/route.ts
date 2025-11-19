@@ -77,13 +77,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 1: 生成6个pose描述（使用 gemini-2.5-flash 文本模型）
-    console.log("Step 1: 生成pose描述...");
+    // Step 1: 生成pose描述（使用 gemini-2.5-flash 文本模型）
+    const targetPoseCount = hotMode ? 3 : 6; // Hot Mode 生成3张，Gemini Mode 生成6张
+    console.log(`Step 1: 生成${targetPoseCount}个pose描述...`);
     const step1Start = Date.now();
     const poseDescriptions = await generatePoseDescriptions(
       imageBase64,
       image.type,
-      apiKey
+      apiKey,
+      targetPoseCount
     );
     const step1Time = ((Date.now() - step1Start) / 1000).toFixed(2);
     console.log(`Step 1 完成，耗时: ${step1Time} 秒`);
@@ -92,7 +94,7 @@ export async function POST(request: NextRequest) {
       throw new Error("未能解析任何pose描述，请重试");
     }
     
-    if (poseDescriptions.length < 6) {
+    if (poseDescriptions.length < targetPoseCount) {
       console.warn(`只解析到 ${poseDescriptions.length} 个pose描述，将生成 ${poseDescriptions.length} 张图片`);
     } else {
       console.log(`成功解析 ${poseDescriptions.length} 个pose描述`);
@@ -758,49 +760,22 @@ export async function POST(request: NextRequest) {
 async function generatePoseDescriptions(
   imageBase64: string,
   mimeType: string,
-  apiKey: string
+  apiKey: string,
+  count: number = 6
 ): Promise<PoseDescription[]> {
-  const prompt = `你现在是一个专门拍摄ins风格写真照的职业摄影师，请你分析一下这个模特所在的环境、模特的特征还有她现在在做的动作，让她换6个不同的pose，可以把这几个连续的pose发成一个instagram的组图，请你给出这6个pose的指令。
+  // 动态生成格式示例
+  const formatExample = Array.from({ length: count }, (_, i) => {
+    const num = i + 1;
+    return `- {{Pose${num}}}:\n\n- {{Camera Position${num}}}:\n\n- {{Composition${num}}}:`;
+  }).join('\n\n');
+
+  const prompt = `你现在是一个专门拍摄ins风格写真照的职业摄影师，请你分析一下这个模特所在的环境、模特的特征还有她现在在做的动作，让她换${count}个不同的pose，可以把这几个连续的pose发成一个instagram的组图，请你给出这${count}个pose的指令。
 
 尽量避免指令过于复杂，导致在一张图片里传达了过多的信息、或者让模特做出过于dramatic的姿势，不要改变光影。
 
 请你严格用英文按照这个格式来写：
 
-- {{Pose1}}:
-
-- {{Camera Position1}}:
-
-- {{Composition1}}:
-
-- {{Pose2}}:
-
-- {{Camera Position2}}:
-
-- {{Composition2}}:
-
-- {{Pose3}}:
-
-- {{Camera Position3}}:
-
-- {{Composition3}}:
-
-- {{Pose4}}:
-
-- {{Camera Position4}}:
-
-- {{Composition4}}:
-
-- {{Pose5}}:
-
-- {{Camera Position5}}:
-
-- {{Composition5}}:
-
-- {{Pose6}}:
-
-- {{Camera Position6}}:
-
-- {{Composition6}}:`;
+${formatExample}`;
 
   const contents = [
     {

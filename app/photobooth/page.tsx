@@ -389,7 +389,7 @@ export default function PhotoBoothPage() {
                 </button>
                 {hotMode && (
                   <p className="text-xs text-orange-600 mt-2 text-center">
-                    Hot Mode 使用 Qwen 模型生成 6 张图片
+                    Hot Mode 使用 Qwen 模型串行生成 3 张图片（约2分钟）
                   </p>
                 )}
               </div>
@@ -398,9 +398,9 @@ export default function PhotoBoothPage() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
                 <strong>工作流程：</strong>
                 <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
-                  <li>分析图片并生成6个不同的pose描述</li>
-                  <li>根据每个pose描述生成对应的图片</li>
-                  <li>生成6张Instagram风格的组图</li>
+                  <li>分析图片并生成{hotMode ? '3' : '6'}个不同的pose描述</li>
+                  <li>根据每个pose描述生成对应的图片{hotMode && '（串行）'}</li>
+                  <li>生成{hotMode ? '3' : '6'}张Instagram风格的组图</li>
                 </ol>
               </div>
 
