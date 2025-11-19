@@ -48,13 +48,12 @@ export default function ImageToImagePage() {
     setGeneratedImages([]);
 
     try {
-      // Step 1: Upload images to Aimovely (仅非 Hot Mode 需要)
-      // Hot Mode 直接使用原始图片文件，不需要上传
+      // Step 1: Upload images to Aimovely (尝试上传但不阻塞)
       const uploadedImageUrls: string[] = [];
       
-      if (!hotMode) {
-        // 仅在非 Hot Mode 下上传图片
-        for (const uploadedImage of uploadedImages) {
+      console.log(`[Image-to-Image] 尝试上传图片到 Aimovely（仅用于记录）`);
+      for (const uploadedImage of uploadedImages) {
+        try {
           const uploadFormData = new FormData();
           uploadFormData.append("file", uploadedImage);
           
@@ -66,41 +65,17 @@ export default function ImageToImagePage() {
             body: uploadFormData,
           });
 
-          if (!uploadResponse.ok) {
-            throw new Error("图片上传失败");
-          }
-
-          const uploadData = await uploadResponse.json();
-          uploadedImageUrls.push(uploadData.url);
-        }
-      } else {
-        // Hot Mode: 尝试上传但不阻塞
-        console.log(`[Image-to-Image] Hot Mode - 尝试上传图片到 Aimovely（仅用于记录）`);
-        for (const uploadedImage of uploadedImages) {
-          try {
-            const uploadFormData = new FormData();
-            uploadFormData.append("file", uploadedImage);
-            
-            const uploadResponse = await fetch("/api/upload/to-aimovely", {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-              },
-              body: uploadFormData,
-            });
-
-            if (uploadResponse.ok) {
-              const uploadData = await uploadResponse.json();
-              uploadedImageUrls.push(uploadData.url);
-              console.log(`[Image-to-Image] Hot Mode - 图片上传成功: ${uploadData.url}`);
-            } else {
-              console.warn(`[Image-to-Image] Hot Mode - 图片上传失败（不影响生成）`);
-              uploadedImageUrls.push(""); // 占位，继续执行
-            }
-          } catch (uploadError) {
-            console.warn(`[Image-to-Image] Hot Mode - 图片上传异常（不影响生成）:`, uploadError);
+          if (uploadResponse.ok) {
+            const uploadData = await uploadResponse.json();
+            uploadedImageUrls.push(uploadData.url);
+            console.log(`[Image-to-Image] 图片上传成功: ${uploadData.url}`);
+          } else {
+            console.warn(`[Image-to-Image] 图片上传失败（不影响生成）- Status: ${uploadResponse.status}`);
             uploadedImageUrls.push(""); // 占位，继续执行
           }
+        } catch (uploadError) {
+          console.warn(`[Image-to-Image] 图片上传异常（不影响生成）:`, uploadError);
+          uploadedImageUrls.push(""); // 占位，继续执行
         }
       }
 
@@ -255,7 +230,10 @@ export default function ImageToImagePage() {
             model === "flux" && data.requestId
               ? String(data.requestId)
               : generateClientTaskId(taskType);
-          const inputImageUrl = uploadedImageUrls[0] ?? null;
+          // 使用上传的 URL，如果上传失败则为 null
+          const inputImageUrl = uploadedImageUrls[0] && uploadedImageUrls[0].trim() !== "" 
+            ? uploadedImageUrls[0] 
+            : null;
 
           let imageIndex = 0;
           for (const imageUrl of data.images as string[]) {
