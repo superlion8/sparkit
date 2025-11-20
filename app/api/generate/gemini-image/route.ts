@@ -75,19 +75,19 @@ export async function POST(request: NextRequest) {
 
         if (candidate.content && candidate.content.parts) {
           for (const part of candidate.content.parts) {
-            // Skip thought parts
-            if (part.thought) {
+            // Skip thought parts (use type assertion to check for thought property)
+            if ((part as any).thought) {
               continue;
             }
 
             // Check for inline data (base64)
-            if (part.inlineData && part.inlineData.data) {
-              const mimeType = part.inlineData.mimeType || "image/png";
-              images.push(`data:${mimeType};base64,${part.inlineData.data}`);
+            if ((part as any).inlineData && (part as any).inlineData.data) {
+              const mimeType = (part as any).inlineData.mimeType || "image/png";
+              images.push(`data:${mimeType};base64,${(part as any).inlineData.data}`);
             }
             // Check for URI reference
-            else if (part.uri) {
-              images.push(part.uri);
+            else if ((part as any).uri) {
+              images.push((part as any).uri);
             }
           }
         }
