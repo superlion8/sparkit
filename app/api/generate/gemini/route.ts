@@ -75,17 +75,9 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
       },
     ];
 
-    // Build generation config
-    const generationConfig: any = {
-      responseModalities: ["IMAGE"],
-    };
-
-    // Add aspect ratio if provided
-    if (aspectRatio) {
-      generationConfig.imageConfig = {
-        aspectRatio: aspectRatio,
-      };
-    }
+    // v1 API doesn't support responseModalities and imageConfig
+    // The model name (gemini-2.5-flash-image) already indicates image generation
+    const generationConfig: any = {};
 
     console.log("Generation config:", JSON.stringify(generationConfig, null, 2));
     console.log("请求体大小:", JSON.stringify({ contents, generationConfig }).length, "字符");

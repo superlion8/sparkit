@@ -47,16 +47,11 @@ export async function POST(request: NextRequest) {
     const startTime = Date.now();
 
     // Generate content with image configuration
-    // Use type assertion to bypass strict SDK type checking
+    // v1 API doesn't support responseModalities and imageConfig
+    // The model name already indicates image generation
     const response = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseModalities: ["IMAGE", "TEXT"],
-        imageConfig: {
-          aspectRatio: aspectRatio as "1:1" | "16:9" | "9:16",
-          imageSize: imageSize as "1K" | "2K",
-        },
-      } as any, // Type assertion to bypass SDK type checking
+      generationConfig: {} as any, // Empty config for v1 API
     });
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
