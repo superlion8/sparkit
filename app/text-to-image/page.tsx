@@ -8,7 +8,7 @@ import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
 import { Sparkles } from "lucide-react";
 
 type Model = "gemini" | "flux";
-type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
+type AspectRatio = "default" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
 
 export default function TextToImagePage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
