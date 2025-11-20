@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     try {
       // Step 1: Upload file to Gemini File API
       const fileUploadResponse = await fetch(
-        `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/upload/v1/files?key=${apiKey}`,
         {
           method: "POST",
           headers: {
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
     console.log(`使用模型: ${model} 生成 Photo to Live prompt`);
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: {

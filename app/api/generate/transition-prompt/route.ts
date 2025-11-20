@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     console.log(`图片类型: startImage=${startImage.type}, endImage=${endImage.type}`);
     
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: {
