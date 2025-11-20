@@ -1514,7 +1514,7 @@ function parsePoseDescriptions(text: string): PoseDescription[] {
   return finalPoses;
 }
 
-// Step 2: 根据pose描述生成图片（使用 gemini-2.5-flash-image 图像生成模型）
+// Step 2: 根据pose描述生成图片（使用 gemini-3-pro-image-preview 图像生成模型）
 async function generatePoseImage(
   imageBase64: string,
   mimeType: string,
@@ -1581,7 +1581,7 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: {

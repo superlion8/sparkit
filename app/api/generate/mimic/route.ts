@@ -536,7 +536,7 @@ async function reverseCaptionPrompt(
   throw error;
 }
 
-// Step 2: 去掉人物（使用 gemini-2.5-flash-image 图像生成模型）
+// Step 2: 去掉人物（使用 gemini-3-pro-image-preview 图像生成模型）
 async function removeCharacter(
   imageBase64: string,
   mimeType: string,
@@ -570,7 +570,7 @@ async function removeCharacter(
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: {
@@ -649,7 +649,7 @@ async function removeCharacter(
   throw new Error(errorMsg);
 }
 
-// Step 3: 生成最终图片（使用 gemini-2.5-flash-image 图像生成模型）
+// Step 3: 生成最终图片（使用 gemini-3-pro-image-preview 图像生成模型）
 async function generateFinalImage(
   characterBase64: string,
   characterMimeType: string,
@@ -721,7 +721,7 @@ scene setup: ${captionPrompt}`;
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: {
