@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const prompt = formData.get("prompt") as string;
-    const aspectRatio = (formData.get("aspectRatio") as string) || "16:9";
+    const aspectRatio = formData.get("aspectRatio") as string | null;
     const imageSize = (formData.get("imageSize") as string) || "2K";
 
     if (!prompt) {
@@ -47,14 +47,19 @@ export async function POST(request: NextRequest) {
     const startTime = Date.now();
 
     // Generate content with image configuration
+    // Build imageConfig conditionally - only include aspectRatio if not default
+    const imageConfig: any = {
+      imageSize: imageSize as "1K" | "2K",
+    };
+    if (aspectRatio && aspectRatio !== "default") {
+      imageConfig.aspectRatio = aspectRatio as "1:1" | "16:9" | "9:16";
+    }
+
     const response = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
         responseModalities: ["IMAGE", "TEXT"],
-        imageConfig: {
-          aspectRatio: aspectRatio as "1:1" | "16:9" | "9:16",
-          imageSize: imageSize as "1K" | "2K",
-        },
+        imageConfig: imageConfig,
       } as any, // Type assertion to bypass SDK type checking
     });
 

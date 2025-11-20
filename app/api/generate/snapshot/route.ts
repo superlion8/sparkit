@@ -622,7 +622,7 @@ async function generateBackgroundImage(
     responseModalities: ["IMAGE"],
   };
 
-  if (aspectRatio) {
+  if (aspectRatio && aspectRatio !== "default") {
     generationConfig.imageConfig = {
       aspectRatio: aspectRatio,
     };
@@ -743,7 +743,7 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
     responseModalities: ["IMAGE"],
   };
 
-  if (aspectRatio) {
+  if (aspectRatio && aspectRatio !== "default") {
     generationConfig.imageConfig = {
       aspectRatio: aspectRatio,
     };

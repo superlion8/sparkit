@@ -15,7 +15,7 @@ export default function TextToImagePage() {
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState<Model>("gemini");
   const [numImages, setNumImages] = useState(1);
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("default");
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [error, setError] = useState("");
@@ -47,7 +47,7 @@ export default function TextToImagePage() {
 
         formData.append("prompt", prompt);
 
-        if (model === "gemini") {
+        if (model === "gemini" && aspectRatio !== "default") {
           formData.append("aspectRatio", aspectRatio);
         }
 
@@ -222,6 +222,7 @@ export default function TextToImagePage() {
                   onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
+                  <option value="default">默认（由模型决定）</option>
                   <option value="1:1">1:1 (正方形)</option>
                   <option value="16:9">16:9 (横屏)</option>
                   <option value="9:16">9:16 (竖屏)</option>

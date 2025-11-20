@@ -6,13 +6,13 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import { useAuth } from "@/hooks/useAuth";
 import { Sparkles } from "lucide-react";
 
-type AspectRatio = "1:1" | "16:9" | "9:16";
+type AspectRatio = "default" | "1:1" | "16:9" | "9:16";
 type ImageSize = "1K" | "2K";
 
 export default function GeminiImagePage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [prompt, setPrompt] = useState("");
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("default");
   const [imageSize, setImageSize] = useState<ImageSize>("2K");
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
@@ -40,7 +40,9 @@ export default function GeminiImagePage() {
     try {
       const formData = new FormData();
       formData.append("prompt", prompt);
-      formData.append("aspectRatio", aspectRatio);
+      if (aspectRatio !== "default") {
+        formData.append("aspectRatio", aspectRatio);
+      }
       formData.append("imageSize", imageSize);
 
       console.log(`[Gemini Image] 准备发送请求 - Prompt length: ${prompt.length}, Aspect Ratio: ${aspectRatio}, Image Size: ${imageSize}`);
@@ -148,6 +150,7 @@ export default function GeminiImagePage() {
                   onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
+                  <option value="default">默认（由模型决定）</option>
                   <option value="1:1">1:1 (正方形)</option>
                   <option value="16:9">16:9 (横屏)</option>
                   <option value="9:16">9:16 (竖屏)</option>

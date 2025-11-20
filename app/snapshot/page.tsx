@@ -8,7 +8,7 @@ import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
 import { Camera, Download, X, Maximize2 } from "lucide-react";
 import { downloadImage } from "@/lib/downloadUtils";
 
-type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
+type AspectRatio = "default" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
 
 interface SnapshotPrompt {
   background: string;
@@ -23,7 +23,7 @@ interface SnapshotPrompt {
 export default function SnapshotPage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [image, setImage] = useState<File[]>([]);
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("default");
   const [loading, setLoading] = useState(false);
   const [snapshotPrompts, setSnapshotPrompts] = useState<SnapshotPrompt[]>([]);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
@@ -68,7 +68,9 @@ export default function SnapshotPage() {
     try {
       const formData = new FormData();
       formData.append("image", image[0]);
-      formData.append("aspectRatio", aspectRatio);
+      if (aspectRatio !== "default") {
+        formData.append("aspectRatio", aspectRatio);
+      }
 
       // Cancel previous request if exists
       if (abortControllerRef.current) {
@@ -307,6 +309,7 @@ export default function SnapshotPage() {
                   onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
+                  <option value="default">默认（由模型决定）</option>
                   <option value="1:1">1:1 (正方形)</option>
                   <option value="16:9">16:9 (横屏)</option>
                   <option value="9:16">9:16 (竖屏)</option>

@@ -8,7 +8,7 @@ import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
 import { Camera, Download, X, Maximize2 } from "lucide-react";
 import { downloadImage } from "@/lib/downloadUtils";
 
-type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
+type AspectRatio = "default" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
 
 interface PoseDescription {
   pose: string;
@@ -20,7 +20,7 @@ export default function PhotoBoothPage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [image, setImage] = useState<File[]>([]);
   const [characterImage, setCharacterImage] = useState<File[]>([]); // 可选的角色面部图
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("default");
   const [hotMode, setHotMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [poseDescriptions, setPoseDescriptions] = useState<PoseDescription[]>([]);
@@ -69,7 +69,9 @@ export default function PhotoBoothPage() {
       if (characterImage.length > 0) {
         formData.append("characterImage", characterImage[0]);
       }
-      formData.append("aspectRatio", aspectRatio);
+      if (aspectRatio !== "default") {
+        formData.append("aspectRatio", aspectRatio);
+      }
       formData.append("hotMode", hotMode.toString());
 
       // Cancel previous request if exists
@@ -383,6 +385,7 @@ export default function PhotoBoothPage() {
                   onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
+                  <option value="default">默认（由模型决定）</option>
                   <option value="1:1">1:1 (正方形)</option>
                   <option value="16:9">16:9 (横屏)</option>
                   <option value="9:16">9:16 (竖屏)</option>

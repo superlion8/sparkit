@@ -563,7 +563,7 @@ async function removeCharacter(
     responseModalities: ["IMAGE"],
   };
 
-  if (aspectRatio) {
+  if (aspectRatio && aspectRatio !== "default") {
     generationConfig.imageConfig = {
       aspectRatio: aspectRatio,
     };
@@ -714,7 +714,7 @@ scene setup: ${captionPrompt}`;
     responseModalities: ["IMAGE"],
   };
 
-  if (aspectRatio) {
+  if (aspectRatio && aspectRatio !== "default") {
     generationConfig.imageConfig = {
       aspectRatio: aspectRatio,
     };

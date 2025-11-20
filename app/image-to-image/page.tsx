@@ -9,7 +9,7 @@ import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
 import { ImagePlus } from "lucide-react";
 
 type Model = "gemini" | "flux" | "qwen";
-type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
+type AspectRatio = "default" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
 
 export default function ImageToImagePage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
@@ -17,7 +17,7 @@ export default function ImageToImagePage() {
   const [model, setModel] = useState<Model>("gemini");
   const [hotMode, setHotMode] = useState(false);
   const [numImages, setNumImages] = useState(1);
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("default");
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
@@ -167,7 +167,9 @@ export default function ImageToImagePage() {
         formData.append("prompt", prompt);
 
         if (model === "gemini") {
-          formData.append("aspectRatio", aspectRatio);
+          if (aspectRatio !== "default") {
+            formData.append("aspectRatio", aspectRatio);
+          }
           uploadedImages.forEach((image) => {
             formData.append("images", image);
           });
@@ -415,6 +417,7 @@ export default function ImageToImagePage() {
                   onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
+                  <option value="default">默认（由模型决定）</option>
                   <option value="1:1">1:1 (正方形)</option>
                   <option value="16:9">16:9 (横屏)</option>
                   <option value="9:16">9:16 (竖屏)</option>

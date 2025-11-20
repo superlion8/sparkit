@@ -9,14 +9,14 @@ import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
 import { User, Download } from "lucide-react";
 import { downloadImage } from "@/lib/downloadUtils";
 
-type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
+type AspectRatio = "default" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
 
 export default function MimicPage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [referenceImage, setReferenceImage] = useState<File[]>([]);
   const [characterImage, setCharacterImage] = useState<File[]>([]);
   const [numImages, setNumImages] = useState(1);
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("default");
   const [keepBackground, setKeepBackground] = useState(true);
   const [hotMode, setHotMode] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -62,7 +62,9 @@ export default function MimicPage() {
       for (const charImage of characterImage) {
         formData.append("characterImage", charImage);
       }
-      formData.append("aspectRatio", aspectRatio);
+      if (aspectRatio !== "default") {
+        formData.append("aspectRatio", aspectRatio);
+      }
       formData.append("numImages", hotMode ? "1" : numImages.toString());
       formData.append("keepBackground", keepBackground.toString());
       formData.append("hotMode", hotMode.toString());
@@ -219,7 +221,9 @@ export default function MimicPage() {
       for (const charImage of characterImage) {
         formData.append("characterImage", charImage);
       }
-      formData.append("aspectRatio", aspectRatio);
+      if (aspectRatio !== "default") {
+        formData.append("aspectRatio", aspectRatio);
+      }
       formData.append("numImages", hotMode ? "1" : numImages.toString());
       formData.append("hotMode", hotMode.toString());
       formData.append("keepBackground", keepBackground.toString()); // 传递 keepBackground 状态
@@ -382,6 +386,7 @@ export default function MimicPage() {
                   onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
+                  <option value="default">默认（由模型决定）</option>
                   <option value="1:1">1:1 (正方形)</option>
                   <option value="16:9">16:9 (横屏)</option>
                   <option value="9:16">9:16 (竖屏)</option>

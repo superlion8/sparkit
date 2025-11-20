@@ -80,8 +80,8 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
       responseModalities: ["IMAGE"],
     };
 
-    // Add aspect ratio if provided
-    if (aspectRatio) {
+    // Add aspect ratio if provided and not default
+    if (aspectRatio && aspectRatio !== "default") {
       generationConfig.imageConfig = {
         aspectRatio: aspectRatio,
       };
