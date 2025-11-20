@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 1: 生成5个snapshot prompt（使用 gemini-2.5-flash 文本模型）
+    // Step 1: 生成5个snapshot prompt（使用 gemini-3-pro-preview 文本模型）
     console.log("Step 1: 生成snapshot prompts...");
     const step1Start = Date.now();
     const snapshotPrompts = await generateSnapshotPrompts(
@@ -417,7 +417,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Step 1: 生成5个snapshot prompt（使用 gemini-2.5-flash 文本模型）
+// Step 1: 生成5个snapshot prompt（使用 gemini-3-pro-preview 文本模型）
 async function generateSnapshotPrompts(
   imageBase64: string,
   mimeType: string,
@@ -448,7 +448,7 @@ async function generateSnapshotPrompts(
   ];
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: {

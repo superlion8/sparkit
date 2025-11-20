@@ -85,8 +85,8 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    // Call Gemini API using gemini-2.5-flash model
-    const model = "gemini-2.5-flash";
+    // Call Gemini API using gemini-3-pro-preview model
+    const model = "gemini-3-pro-preview";
     console.log(`使用模型: ${model}`);
     console.log(`图片类型: startImage=${startImage.type}, endImage=${endImage.type}`);
     

@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 1: 生成pose描述（使用 gemini-2.5-flash 文本模型）
+    // Step 1: 生成pose描述（使用 gemini-3-pro-preview 文本模型）
     const targetPoseCount = hotMode ? 3 : 6; // Hot Mode 生成3张，Gemini Mode 生成6张
     console.log(`Step 1: 生成${targetPoseCount}个pose描述...`);
     const step1Start = Date.now();
@@ -766,7 +766,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Step 1: 生成6个pose描述（使用 gemini-2.5-flash 文本模型）
+// Step 1: 生成6个pose描述（使用 gemini-3-pro-preview 文本模型）
 async function generatePoseDescriptions(
   imageBase64: string,
   mimeType: string,
@@ -803,7 +803,7 @@ ${formatExample}`;
 
   // Use higher maxOutputTokens for detailed pose descriptions
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: {

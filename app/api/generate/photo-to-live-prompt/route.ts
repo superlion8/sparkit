@@ -139,8 +139,8 @@ export async function POST(request: NextRequest) {
       console.log("使用 inlineData (base64) - 回退方案");
     }
 
-    // Call Gemini API using gemini-2.5-flash model
-    const model = "gemini-2.5-flash";
+    // Call Gemini API using gemini-3-pro-preview model
+    const model = "gemini-3-pro-preview";
     console.log(`使用模型: ${model} 生成 Photo to Live prompt`);
 
     const response = await fetch(

@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // 正常流程：反推提示词和生成背景图
-      // Step 1: 反推提示词（使用 gemini-2.5-flash 文本模型）
+      // Step 1: 反推提示词（使用 gemini-3-pro-preview 文本模型）
       console.log("Step 1: 反推提示词...");
       captionPrompt = await reverseCaptionPrompt(
         referenceBase64,
@@ -339,7 +339,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Step 1: 反推提示词（使用 gemini-2.5-flash 文本模型）
+// Step 1: 反推提示词（使用 gemini-3-pro-preview 文本模型）
 async function reverseCaptionPrompt(
   imageBase64: string,
   mimeType: string,
@@ -365,7 +365,7 @@ async function reverseCaptionPrompt(
   // 增加 maxOutputTokens 以避免 MAX_TOKENS 错误
   // 同时使用较低的 temperature 以获得更简洁、一致的输出
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: {
