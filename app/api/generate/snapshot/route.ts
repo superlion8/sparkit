@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       console.log(`成功解析 ${snapshotPrompts.length} 个snapshot prompt`);
     }
 
-    // Step 2: 并行生成5张背景图（使用 gemini-2.5-flash-image 图像生成模型）
+    // Step 2: 并行生成5张背景图（使用 gemini-3-pro-image-preview 图像生成模型）
     console.log(`Step 2: 根据 ${snapshotPrompts.length} 个background描述并行生成背景图...`);
     const step2Start = Date.now();
     
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
       throw new Error("所有背景图生成失败，请重试");
     }
 
-    // Step 3: 并行生成5张最终图片（使用 gemini-2.5-flash-image 图像生成模型）
+    // Step 3: 并行生成5张最终图片（使用 gemini-3-pro-image-preview 图像生成模型）
     console.log(`Step 3: 根据 ${backgroundImages.length} 张背景图和snapshot prompts并行生成最终图片...`);
     const step3Start = Date.now();
     
@@ -594,7 +594,7 @@ function parseSnapshotPrompts(text: string): SnapshotPrompt[] {
   return prompts.slice(0, 5); // Limit to 5
 }
 
-// Step 2: 生成背景图（使用 gemini-2.5-flash-image 图像生成模型）
+// Step 2: 生成背景图（使用 gemini-3-pro-image-preview 图像生成模型）
 async function generateBackgroundImage(
   imageBase64: string,
   mimeType: string,
@@ -629,7 +629,7 @@ async function generateBackgroundImage(
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: {
@@ -691,7 +691,7 @@ async function generateBackgroundImage(
   throw new Error("未找到生成的背景图");
 }
 
-// Step 3: 生成最终snapshot图片（使用 gemini-2.5-flash-image 图像生成模型）
+// Step 3: 生成最终snapshot图片（使用 gemini-3-pro-image-preview 图像生成模型）
 async function generateFinalSnapshotImage(
   imageBase64: string,
   mimeType: string,
@@ -750,7 +750,7 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: {
