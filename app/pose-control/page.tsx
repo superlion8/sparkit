@@ -53,7 +53,6 @@ export default function PoseControlPage() {
     setIsReversing(true);
     setReverseError(null);
     setPoseCaption('');
-    setFinalPrompt('');
 
     try {
       const formData = new FormData();
@@ -109,7 +108,7 @@ ${caption}`;
     }
 
     if (!finalPrompt.trim()) {
-      setError('请先进行 Pose 反推');
+      setError('请输入生成提示词');
       return;
     }
 
@@ -245,7 +244,7 @@ ${caption}`;
             {/* Reverse Pose, Edit Prompt & Generate Settings (Combined) */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold mb-4 text-gray-800">
-                3. 反推、编辑并生成
+                3. 输入提示词并生成
               </h2>
               
               {/* Reverse Button */}
@@ -262,7 +261,7 @@ ${caption}`;
                 ) : (
                   <>
                     <Sparkles className="w-5 h-5" />
-                    <span>反推 Pose 描述</span>
+                    <span>反推 Pose 描述（可选）</span>
                   </>
                 )}
               </button>
@@ -270,86 +269,82 @@ ${caption}`;
                 <p className="mb-4 text-sm text-red-600">{reverseError}</p>
               )}
 
-              {/* Final Prompt Editor */}
-              {finalPrompt && (
-                <>
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      生成提示词（可编辑）
-                    </label>
-                    <textarea
-                      value={finalPrompt}
-                      onChange={(e) => setFinalPrompt(e.target.value)}
-                      className="w-full h-48 p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                      placeholder="生成的提示词将在这里显示..."
-                    />
-                    <p className="mt-2 text-xs text-gray-500">
-                      提示：您可以修改上面的提示词以调整生成效果
-                    </p>
-                  </div>
+              {/* Final Prompt Editor - Always Visible */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  生成提示词
+                </label>
+                <textarea
+                  value={finalPrompt}
+                  onChange={(e) => setFinalPrompt(e.target.value)}
+                  className="w-full h-48 p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                  placeholder="请输入生成提示词，或点击上方按钮反推 Pose 描述..."
+                />
+                <p className="mt-2 text-xs text-gray-500">
+                  提示：您可以手动输入提示词，或点击"反推 Pose 描述"按钮自动生成
+                </p>
+              </div>
 
-                  {/* Divider */}
-                  <div className="border-t border-gray-200 my-4"></div>
+              {/* Divider */}
+              <div className="border-t border-gray-200 my-4"></div>
 
-                  {/* Generation Settings */}
-                  <h3 className="text-base font-semibold mb-3 text-gray-800">生成设置</h3>
-                  
-                  {/* Number of Images */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      生成数量
-                    </label>
-                    <select
-                      value={numImages}
-                      onChange={(e) => setNumImages(parseInt(e.target.value))}
-                      className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    >
-                      <option value={1}>1 张</option>
-                      <option value={2}>2 张</option>
-                      <option value={3}>3 张</option>
-                      <option value={4}>4 张</option>
-                    </select>
-                  </div>
+              {/* Generation Settings */}
+              <h3 className="text-base font-semibold mb-3 text-gray-800">生成设置</h3>
+              
+              {/* Number of Images */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  生成数量
+                </label>
+                <select
+                  value={numImages}
+                  onChange={(e) => setNumImages(parseInt(e.target.value))}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value={1}>1 张</option>
+                  <option value={2}>2 张</option>
+                  <option value={3}>3 张</option>
+                  <option value={4}>4 张</option>
+                </select>
+              </div>
 
-                  {/* Aspect Ratio */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      宽高比
-                    </label>
-                    <select
-                      value={aspectRatio}
-                      onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
-                      className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    >
-                      <option value="default">默认（由模型决定）</option>
-                      <option value="1:1">1:1 (正方形)</option>
-                      <option value="16:9">16:9 (横向)</option>
-                      <option value="9:16">9:16 (纵向)</option>
-                      <option value="4:3">4:3 (横向)</option>
-                      <option value="3:4">3:4 (纵向)</option>
-                    </select>
-                  </div>
+              {/* Aspect Ratio */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  宽高比
+                </label>
+                <select
+                  value={aspectRatio}
+                  onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="default">默认（由模型决定）</option>
+                  <option value="1:1">1:1 (正方形)</option>
+                  <option value="16:9">16:9 (横向)</option>
+                  <option value="9:16">9:16 (纵向)</option>
+                  <option value="4:3">4:3 (横向)</option>
+                  <option value="3:4">3:4 (纵向)</option>
+                </select>
+              </div>
 
-                  {/* Generate Button */}
-                  <button
-                    onClick={handleGenerate}
-                    disabled={isGenerating || charImages.length === 0 || !finalPrompt.trim()}
-                    className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    <Sparkles className="w-5 h-5" />
-                    <span>{isGenerating ? '生成中...' : '开始生成'}</span>
-                  </button>
-                  {error && (
-                    <p className="mt-2 text-sm text-red-600">{error}</p>
-                  )}
-                </>
+              {/* Generate Button */}
+              <button
+                onClick={handleGenerate}
+                disabled={isGenerating || charImages.length === 0 || !finalPrompt.trim()}
+                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-5 h-5" />
+                <span>{isGenerating ? '生成中...' : '开始生成'}</span>
+              </button>
+              {error && (
+                <p className="mt-2 text-sm text-red-600">{error}</p>
               )}
             </div>
 
-            {finalPrompt && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-800">4. 生成结果</h2>
+            {/* Generation Results */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-800">4. 生成结果</h2>
                 {generatedImages.length > 1 && (
                   <button
                     onClick={handleDownloadAll}
@@ -405,8 +400,7 @@ ${caption}`;
                   </div>
                 </div>
               )}
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
