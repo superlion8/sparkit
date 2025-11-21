@@ -74,7 +74,7 @@ export default function PoseControlPage() {
       setPoseCaption(caption);
 
       // Build final prompt
-      const prompt = `Make the person in character image take the pose from the pose image. Keep the point of camera view of image 1 and remain the people face same direction. Refine the details to make the image reasonable while necessary.
+      const prompt = `Make the person in character image take the pose from the pose image. Keep the point of camera view of character image and remain the people face same direction. Refine the details to make the image reasonable while necessary.
 
 ${caption}`;
       
@@ -102,6 +102,11 @@ ${caption}`;
       return;
     }
 
+    if (poseImages.length === 0) {
+      setError('请上传 Pose 图');
+      return;
+    }
+
     if (!finalPrompt.trim()) {
       setError('请先进行 Pose 反推');
       return;
@@ -120,6 +125,7 @@ ${caption}`;
     try {
       const formData = new FormData();
       formData.append('charImage', charImages[0]);
+      formData.append('poseImage', poseImages[0]);
       formData.append('finalPrompt', finalPrompt);
       formData.append('numImages', numImages.toString());
       formData.append('aspectRatio', aspectRatio);

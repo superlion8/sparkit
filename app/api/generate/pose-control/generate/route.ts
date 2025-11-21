@@ -96,12 +96,11 @@ async function uploadImageToAimovely(
 
 async function generateImage(
   charImageBase64: string,
+  poseImageBase64: string,
   finalPrompt: string,
   aspectRatio: string
 ): Promise<{ success: boolean; imageBase64?: string; error?: string }> {
   try {
-    const charMimeType = 'image/png';
-    
     const generationConfig: any = {
       temperature: 1,
       topP: 0.95,
@@ -124,8 +123,14 @@ async function generateImage(
           parts: [
             {
               inline_data: {
-                mime_type: charMimeType,
+                mime_type: 'image/png',
                 data: charImageBase64,
+              },
+            },
+            {
+              inline_data: {
+                mime_type: 'image/png',
+                data: poseImageBase64,
               },
             },
             {
@@ -238,13 +243,14 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const charImage = formData.get('charImage') as File;
+    const poseImage = formData.get('poseImage') as File;
     const finalPrompt = formData.get('finalPrompt') as string;
     const numImages = parseInt(formData.get('numImages') as string) || 1;
     const aspectRatio = formData.get('aspectRatio') as string || 'default';
 
-    if (!charImage || !finalPrompt) {
+    if (!charImage || !poseImage || !finalPrompt) {
       return NextResponse.json(
-        { error: 'Character image and final prompt are required' },
+        { error: 'Character image, pose image and final prompt are required' },
         { status: 400 }
       );
     }
@@ -258,38 +264,53 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Pose Control - Generate] Starting generation of ${numImages} image(s)...`);
 
-    // Convert char image to base64
+    // Convert images to base64
     const charBuffer = Buffer.from(await charImage.arrayBuffer());
     const charBase64 = charBuffer.toString('base64');
     const charMimeType = charImage.type || 'image/png';
 
-    // Upload char image to Aimovely
+    const poseBuffer = Buffer.from(await poseImage.arrayBuffer());
+    const poseBase64 = poseBuffer.toString('base64');
+    const poseMimeType = poseImage.type || 'image/png';
+
+    // Upload images to Aimovely
     const aimovelyEmail = process.env.AIMOVELY_EMAIL;
     const aimovelyVcode = process.env.AIMOVELY_VCODE;
     let charImageUrl: string | null = null;
+    let poseImageUrl: string | null = null;
     let aimovelyToken: string | null = null;
 
     if (aimovelyEmail && aimovelyVcode) {
       try {
         aimovelyToken = await fetchAimovelyToken(aimovelyEmail, aimovelyVcode);
         if (aimovelyToken) {
-          console.log('[Pose Control - Generate] Uploading character image...');
+          console.log('[Pose Control - Generate] Uploading images...');
+          
+          // Upload character image
           const charDataUrl = `data:${charMimeType};base64,${charBase64}`;
-          const uploadResult = await uploadImageToAimovely(charDataUrl, aimovelyToken, "char");
-          if (uploadResult?.url) {
-            charImageUrl = uploadResult.url;
+          const charUploadResult = await uploadImageToAimovely(charDataUrl, aimovelyToken, "char");
+          if (charUploadResult?.url) {
+            charImageUrl = charUploadResult.url;
             console.log('[Pose Control - Generate] Character image uploaded:', charImageUrl);
+          }
+
+          // Upload pose image
+          const poseDataUrl = `data:${poseMimeType};base64,${poseBase64}`;
+          const poseUploadResult = await uploadImageToAimovely(poseDataUrl, aimovelyToken, "pose");
+          if (poseUploadResult?.url) {
+            poseImageUrl = poseUploadResult.url;
+            console.log('[Pose Control - Generate] Pose image uploaded:', poseImageUrl);
           }
         }
       } catch (uploadError) {
-        console.error('[Pose Control - Generate] Character image upload failed:', uploadError);
+        console.error('[Pose Control - Generate] Image upload failed:', uploadError);
       }
     }
 
     // Generate images in parallel
     console.log(`[Pose Control - Generate] Generating ${numImages} image(s) in parallel...`);
     const generatePromises = Array.from({ length: numImages }, (_, i) => 
-      generateImage(charBase64, finalPrompt, aspectRatio)
+      generateImage(charBase64, poseBase64, finalPrompt, aspectRatio)
     );
 
     const results = await Promise.all(generatePromises);
