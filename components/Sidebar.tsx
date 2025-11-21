@@ -18,7 +18,8 @@ import {
   Camera,
   PlayCircle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Wand2
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +29,7 @@ const imageTools = [
   { name: "图像编辑", href: "/image-to-image", icon: ImagePlus },
   { name: "Mimic(洗稿)", href: "/mimic", icon: User },
   { name: "Control Panel", href: "/control-panel", icon: Settings },
+  { name: "Pose Control", href: "/pose-control", icon: Wand2 },
   { name: "PhotoBooth(组图)", href: "/photobooth", icon: Camera },
   { name: "Snapshot", href: "/snapshot", icon: Camera },
 ];

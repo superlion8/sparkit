@@ -37,6 +37,7 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   mimic: "Mimic角色替换",
   photobooth: "PhotoBooth写真组图",
   snapshot: "Snapshot随手拍",
+  pose_control: "Pose Control",
   video_generation: "视频生成",
   video_subject_replace: "视频主体替换",
   image_transition_edit: "改图转场 - 图片编辑",
