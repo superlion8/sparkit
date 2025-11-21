@@ -5,6 +5,7 @@ import ImageUpload from '@/components/ImageUpload';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { Download, Sparkles, Wand2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { downloadImage } from '@/lib/downloadUtils';
 
 type AspectRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | 'default';
 
@@ -184,24 +185,15 @@ ${caption}`;
       setError(err.message || '生成失败，请重试');
     } finally {
       setIsGenerating(false);
+      }
+    };
+ 
+  const handleDownloadAll = async () => {
+    for (let i = 0; i < generatedImages.length; i++) {
+      setTimeout(async () => {
+        await downloadImage(generatedImages[i], `pose-control-${i + 1}.png`);
+      }, i * 200);
     }
-  };
-
-  const downloadImage = (dataUrl: string, filename: string) => {
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleDownloadAll = () => {
-    generatedImages.forEach((img, index) => {
-      setTimeout(() => {
-        downloadImage(img, `pose-control-${index + 1}.png`);
-      }, index * 200);
-    });
   };
 
   return (
@@ -393,7 +385,7 @@ ${caption}`;
                         />
                       </div>
                       <button
-                        onClick={() => downloadImage(img, `pose-control-${index + 1}.png`)}
+                        onClick={async () => await downloadImage(img, `pose-control-${index + 1}.png`)}
                         className="absolute top-2 right-2 bg-black/70 hover:bg-black/90 text-white p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                         title={`下载图片 ${index + 1}`}
                       >
