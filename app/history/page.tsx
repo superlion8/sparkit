@@ -169,9 +169,14 @@ export default function HistoryPage() {
     // Download all images with delay to avoid browser blocking
     urls.forEach((url, index) => {
       setTimeout(() => {
-        const filename = taskType === 'photobooth' 
-          ? `photobooth-pose-${index + 1}-${taskId}.png`
-          : `image-${index + 1}-${taskId}.png`;
+        let filename: string;
+        if (taskType === 'photobooth') {
+          filename = `photobooth-pose-${index + 1}-${taskId}.png`;
+        } else if (taskType === 'mimic') {
+          filename = `mimic-${index + 1}-${taskId}.png`;
+        } else {
+          filename = `image-${index + 1}-${taskId}.png`;
+        }
         downloadImage(url, filename);
       }, index * 200);
     });
@@ -268,9 +273,12 @@ export default function HistoryPage() {
                 {/* Preview */}
                 <div className={(() => {
                   const parsedUrls = parseImageUrls(task.output_image_url);
-                  // PhotoBooth and Snapshot tasks: use auto height to accommodate all images
-                  if ((parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses) && parsedUrls.urls.poses.length > 1) ||
-                      (parsedUrls?.type === 'snapshot' && Array.isArray(parsedUrls.urls.snapshots) && parsedUrls.urls.snapshots.length > 1)) {
+                  // PhotoBooth, Snapshot, and Mimic tasks: use auto height to accommodate all images
+                  const isMultiImage = 
+                    (parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses) && parsedUrls.urls.poses.length > 1) ||
+                    (parsedUrls?.type === 'snapshot' && Array.isArray(parsedUrls.urls.snapshots) && parsedUrls.urls.snapshots.length > 1) ||
+                    (parsedUrls?.type === 'mimic' && Array.isArray(parsedUrls.urls.final) && parsedUrls.urls.final.length > 1);
+                  if (isMultiImage) {
                     return "bg-gray-100 relative";
                   }
                   // Other tasks: keep aspect-square
@@ -407,24 +415,82 @@ export default function HistoryPage() {
                       );
                     }
                     
-                    // Handle Mimic with multiple images
+                    // Handle Mimic with multiple images - show all images
+                    if (parsedUrls?.type === 'mimic' && Array.isArray(parsedUrls.urls.final) && parsedUrls.urls.final.length > 0) {
+                      if (parsedUrls.urls.final.length === 1) {
+                        // Single image: use square aspect
+                        return (
+                          <div className="w-full h-full aspect-square relative">
+                            <img
+                              src={parsedUrls.urls.final[0]}
+                              alt="Generated"
+                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => setPreviewImage(parsedUrls.urls.final[0])}
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const parent = target.parentElement;
+                                if (parent) {
+                                  parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><div class="text-center"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-xs">图片加载失败</p></div></div>';
+                                }
+                              }}
+                            />
+                          </div>
+                        );
+                      }
+                      // Multiple images: show grid (2 cols for 2-3 images, 3 cols for 4-9 images)
+                      const imageCount = parsedUrls.urls.final.length;
+                      const gridColsClass = imageCount <= 3 ? 'grid-cols-2' : 'grid-cols-3';
+                      return (
+                        <div className={`grid ${gridColsClass} gap-1 p-1`}>
+                          {parsedUrls.urls.final.map((url: string, index: number) => (
+                            <div key={index} className="aspect-square relative bg-gray-200 rounded overflow-hidden group">
+                              <img
+                                src={url}
+                                alt={`Mimic ${index + 1}`}
+                                className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => setPreviewImage(url)}
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
+                                  }
+                                }}
+                              />
+                              <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded">
+                                {index + 1}
+                              </div>
+                              {/* 单独下载按钮 */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  downloadImage(url, `mimic-${index + 1}-${task.task_id}.png`);
+                                }}
+                                className="absolute top-1 right-1 bg-black/70 hover:bg-black/90 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                title={`下载图片 ${index + 1}`}
+                              >
+                                <Download className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+                    
+                    // Handle Mimic with single image (fallback for old format)
                     if (parsedUrls?.type === 'mimic') {
                       const firstImage = parsedUrls.urls.final?.[0] || parsedUrls.urls.background;
                       if (firstImage) {
-                        const imageCount = (parsedUrls.urls.final?.length || 0) + (parsedUrls.urls.background ? 1 : 0);
                         return (
-                          <div className="w-full h-full relative">
+                          <div className="w-full h-full aspect-square relative">
                             <img
                               src={firstImage}
-                      alt="Generated"
-                      className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                      onClick={() => setPreviewImage(firstImage)}
-                    />
-                            {imageCount > 1 && (
-                              <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                                {imageCount} 张
-                              </div>
-                            )}
+                              alt="Generated"
+                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => setPreviewImage(firstImage)}
+                            />
                           </div>
                         );
                       }
@@ -543,16 +609,21 @@ export default function HistoryPage() {
                       } else if (parsedUrls?.type === 'snapshot' && Array.isArray(parsedUrls.urls.snapshots)) {
                         imageUrls.push(...parsedUrls.urls.snapshots);
                       } else if (parsedUrls?.type === 'mimic') {
-                        if (parsedUrls.urls.background) imageUrls.push(parsedUrls.urls.background);
+                        // For Mimic, only collect final images (not background)
                         if (Array.isArray(parsedUrls.urls.final)) {
                           imageUrls.push(...parsedUrls.urls.final);
+                        } else if (parsedUrls.urls.final) {
+                          // Handle single final image (non-array)
+                          imageUrls.push(parsedUrls.urls.final);
                         }
                       } else if (parsedUrls?.type === 'single' && parsedUrls.urls) {
                         imageUrls.push(parsedUrls.urls);
                       }
                       
                       if (imageUrls.length > 0) {
-                        if (imageUrls.length > 1) {
+                        // For Mimic and PhotoBooth with multiple images, show download all button
+                        // But users can also download individual images via hover buttons
+                        if (imageUrls.length > 1 && (parsedUrls?.type === 'mimic' || parsedUrls?.type === 'photobooth' || parsedUrls?.type === 'snapshot')) {
                           // Multiple images - show download all button
                           return (
                             <button
@@ -563,16 +634,27 @@ export default function HistoryPage() {
                               下载全部 ({imageUrls.length}张)
                             </button>
                           );
-                        } else {
+                        } else if (imageUrls.length === 1) {
                           // Single image
                           return (
-                      <button
+                            <button
                               onClick={() => handleDownloadImage(imageUrls[0], task.task_id)}
-                        className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        图片
-                      </button>
+                              className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
+                            >
+                              <Download className="w-4 h-4" />
+                              图片
+                            </button>
+                          );
+                        } else {
+                          // Multiple images (other types) - show download all
+                          return (
+                            <button
+                              onClick={() => handleDownloadAllImages(imageUrls, task.task_id, task.task_type)}
+                              className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
+                            >
+                              <Download className="w-4 h-4" />
+                              下载全部 ({imageUrls.length}张)
+                            </button>
                           );
                         }
                       }
