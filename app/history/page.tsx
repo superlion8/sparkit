@@ -45,13 +45,19 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   photo_to_live: "Photo to Live",
 };
 
-// Parse JSON format image URLs (for Mimic, PhotoBooth, and Snapshot tasks)
-const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photobooth' | 'snapshot'; urls: any } | null => {
+// Parse JSON format image URLs (for Mimic, PhotoBooth, Snapshot, and Pose Control tasks)
+const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photobooth' | 'snapshot' | 'pose_control'; urls: any } | null => {
   if (!url) return null;
   
   // Try to parse as JSON
   try {
     const parsed = JSON.parse(url);
+    
+    // Check if it's an array (Pose Control format: ["url1", "url2", ...])
+    if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
+      return { type: 'pose_control', urls: parsed };
+    }
+    
     // Check if it's a Mimic format
     if (typeof parsed === 'object' && (parsed.reference || parsed.character || parsed.background || parsed.final)) {
       return { type: 'mimic', urls: parsed };
@@ -175,6 +181,8 @@ export default function HistoryPage() {
           filename = `photobooth-pose-${index + 1}-${taskId}.png`;
         } else if (taskType === 'mimic') {
           filename = `mimic-${index + 1}-${taskId}.png`;
+        } else if (taskType === 'pose_control') {
+          filename = `pose-control-${index + 1}-${taskId}.png`;
         } else {
           filename = `image-${index + 1}-${taskId}.png`;
         }
@@ -274,11 +282,12 @@ export default function HistoryPage() {
                 {/* Preview */}
                 <div className={(() => {
                   const parsedUrls = parseImageUrls(task.output_image_url);
-                  // PhotoBooth, Snapshot, and Mimic tasks: use auto height to accommodate all images
+                  // PhotoBooth, Snapshot, Mimic, and Pose Control tasks: use auto height to accommodate all images
                   const isMultiImage = 
                     (parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses) && parsedUrls.urls.poses.length > 1) ||
                     (parsedUrls?.type === 'snapshot' && Array.isArray(parsedUrls.urls.snapshots) && parsedUrls.urls.snapshots.length > 1) ||
-                    (parsedUrls?.type === 'mimic' && Array.isArray(parsedUrls.urls.final) && parsedUrls.urls.final.length > 1);
+                    (parsedUrls?.type === 'mimic' && Array.isArray(parsedUrls.urls.final) && parsedUrls.urls.final.length > 1) ||
+                    (parsedUrls?.type === 'pose_control' && Array.isArray(parsedUrls.urls) && parsedUrls.urls.length > 1);
                   if (isMultiImage) {
                     return "bg-gray-100 relative";
                   }
@@ -287,6 +296,70 @@ export default function HistoryPage() {
                 })()}>
                   {(() => {
                     const parsedUrls = parseImageUrls(task.output_image_url);
+                    
+                    // Handle Pose Control with multiple images - show all images
+                    if (parsedUrls?.type === 'pose_control' && Array.isArray(parsedUrls.urls) && parsedUrls.urls.length > 0) {
+                      if (parsedUrls.urls.length === 1) {
+                        // Single image: use square aspect
+                        return (
+                          <div className="w-full h-full aspect-square relative">
+                            <img
+                              src={parsedUrls.urls[0]}
+                              alt="Generated"
+                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => setPreviewImage(parsedUrls.urls[0])}
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const parent = target.parentElement;
+                                if (parent) {
+                                  parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><div class="text-center"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-xs">图片加载失败</p></div></div>';
+                                }
+                              }}
+                            />
+                          </div>
+                        );
+                      }
+                      // Multiple images: show grid (2 cols for 2-3 images, 3 cols for 4-9 images)
+                      const imageCount = parsedUrls.urls.length;
+                      const gridColsClass = imageCount <= 3 ? 'grid-cols-2' : 'grid-cols-3';
+                      return (
+                        <div className={`grid ${gridColsClass} gap-1 p-1`}>
+                          {parsedUrls.urls.map((url: string, index: number) => (
+                            <div key={index} className="aspect-square relative bg-gray-200 rounded overflow-hidden group">
+                              <img
+                                src={url}
+                                alt={`Pose Control ${index + 1}`}
+                                className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => setPreviewImage(url)}
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
+                                  }
+                                }}
+                              />
+                              <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded">
+                                {index + 1}
+                              </div>
+                              {/* 单独下载按钮 */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  downloadImage(url, `pose-control-${index + 1}-${task.task_id}.png`);
+                                }}
+                                className="absolute top-1 right-1 bg-black/70 hover:bg-black/90 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                title={`下载图片 ${index + 1}`}
+                              >
+                                <Download className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
                     
                     // Handle PhotoBooth with multiple images - show all images
                     if (parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses) && parsedUrls.urls.poses.length > 0) {
@@ -605,7 +678,9 @@ export default function HistoryPage() {
                       const imageUrls: string[] = [];
                       
                       // Collect all image URLs
-                      if (parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses)) {
+                      if (parsedUrls?.type === 'pose_control' && Array.isArray(parsedUrls.urls)) {
+                        imageUrls.push(...parsedUrls.urls);
+                      } else if (parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses)) {
                         imageUrls.push(...parsedUrls.urls.poses);
                       } else if (parsedUrls?.type === 'snapshot' && Array.isArray(parsedUrls.urls.snapshots)) {
                         imageUrls.push(...parsedUrls.urls.snapshots);
@@ -622,9 +697,9 @@ export default function HistoryPage() {
                       }
                       
                       if (imageUrls.length > 0) {
-                        // For Mimic and PhotoBooth with multiple images, show download all button
+                        // For Mimic, PhotoBooth, Snapshot, and Pose Control with multiple images, show download all button
                         // But users can also download individual images via hover buttons
-                        if (imageUrls.length > 1 && (parsedUrls?.type === 'mimic' || parsedUrls?.type === 'photobooth' || parsedUrls?.type === 'snapshot')) {
+                        if (imageUrls.length > 1 && (parsedUrls?.type === 'mimic' || parsedUrls?.type === 'photobooth' || parsedUrls?.type === 'snapshot' || parsedUrls?.type === 'pose_control')) {
                           // Multiple images - show download all button
                           return (
                             <button
