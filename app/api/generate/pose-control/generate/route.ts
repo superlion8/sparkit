@@ -122,8 +122,14 @@ async function generateImage(
     console.log('[Pose Control - Generate] Calling Gemini API...');
     console.log('[Pose Control - Generate] Aspect ratio:', aspectRatio);
 
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error('[Pose Control - Generate] API key not configured');
+      return { success: false, error: 'Gemini API key not configured' };
+    }
+
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${process.env.GOOGLE_GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
