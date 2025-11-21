@@ -176,13 +176,39 @@ async function generateImage(
 
     if (!data.candidates || data.candidates.length === 0) {
       console.error('[Pose Control - Generate] No candidates returned');
+      console.error('[Pose Control - Generate] Full response:', JSON.stringify(data, null, 2));
       return { success: false, error: 'API未返回图片结果' };
     }
 
     const candidate = data.candidates[0];
+    console.log('[Pose Control - Generate] Candidate keys:', Object.keys(candidate));
+    console.log('[Pose Control - Generate] Finish reason:', candidate.finishReason);
+    console.log('[Pose Control - Generate] Has content:', !!candidate.content);
+    console.log('[Pose Control - Generate] Has parts:', !!candidate.content?.parts);
+    
+    // Check finish reason first
+    if (candidate.finishReason) {
+      if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
+        console.error('[Pose Control - Generate] Content blocked by safety filter:', candidate.finishReason);
+        console.error('[Pose Control - Generate] Safety ratings:', candidate.safetyRatings);
+        return { 
+          success: false, 
+          error: `内容被安全过滤阻止 (${candidate.finishReason})，请尝试其他图片或提示词` 
+        };
+      }
+    }
+
     if (!candidate.content || !candidate.content.parts) {
       console.error('[Pose Control - Generate] No content in candidate');
-      return { success: false, error: 'API返回内容为空' };
+      console.error('[Pose Control - Generate] Candidate details:', JSON.stringify(candidate, null, 2));
+      let errorMsg = '未能生成图片';
+      if (candidate.finishReason && candidate.finishReason !== "STOP") {
+        errorMsg += `，原因: ${candidate.finishReason}`;
+      }
+      if (candidate.safetyRatings) {
+        errorMsg += `。安全评级: ${JSON.stringify(candidate.safetyRatings)}`;
+      }
+      return { success: false, error: errorMsg };
     }
 
     // Extract image from response
