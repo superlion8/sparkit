@@ -153,7 +153,7 @@ ${caption}`;
             ? JSON.stringify(data.outputImageUrls)
             : null;
           
-          await fetch('https://aimovely.com/api/system/task/event', {
+          await fetch('https://dev.aimovely.com/api/system/task/event', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -216,7 +216,7 @@ ${caption}`;
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
-          {/* Left: Input */}
+          {/* Left: Image Upload */}
           <div className="space-y-6">
             {/* Character Image Upload */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
@@ -241,16 +241,21 @@ ${caption}`;
                 label="上传 Pose 图"
               />
             </div>
+          </div>
 
-            {/* Reverse Button */}
+          {/* Right: Reverse, Edit & Generate */}
+          <div className="space-y-6">
+            {/* Reverse Pose & Edit Prompt (Combined) */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold mb-4 text-gray-800">
-                3. 反推 Pose
+                3. 反推 Pose 并编辑提示词
               </h2>
+              
+              {/* Reverse Button */}
               <button
                 onClick={handleReverseCaption}
                 disabled={isReversing || poseImages.length === 0}
-                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mb-4"
               >
                 {isReversing ? (
                   <>
@@ -265,30 +270,33 @@ ${caption}`;
                 )}
               </button>
               {reverseError && (
-                <p className="mt-2 text-sm text-red-600">{reverseError}</p>
+                <p className="mb-4 text-sm text-red-600">{reverseError}</p>
+              )}
+
+              {/* Final Prompt Editor */}
+              {finalPrompt && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    生成提示词（可编辑）
+                  </label>
+                  <textarea
+                    value={finalPrompt}
+                    onChange={(e) => setFinalPrompt(e.target.value)}
+                    className="w-full h-64 p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                    placeholder="生成的提示词将在这里显示..."
+                  />
+                  <p className="mt-2 text-xs text-gray-500">
+                    提示：您可以修改上面的提示词以调整生成效果
+                  </p>
+                </div>
               )}
             </div>
-
-            {/* Final Prompt Editor */}
-            {finalPrompt && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                <h2 className="text-lg font-semibold mb-4 text-gray-800">
-                  4. 编辑提示词（可选）
-                </h2>
-                <textarea
-                  value={finalPrompt}
-                  onChange={(e) => setFinalPrompt(e.target.value)}
-                  className="w-full h-64 p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                  placeholder="生成的提示词将在这里显示..."
-                />
-              </div>
-            )}
 
             {/* Generation Settings */}
             {finalPrompt && (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                 <h2 className="text-lg font-semibold mb-4 text-gray-800">
-                  5. 生成设置
+                  4. 生成设置
                 </h2>
                 
                 {/* Number of Images */}
@@ -350,13 +358,11 @@ ${caption}`;
                 )}
               </div>
             )}
-          </div>
 
-          {/* Right: Output */}
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-800">生成结果</h2>
+            {finalPrompt && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-800">5. 生成结果</h2>
                 {generatedImages.length > 1 && (
                   <button
                     onClick={handleDownloadAll}
@@ -412,7 +418,8 @@ ${caption}`;
                   </div>
                 </div>
               )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

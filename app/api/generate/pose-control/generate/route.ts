@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const maxDuration = 300;
 
+const AIMOVELY_API_URL = "https://dev.aimovely.com";
+
 async function uploadImageToAimovely(
   imageBase64: string,
   accessToken: string,
@@ -23,7 +25,7 @@ async function uploadImageToAimovely(
     console.log(`[Pose Control - Upload] Attempting upload (try ${retryCount + 1}/${maxRetries + 1})...`);
 
     const uploadResponse = await fetch(
-      'https://aimovely.com/api/system/file/upload',
+      `${AIMOVELY_API_URL}/api/system/file/upload`,
       {
         method: 'POST',
         headers: {
@@ -40,7 +42,7 @@ async function uploadImageToAimovely(
       if (uploadResponse.status === 401 && retryCount < maxRetries) {
         console.log('[Pose Control - Upload] Token expired, refreshing...');
         const refreshResponse = await fetch(
-          'https://aimovely.com/api/user/refresh',
+          `${AIMOVELY_API_URL}/api/user/refresh`,
           {
             method: 'POST',
             headers: {
