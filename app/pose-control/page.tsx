@@ -224,9 +224,9 @@ ${caption}`;
                 1. 上传角色图
               </h2>
               <ImageUpload
-                images={charImages}
-                setImages={setCharImages}
                 maxImages={1}
+                onImagesChange={setCharImages}
+                label="上传角色图"
               />
             </div>
 
@@ -236,9 +236,9 @@ ${caption}`;
                 2. 上传 Pose 图
               </h2>
               <ImageUpload
-                images={poseImages}
-                setImages={setPoseImages}
                 maxImages={1}
+                onImagesChange={setPoseImages}
+                label="上传 Pose 图"
               />
             </div>
 
