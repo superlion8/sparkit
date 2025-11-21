@@ -101,6 +101,13 @@ async function generateImage(
   aspectRatio: string
 ): Promise<{ success: boolean; imageBase64?: string; error?: string }> {
   try {
+    // Log input parameters for verification
+    console.log('[Pose Control - Generate Image] Input verification:');
+    console.log(`  - charImageBase64 length: ${charImageBase64.length}`);
+    console.log(`  - poseImageBase64 length: ${poseImageBase64.length}`);
+    console.log(`  - finalPrompt length: ${finalPrompt.length}`);
+    console.log(`  - finalPrompt: ${finalPrompt.substring(0, 150)}...`);
+    
     const generationConfig: any = {
       temperature: 1,
       topP: 0.95,
@@ -124,17 +131,17 @@ async function generateImage(
             {
               inline_data: {
                 mime_type: 'image/png',
-                data: charImageBase64,
+                data: charImageBase64,  // ✅ 角色图
               },
             },
             {
               inline_data: {
                 mime_type: 'image/png',
-                data: poseImageBase64,
+                data: poseImageBase64,  // ✅ Pose 图
               },
             },
             {
-              text: finalPrompt,
+              text: finalPrompt,  // ✅ 用户改好的 final_prompt
             },
           ],
         },
@@ -142,8 +149,11 @@ async function generateImage(
       generationConfig,
     };
 
-    console.log('[Pose Control - Generate] Calling Gemini API...');
-    console.log('[Pose Control - Generate] Aspect ratio:', aspectRatio);
+    console.log('[Pose Control - Generate Image] Calling Gemini API with:');
+    console.log(`  - parts[0]: charImage (${charImageBase64.length} bytes)`);
+    console.log(`  - parts[1]: poseImage (${poseImageBase64.length} bytes)`);
+    console.log(`  - parts[2]: finalPrompt (${finalPrompt.length} chars)`);
+    console.log(`  - aspectRatio: ${aspectRatio}`);
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -309,9 +319,17 @@ export async function POST(request: NextRequest) {
 
     // Generate images in parallel
     console.log(`[Pose Control - Generate] Generating ${numImages} image(s) in parallel...`);
-    const generatePromises = Array.from({ length: numImages }, (_, i) => 
-      generateImage(charBase64, poseBase64, finalPrompt, aspectRatio)
-    );
+    console.log(`[Pose Control - Generate] Input parameters:`);
+    console.log(`  - charImageBase64 length: ${charBase64.length}`);
+    console.log(`  - poseImageBase64 length: ${poseBase64.length}`);
+    console.log(`  - finalPrompt length: ${finalPrompt.length}`);
+    console.log(`  - finalPrompt preview: ${finalPrompt.substring(0, 100)}...`);
+    console.log(`  - aspectRatio: ${aspectRatio}`);
+    
+    const generatePromises = Array.from({ length: numImages }, (_, i) => {
+      console.log(`[Pose Control - Generate] Creating promise for image ${i + 1}/${numImages}`);
+      return generateImage(charBase64, poseBase64, finalPrompt, aspectRatio);
+    });
 
     const results = await Promise.all(generatePromises);
 
