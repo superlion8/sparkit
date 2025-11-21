@@ -4,78 +4,94 @@ export const maxDuration = 300;
 
 const AIMOVELY_API_URL = "https://dev.aimovely.com";
 
-async function uploadImageToAimovely(
-  imageBase64: string,
-  accessToken: string,
-  retryCount = 0
-): Promise<string | null> {
-  const maxRetries = 1;
-  
+// Fetch Aimovely access token
+async function fetchAimovelyToken(email: string, vcode: string): Promise<string | null> {
   try {
-    const base64Data = imageBase64.includes(',') 
-      ? imageBase64.split(',')[1] 
-      : imageBase64;
-    
-    const buffer = Buffer.from(base64Data, 'base64');
-    const blob = new Blob([buffer], { type: 'image/png' });
+    const response = await fetch(`${AIMOVELY_API_URL}/v1/user/verifyvcode`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        vcode,
+      }),
+    });
 
-    const formData = new FormData();
-    formData.append('file', blob, `pose-control-${Date.now()}.png`);
-
-    console.log(`[Pose Control - Upload] Attempting upload (try ${retryCount + 1}/${maxRetries + 1})...`);
-
-    const uploadResponse = await fetch(
-      `${AIMOVELY_API_URL}/api/system/file/upload`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: formData,
-      }
-    );
-
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      console.error(`[Pose Control - Upload] Upload failed (${uploadResponse.status}):`, errorText);
-      
-      if (uploadResponse.status === 401 && retryCount < maxRetries) {
-        console.log('[Pose Control - Upload] Token expired, refreshing...');
-        const refreshResponse = await fetch(
-          `${AIMOVELY_API_URL}/api/user/refresh`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        if (refreshResponse.ok) {
-          const refreshData = await refreshResponse.json();
-          if (refreshData.code === 0 && refreshData.data?.accessToken) {
-            console.log('[Pose Control - Upload] Token refreshed, retrying upload...');
-            return uploadImageToAimovely(imageBase64, refreshData.data.accessToken, retryCount + 1);
-          }
-        }
-      }
-      
+    if (!response.ok) {
+      console.error("[Pose Control] Aimovely token request failed:", response.status, await response.text());
       return null;
     }
 
-    const uploadData = await uploadResponse.json();
-    if (uploadData.code === 0 && uploadData.data?.url) {
-      console.log('[Pose Control - Upload] Upload successful');
-      return uploadData.data.url;
-    } else {
-      console.error('[Pose Control - Upload] Unexpected response:', uploadData);
+    const data = await response.json();
+    if (data.code !== 0 || !data.data?.access_token) {
+      console.error("[Pose Control] Aimovely token response invalid:", data);
       return null;
     }
+
+    return data.data.access_token as string;
   } catch (error) {
-    console.error('[Pose Control - Upload] Error:', error);
+    console.error("[Pose Control] Error fetching Aimovely token:", error);
     return null;
   }
+}
+
+interface UploadResult {
+  url: string;
+  resource_id: string;
+}
+
+// Upload image to Aimovely
+async function uploadImageToAimovely(
+  dataUrl: string,
+  token: string,
+  prefix: string
+): Promise<UploadResult | null> {
+  if (!dataUrl.startsWith("data:")) {
+    console.warn("[Pose Control] Unsupported image format, expected data URL");
+    return null;
+  }
+
+  const [metadata, base64Data] = dataUrl.split(",");
+  const mimeMatch = metadata.match(/data:(.*?);base64/);
+  if (!mimeMatch) {
+    console.warn("[Pose Control] Failed to parse data URL metadata");
+    return null;
+  }
+
+  const mimeType = mimeMatch[1] || "image/png";
+  const buffer = Buffer.from(base64Data, "base64");
+  const fileName = `pose-control-${prefix}-${Date.now()}.${mimeType.split("/")[1] ?? "png"}`;
+
+  const file = new File([buffer], fileName, { type: mimeType });
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("biz", "external_tool");
+
+  const response = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
+    method: "POST",
+    headers: {
+      Authorization: token,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    console.error("[Pose Control] Aimovely upload failed:", response.status, await response.text());
+    return null;
+  }
+
+  const result = await response.json();
+  if (result.code !== 0) {
+    console.error("[Pose Control] Aimovely upload API error:", result);
+    return null;
+  }
+
+  return {
+    url: result.data?.url,
+    resource_id: result.data?.resource_id,
+  };
 }
 
 async function generateImage(
@@ -172,14 +188,15 @@ async function generateImage(
     // Extract image from response
     let imageBase64 = '';
     for (const part of candidate.content.parts) {
-      if (part.inline_data && part.inline_data.data) {
-        imageBase64 = part.inline_data.data;
+      if (part.inlineData && part.inlineData.data) {
+        imageBase64 = part.inlineData.data;
         break;
       }
     }
 
     if (!imageBase64) {
       console.error('[Pose Control - Generate] No image data in response');
+      console.error('[Pose Control - Generate] Response structure:', JSON.stringify(candidate, null, 2));
       return { success: false, error: '未能从API响应中提取图片' };
     }
 
@@ -198,7 +215,6 @@ export async function POST(request: NextRequest) {
     const finalPrompt = formData.get('finalPrompt') as string;
     const numImages = parseInt(formData.get('numImages') as string) || 1;
     const aspectRatio = formData.get('aspectRatio') as string || 'default';
-    const accessToken = formData.get('accessToken') as string;
 
     if (!charImage || !finalPrompt) {
       return NextResponse.json(
@@ -219,16 +235,28 @@ export async function POST(request: NextRequest) {
     // Convert char image to base64
     const charBuffer = Buffer.from(await charImage.arrayBuffer());
     const charBase64 = charBuffer.toString('base64');
+    const charMimeType = charImage.type || 'image/png';
 
     // Upload char image to Aimovely
+    const aimovelyEmail = process.env.AIMOVELY_EMAIL;
+    const aimovelyVcode = process.env.AIMOVELY_VCODE;
     let charImageUrl: string | null = null;
-    if (accessToken) {
-      console.log('[Pose Control - Generate] Uploading character image...');
-      charImageUrl = await uploadImageToAimovely(`data:image/png;base64,${charBase64}`, accessToken);
-      if (charImageUrl) {
-        console.log('[Pose Control - Generate] Character image uploaded:', charImageUrl);
-      } else {
-        console.warn('[Pose Control - Generate] Character image upload failed, continuing without URL');
+    let aimovelyToken: string | null = null;
+
+    if (aimovelyEmail && aimovelyVcode) {
+      try {
+        aimovelyToken = await fetchAimovelyToken(aimovelyEmail, aimovelyVcode);
+        if (aimovelyToken) {
+          console.log('[Pose Control - Generate] Uploading character image...');
+          const charDataUrl = `data:${charMimeType};base64,${charBase64}`;
+          const uploadResult = await uploadImageToAimovely(charDataUrl, aimovelyToken, "char");
+          if (uploadResult?.url) {
+            charImageUrl = uploadResult.url;
+            console.log('[Pose Control - Generate] Character image uploaded:', charImageUrl);
+          }
+        }
+      } catch (uploadError) {
+        console.error('[Pose Control - Generate] Character image upload failed:', uploadError);
       }
     }
 
@@ -242,20 +270,9 @@ export async function POST(request: NextRequest) {
 
     // Upload all successful images to Aimovely
     const generatedImages: string[] = [];
-    const uploadPromises: Promise<string | null>[] = [];
+    const generatedImageUrls: string[] = [];
     
-    results.forEach((result, index) => {
-      if (result.success && result.imageBase64) {
-        generatedImages.push(`data:image/png;base64,${result.imageBase64}`);
-        if (accessToken) {
-          uploadPromises.push(
-            uploadImageToAimovely(`data:image/png;base64,${result.imageBase64}`, accessToken)
-          );
-        }
-      }
-    });
-
-    if (generatedImages.length === 0) {
+    if (results.length === 0 || !results.some(r => r.success)) {
       const errors = results.map(r => r.error).filter(Boolean);
       return NextResponse.json(
         { error: '所有图片生成失败', details: errors },
@@ -263,11 +280,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let generatedImageUrls: (string | null)[] = [];
-    if (accessToken && uploadPromises.length > 0) {
-      console.log(`[Pose Control - Generate] Uploading ${uploadPromises.length} generated image(s)...`);
-      generatedImageUrls = await Promise.all(uploadPromises);
-      console.log('[Pose Control - Generate] Upload results:', generatedImageUrls.filter(Boolean).length, 'succeeded');
+    // Process results and upload
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.success && result.imageBase64) {
+        const dataUrl = `data:image/png;base64,${result.imageBase64}`;
+        generatedImages.push(dataUrl);
+        
+        // Upload to Aimovely
+        if (aimovelyToken) {
+          try {
+            const uploadResult = await uploadImageToAimovely(dataUrl, aimovelyToken, `output-${i + 1}`);
+            if (uploadResult?.url) {
+              generatedImageUrls.push(uploadResult.url);
+              console.log(`[Pose Control - Generate] Image ${i + 1} uploaded:`, uploadResult.url);
+            } else {
+              generatedImageUrls.push('');
+            }
+          } catch (uploadError) {
+            console.error(`[Pose Control - Generate] Image ${i + 1} upload failed:`, uploadError);
+            generatedImageUrls.push('');
+          }
+        }
+      }
     }
 
     console.log(`[Pose Control - Generate] Generation complete. ${generatedImages.length}/${numImages} images generated`);
@@ -275,7 +310,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       images: generatedImages,
       inputImageUrl: charImageUrl,
-      outputImageUrls: generatedImageUrls.filter(Boolean),
+      outputImageUrls: generatedImageUrls.length > 0 ? generatedImageUrls.filter(Boolean) : null,
     });
   } catch (error: any) {
     console.error('[Pose Control - Generate] Error:', error);

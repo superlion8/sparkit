@@ -123,9 +123,6 @@ ${caption}`;
       formData.append('finalPrompt', finalPrompt);
       formData.append('numImages', numImages.toString());
       formData.append('aspectRatio', aspectRatio);
-      if (accessToken) {
-        formData.append('accessToken', accessToken);
-      }
 
       console.log('Generating images...');
       const startTime = Date.now();
@@ -146,30 +143,7 @@ ${caption}`;
       console.log(`Generation completed in ${duration}s`);
       setGeneratedImages(data.images || []);
 
-      // Log task event
-      if (accessToken && data.inputImageUrl && data.outputImageUrls) {
-        try {
-          const outputImageUrl = data.outputImageUrls.length > 0 
-            ? JSON.stringify(data.outputImageUrls)
-            : null;
-          
-          await fetch('https://dev.aimovely.com/api/system/task/event', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({
-              task_type: 'pose_control',
-              input_image_url: data.inputImageUrl,
-              output_image_url: outputImageUrl,
-              prompt: finalPrompt,
-            }),
-          });
-        } catch (logError) {
-          console.error('Failed to log task event:', logError);
-        }
-      }
+      // Note: Task logging is handled server-side via AIMOVELY_EMAIL/VCODE
     } catch (err: any) {
       if (err.name === 'AbortError') {
         console.log('Generate request cancelled');
@@ -341,17 +315,8 @@ ${caption}`;
                   disabled={isGenerating || charImages.length === 0 || !finalPrompt.trim()}
                   className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {isGenerating ? (
-                    <>
-                      <LoadingSpinner />
-                      <span>生成中...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-5 h-5" />
-                      <span>开始生成</span>
-                    </>
-                  )}
+                  <Sparkles className="w-5 h-5" />
+                  <span>{isGenerating ? '生成中...' : '开始生成'}</span>
                 </button>
                 {error && (
                   <p className="mt-2 text-sm text-red-600">{error}</p>
