@@ -32,6 +32,8 @@ export default function PoseControlPage() {
   
   // Debounce
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Ref to ensure we read the latest prompt value from textarea
+  const finalPromptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const handleReverseCaption = async () => {
     if (!isAuthenticated) {
@@ -107,7 +109,10 @@ ${caption}`;
       return;
     }
 
-    if (!finalPrompt.trim()) {
+    // Read the latest prompt value directly from textarea to ensure we use the most current value
+    const currentPrompt = finalPromptTextareaRef.current?.value || finalPrompt;
+    
+    if (!currentPrompt.trim()) {
       setError('请输入生成提示词');
       return;
     }
@@ -123,10 +128,15 @@ ${caption}`;
     setGeneratedImages([]);
 
     try {
+      // Log the prompt being used for verification
+      console.log('[Pose Control] Submitting generation with prompt:');
+      console.log(`  - Prompt length: ${currentPrompt.length}`);
+      console.log(`  - Prompt preview: ${currentPrompt.substring(0, 200)}...`);
+      
       const formData = new FormData();
       formData.append('charImage', charImages[0]);
       formData.append('poseImage', poseImages[0]);
-      formData.append('finalPrompt', finalPrompt);
+      formData.append('finalPrompt', currentPrompt);
       formData.append('numImages', numImages.toString());
       formData.append('aspectRatio', aspectRatio);
 
@@ -167,7 +177,7 @@ ${caption}`;
               task_type: 'pose_control',
               input_image_url: data.inputImageUrl,
               output_image_url: outputImageUrl,
-              prompt: finalPrompt,
+              prompt: currentPrompt,
               task_time: new Date().toISOString(),
             }),
           });
@@ -275,6 +285,7 @@ ${caption}`;
                   生成提示词
                 </label>
                 <textarea
+                  ref={finalPromptTextareaRef}
                   value={finalPrompt}
                   onChange={(e) => setFinalPrompt(e.target.value)}
                   className="w-full h-48 p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
