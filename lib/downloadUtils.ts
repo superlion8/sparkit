@@ -11,11 +11,52 @@
 export async function downloadImage(url: string, filename: string = 'image.png'): Promise<void> {
   try {
     let blob: Blob;
+    let isDataUrl = url.startsWith('data:');
+    let isPngDataUrl = isDataUrl && url.startsWith('data:image/png');
 
-    if (url.startsWith('data:')) {
-      // For data URLs, convert to blob to ensure proper format
+    if (isDataUrl && isPngDataUrl) {
+      // For PNG data URLs, extract base64 and create blob directly
+      // This preserves the original PNG format without browser modifications
+      const base64Data = url.split(',')[1];
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      // Create blob directly from PNG bytes to preserve original format
+      blob = new Blob([bytes], { type: 'image/png' });
+    } else if (isDataUrl) {
+      // For non-PNG data URLs, convert through canvas
       const response = await fetch(url);
       blob = await response.blob();
+      
+      // Convert to PNG through canvas
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { 
+        alpha: true,
+        willReadFrequently: false,
+        colorSpace: 'srgb'
+      });
+      
+      blob = await new Promise<Blob>((resolve, reject) => {
+        img.onload = () => {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx?.clearRect(0, 0, canvas.width, canvas.height);
+          ctx?.drawImage(img, 0, 0);
+          canvas.toBlob((convertedBlob) => {
+            if (convertedBlob) {
+              resolve(convertedBlob);
+            } else {
+              reject(new Error('Failed to convert image to PNG'));
+            }
+          }, 'image/png', 1.0);
+        };
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.crossOrigin = 'anonymous';
+        img.src = url;
+      });
     } else {
       // For external URLs, use proxy to avoid CORS issues
       const proxyUrl = `/api/download?url=${encodeURIComponent(url)}`;
@@ -26,35 +67,42 @@ export async function downloadImage(url: string, filename: string = 'image.png')
       }
 
       blob = await response.blob();
-    }
-
-    // Ensure it's PNG format by converting through canvas if needed
-    // Always convert to ensure proper PNG format, even if blob type says PNG
-    // This ensures the file is a standard PNG that can be opened by any image viewer
-    const img = new Image();
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    blob = await new Promise<Blob>((resolve, reject) => {
-      img.onload = () => {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx?.drawImage(img, 0, 0);
-        canvas.toBlob((convertedBlob) => {
-          if (convertedBlob) {
-            resolve(convertedBlob);
-          } else {
-            reject(new Error('Failed to convert image to PNG'));
-          }
-        }, 'image/png');
-      };
-      img.onerror = () => reject(new Error('Failed to load image'));
-      img.src = url.startsWith('data:') ? url : URL.createObjectURL(blob);
-    });
-    
-    // Clean up temporary blob URL if we created one
-    if (!url.startsWith('data:')) {
-      URL.revokeObjectURL(img.src);
+      
+      // If it's already PNG, use it directly; otherwise convert
+      if (blob.type === 'image/png') {
+        // Use PNG blob directly to preserve format
+        // No conversion needed
+      } else {
+        // Convert to PNG through canvas
+        const img = new Image();
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { 
+          alpha: true,
+          willReadFrequently: false,
+          colorSpace: 'srgb'
+        });
+        
+        blob = await new Promise<Blob>((resolve, reject) => {
+          img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx?.clearRect(0, 0, canvas.width, canvas.height);
+            ctx?.drawImage(img, 0, 0);
+            canvas.toBlob((convertedBlob) => {
+              if (convertedBlob) {
+                resolve(convertedBlob);
+              } else {
+                reject(new Error('Failed to convert image to PNG'));
+              }
+            }, 'image/png', 1.0);
+          };
+          img.onerror = () => reject(new Error('Failed to load image'));
+          img.crossOrigin = 'anonymous';
+          img.src = URL.createObjectURL(blob);
+        });
+        
+        URL.revokeObjectURL(img.src);
+      }
     }
 
     // Create blob URL and download
