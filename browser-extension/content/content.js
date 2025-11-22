@@ -14,32 +14,67 @@
   async function getAuthTokenFromSparkit() {
     try {
       // 方法1: 从 storage 读取缓存的 token（最快）
+      let cachedToken = null;
       try {
-        const result = await chrome.storage.local.get(['accessToken']);
-        if (result.accessToken) {
-          console.log('[Sparkit Mimic] Using cached token from storage');
-          return result.accessToken;
+        const result = await new Promise((resolve, reject) => {
+          chrome.storage.local.get(['accessToken'], (items) => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+            } else {
+              resolve(items);
+            }
+          });
+        });
+        if (result && result.accessToken) {
+          console.log('[Sparkit Mimic] ✓ Using cached token from storage');
+          cachedToken = result.accessToken;
+          return cachedToken;
+        } else {
+          console.log('[Sparkit Mimic] No cached token in storage');
         }
       } catch (storageError) {
         console.error('[Sparkit Mimic] Error reading from storage:', storageError);
+        // 继续尝试其他方法
       }
       
       // 方法2: 通过 background script 获取 token
       try {
-        const response = await chrome.runtime.sendMessage({ action: 'getAuthToken' });
+        const response = await new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({ action: 'getAuthToken' }, (response) => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+            } else {
+              resolve(response);
+            }
+          });
+        });
+        
         if (response && response.accessToken) {
           console.log('[Sparkit Mimic] ✓ Got token from background script');
           // 缓存 token
-          await chrome.storage.local.set({ accessToken: response.accessToken });
+          try {
+            await new Promise((resolve, reject) => {
+              chrome.storage.local.set({ accessToken: response.accessToken }, () => {
+                if (chrome.runtime.lastError) {
+                  reject(chrome.runtime.lastError);
+                } else {
+                  resolve();
+                }
+              });
+            });
+          } catch (setError) {
+            console.error('[Sparkit Mimic] Error saving token to storage:', setError);
+          }
           return response.accessToken;
         } else {
           console.log('[Sparkit Mimic] No token from background script:', response);
         }
       } catch (error) {
-        console.log('[Sparkit Mimic] Could not get token from background script:', error.message);
+        console.log('[Sparkit Mimic] Could not get token from background script:', error.message || error);
       }
       
-      return null;
+      // 如果都没有，返回缓存的 token（如果有）
+      return cachedToken;
     } catch (error) {
       console.error('[Sparkit Mimic] Error getting auth token:', error);
       console.error('[Sparkit Mimic] Error details:', {
@@ -63,7 +98,19 @@
       
       if (accessToken) {
         // 保存到 storage
-        await chrome.storage.local.set({ accessToken });
+        try {
+          await new Promise((resolve, reject) => {
+            chrome.storage.local.set({ accessToken }, () => {
+              if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+              } else {
+                resolve();
+              }
+            });
+          });
+        } catch (error) {
+          console.error('[Sparkit Mimic] Error saving token:', error);
+        }
         await loadCharacters();
       } else {
         console.log('[Sparkit Mimic] No access token found. Please login to Sparkit website.');
@@ -241,7 +288,19 @@
       const keepBackground = modal.querySelector('#sparkit-keep-background').checked;
       
       // 保存选择的角色
-      await chrome.storage.local.set({ lastSelectedCharacterId: characterId });
+      try {
+        await new Promise((resolve, reject) => {
+          chrome.storage.local.set({ lastSelectedCharacterId: characterId }, () => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+            } else {
+              resolve();
+            }
+          });
+        });
+      } catch (error) {
+        console.error('[Sparkit Mimic] Error saving lastSelectedCharacterId:', error);
+      }
       lastSelectedCharacterId = characterId;
 
       await generateMimic(imageUrl, characterId, keepBackground, modal);
