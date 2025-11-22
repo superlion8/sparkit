@@ -2,57 +2,91 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
   const tokenInput = document.getElementById('access-token');
-  const saveBtn = document.getElementById('save-btn');
+  const refreshBtn = document.getElementById('refresh-btn');
   const statusDiv = document.getElementById('status');
 
-  // 加载已保存的 token
-  const result = await chrome.storage.local.get(['accessToken']);
-  if (result.accessToken) {
-    tokenInput.value = result.accessToken;
-  }
-
-  // 保存按钮
-  saveBtn.addEventListener('click', async () => {
-    const token = tokenInput.value.trim();
-    
-    if (!token) {
-      showStatus('请输入 Access Token', 'error');
-      return;
-    }
-
+  // 从 Sparkit 网站读取登录状态
+  async function refreshAuthToken() {
     try {
-      // 验证 token 是否有效
-      const response = await fetch('https://sparkiai.com/api/characters', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      statusDiv.textContent = '正在读取登录状态...';
+      statusDiv.className = 'status';
 
-      if (!response.ok) {
-        throw new Error('Token 无效，请检查是否正确');
+      // 尝试从 Sparkit 网站的标签页读取 token
+      const tabs = await chrome.tabs.query({ url: 'https://sparkiai.com/*' });
+      
+      let token = null;
+      
+      if (tabs.length > 0) {
+        try {
+          const response = await chrome.tabs.sendMessage(tabs[0].id, { action: 'getAuthToken' });
+          if (response && response.accessToken) {
+            token = response.accessToken;
+          }
+        } catch (error) {
+          console.log('Could not get token from Sparkit tab:', error);
+        }
       }
 
-      // 保存 token
-      await chrome.storage.local.set({ accessToken: token });
-      
-      // 通知 content script 刷新
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        chrome.tabs.sendMessage(tabs[0].id, { action: 'refreshToken' });
-      });
+      // 如果无法从标签页获取，尝试从 storage 读取
+      if (!token) {
+        const result = await chrome.storage.local.get(['accessToken']);
+        token = result.accessToken || null;
+      }
 
-      showStatus('保存成功！', 'success');
+      if (token) {
+        // 验证 token 是否有效
+        try {
+          const response = await fetch('https://sparkiai.com/api/characters', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (response.ok) {
+            tokenInput.value = token.substring(0, 20) + '...'; // 只显示前20个字符
+            await chrome.storage.local.set({ accessToken: token });
+            showStatus('登录状态已读取！', 'success');
+            
+            // 通知 content script 刷新
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+              if (tabs[0]) {
+                chrome.tabs.sendMessage(tabs[0].id, { action: 'refreshToken' }).catch(() => {
+                  // 忽略错误（可能不在支持的网站）
+                });
+              }
+            });
+          } else {
+            throw new Error('Token 已过期，请重新登录');
+          }
+        } catch (error) {
+          showStatus(`Token 验证失败: ${error.message}`, 'error');
+          tokenInput.value = '';
+        }
+      } else {
+        tokenInput.value = '';
+        showStatus('未检测到登录状态。请在 Sparkit 网站登录后重试。', 'error');
+      }
     } catch (error) {
+      console.error('Error refreshing auth token:', error);
       showStatus(`错误: ${error.message}`, 'error');
     }
-  });
+  }
+
+  // 刷新按钮
+  refreshBtn.addEventListener('click', refreshAuthToken);
+
+  // 初始加载
+  await refreshAuthToken();
 
   function showStatus(message, type) {
     statusDiv.textContent = message;
     statusDiv.className = `status ${type}`;
-    setTimeout(() => {
-      statusDiv.textContent = '';
-      statusDiv.className = '';
-    }, 3000);
+    if (type === 'success') {
+      setTimeout(() => {
+        statusDiv.textContent = '';
+        statusDiv.className = '';
+      }, 3000);
+    }
   }
 });
 

@@ -6,7 +6,8 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "cookies"
   ],
   "host_permissions": [
     "https://pinterest.com/*",
@@ -27,6 +28,14 @@
       "js": ["content/content.js"],
       "css": ["content/content.css"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://sparkiai.com/*",
+        "https://*.sparkiai.com/*"
+      ],
+      "js": ["content/sparkit-auth.js"],
+      "run_at": "document_start"
     }
   ],
   "action": {

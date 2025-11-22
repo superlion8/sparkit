@@ -9,16 +9,49 @@
   let lastSelectedCharacterId = null;
   let mimicButtons = new Map();
 
+  // 从 Sparkit 网站读取登录状态
+  async function getAuthTokenFromSparkit() {
+    try {
+      // 尝试从 Sparkit 网站的 Local Storage 读取 token
+      const tabs = await chrome.tabs.query({ url: 'https://sparkiai.com/*' });
+      
+      if (tabs.length > 0) {
+        // 向 Sparkit 网站的 content script 发送消息获取 token
+        try {
+          const response = await chrome.tabs.sendMessage(tabs[0].id, { action: 'getAuthToken' });
+          if (response && response.accessToken) {
+            return response.accessToken;
+          }
+        } catch (error) {
+          console.log('[Sparkit Mimic] Could not get token from Sparkit tab:', error);
+        }
+      }
+      
+      // 如果无法从标签页获取，尝试从 storage 读取
+      const result = await chrome.storage.local.get(['accessToken']);
+      return result.accessToken || null;
+    } catch (error) {
+      console.error('[Sparkit Mimic] Error getting auth token:', error);
+      return null;
+    }
+  }
+
   // 初始化：获取 token 和角色列表
   async function init() {
     try {
-      // 从 storage 获取 token
-      const result = await chrome.storage.local.get(['accessToken', 'lastSelectedCharacterId']);
-      accessToken = result.accessToken;
+      // 从 storage 获取上次选择的角色
+      const result = await chrome.storage.local.get(['lastSelectedCharacterId']);
       lastSelectedCharacterId = result.lastSelectedCharacterId;
 
+      // 尝试从 Sparkit 网站读取登录状态
+      accessToken = await getAuthTokenFromSparkit();
+      
       if (accessToken) {
+        // 保存到 storage
+        await chrome.storage.local.set({ accessToken });
         await loadCharacters();
+      } else {
+        console.log('[Sparkit Mimic] No access token found. Please login to Sparkit website.');
       }
     } catch (error) {
       console.error('[Sparkit Mimic] Init error:', error);
@@ -311,7 +344,10 @@
 
   // 显示登录提示
   function showLoginPrompt() {
-    alert('请先在 Sparkit 网站登录，然后在插件中设置 Access Token');
+    const shouldOpen = confirm('请先在 Sparkit 网站登录。\n\n点击"确定"打开 Sparkit 网站登录页面。');
+    if (shouldOpen) {
+      chrome.tabs.create({ url: 'https://sparkiai.com' });
+    }
   }
 
   // 监听 storage 变化
@@ -323,6 +359,26 @@
       }
     }
   });
+
+  // 监听来自 Sparkit 网站的 token 更新消息
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'tokenUpdated') {
+      accessToken = request.accessToken;
+      chrome.storage.local.set({ accessToken });
+      loadCharacters();
+    }
+    return true;
+  });
+
+  // 定期检查登录状态（每30秒）
+  setInterval(async () => {
+    const newToken = await getAuthTokenFromSparkit();
+    if (newToken && newToken !== accessToken) {
+      accessToken = newToken;
+      await chrome.storage.local.set({ accessToken });
+      await loadCharacters();
+    }
+  }, 30000);
 
   // 初始化
   init();
