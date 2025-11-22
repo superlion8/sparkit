@@ -11,6 +11,7 @@ export interface TaskLogPayload {
   input_video_url?: string | null;
   output_image_url?: string | null;
   output_video_url?: string | null;
+  character_id?: string | null; // 关联的角色 ID
 }
 
 export async function logGenerationTask(payload: TaskLogPayload) {

@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
     const keepBackground = formData.get("keepBackground") === "true";
     const customCaptionPrompt = formData.get("customCaptionPrompt") as string | null;
     const existingBackgroundImage = formData.get("existingBackgroundImage") as File | null;
+    const characterId = formData.get("characterId") as string | null; // 角色 ID（用于保存到角色资源）
 
     // 如果提供了自定义 captionPrompt，说明是重新生成，不需要参考图
     if (customCaptionPrompt && !characterImage) {
@@ -299,6 +300,49 @@ export async function POST(request: NextRequest) {
     } else {
       // No Aimovely token, use base64
       uploadedFinalImageUrls.push(...finalImages);
+    }
+
+    // 如果提供了 characterId，保存到角色资源
+    if (characterId && uploadedFinalImageUrls.length > 0) {
+      try {
+        const { user } = await validateRequestAuth(request);
+        if (user) {
+          // 验证角色属于当前用户
+          const { data: character } = await supabaseAdminClient
+            .from("characters")
+            .select("id")
+            .eq("id", characterId)
+            .eq("user_id", user.id)
+            .single();
+
+          if (character) {
+            // 保存生成任务到 generation_tasks 表，关联到角色
+            const taskId = `mimic-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const outputImageUrl = uploadedFinalImageUrls.length === 1 
+              ? uploadedFinalImageUrls[0] 
+              : JSON.stringify(uploadedFinalImageUrls);
+
+            await supabaseAdminClient
+              .from("generation_tasks")
+              .insert({
+                task_id: taskId,
+                task_type: "mimic",
+                email: user.email,
+                username: user.user_metadata?.full_name || user.email,
+                prompt: captionPrompt,
+                input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
+                output_image_url: outputImageUrl,
+                character_id: characterId,
+                task_time: new Date().toISOString(),
+              });
+
+            console.log(`[Mimic API] Saved task to character ${characterId}:`, taskId);
+          }
+        }
+      } catch (saveError) {
+        console.error("[Mimic API] Failed to save task to character:", saveError);
+        // 不中断流程，继续返回结果
+      }
     }
 
     return NextResponse.json({
