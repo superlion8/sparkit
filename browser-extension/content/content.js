@@ -219,19 +219,28 @@
       const referenceImageBlob = await fetchImageAsBlob(imageUrl);
       const referenceImageFile = blobToFile(referenceImageBlob, 'reference.jpg');
 
-      // 下载角色图片（优先使用 char_image，如果没有则使用 char_avatar）
-      const characterImageUrl = character.char_image || character.char_avatar;
-      if (!characterImageUrl) {
-        throw new Error('角色图片不存在');
-      }
-      const characterImageBlob = await fetchImageAsBlob(characterImageUrl);
-      const characterImageFile = blobToFile(characterImageBlob, 'character.jpg');
-      
-      // 如果有 char_avatar，也上传（API 会使用两个图片）
+      // 下载角色图片
+      // 根据用户要求：优先使用 char_image，如果没有则使用 char_avatar
+      // 如果两个都存在，同时上传两个（char_avatar 和 char_image）
+      let characterImageFile;
       let charAvatarFile = null;
-      if (character.char_avatar && character.char_image) {
-        const charAvatarBlob = await fetchImageAsBlob(character.char_avatar);
-        charAvatarFile = blobToFile(charAvatarBlob, 'char_avatar.jpg');
+      
+      if (character.char_image) {
+        // 有 char_image，使用它作为 characterImage
+        const characterImageBlob = await fetchImageAsBlob(character.char_image);
+        characterImageFile = blobToFile(characterImageBlob, 'char_image.jpg');
+        
+        // 如果也有 char_avatar，同时上传
+        if (character.char_avatar) {
+          const charAvatarBlob = await fetchImageAsBlob(character.char_avatar);
+          charAvatarFile = blobToFile(charAvatarBlob, 'char_avatar.jpg');
+        }
+      } else if (character.char_avatar) {
+        // 只有 char_avatar，使用它作为 characterImage
+        const characterImageBlob = await fetchImageAsBlob(character.char_avatar);
+        characterImageFile = blobToFile(characterImageBlob, 'char_avatar.jpg');
+      } else {
+        throw new Error('角色图片不存在，请上传角色头像或全身照');
       }
 
       // 准备 FormData
