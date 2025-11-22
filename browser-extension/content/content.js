@@ -185,17 +185,32 @@
   // 加载角色列表
   async function loadCharacters() {
     if (!accessToken) return;
+    if (!checkExtensionContext()) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/characters`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
+      // 通过 background script 代理请求，避免 CORS 问题
+      const response = await safeChromeCall(() => {
+        return new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage(
+            { 
+              action: 'fetchCharacters',
+              accessToken: accessToken
+            },
+            (response) => {
+              if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+              } else if (response && response.error) {
+                reject(new Error(response.error));
+              } else {
+                resolve(response);
+              }
+            }
+          );
+        });
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        characters = data.characters || [];
+      if (response && response.characters) {
+        characters = response.characters || [];
         console.log('[Sparkit Mimic] Loaded characters:', characters.length);
         // 重新附加按钮，因为现在有角色了
         attachMimicButtons();
@@ -532,13 +547,45 @@
 
   // 获取图片为 Blob
   async function fetchImageAsBlob(url) {
-    // 使用代理 API 避免 CORS 问题
-    const proxyUrl = `${API_BASE_URL}/api/download?url=${encodeURIComponent(url)}`;
-    const response = await fetch(proxyUrl);
-    if (!response.ok) {
-      throw new Error('Failed to fetch image');
+    if (!checkExtensionContext()) {
+      throw new Error('Extension context invalidated');
     }
-    return await response.blob();
+    
+    // 通过 background script 代理请求，避免 CORS 问题
+    try {
+      const response = await safeChromeCall(() => {
+        return new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage(
+            {
+              action: 'fetchImage',
+              url: url
+            },
+            (response) => {
+              if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+              } else if (response && response.error) {
+                reject(new Error(response.error));
+              } else if (response && response.blob) {
+                // 将 base64 转回 Blob
+                const byteCharacters = atob(response.blob);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                  byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                resolve(new Blob([byteArray], { type: response.type || 'image/jpeg' }));
+              } else {
+                reject(new Error('Invalid response'));
+              }
+            }
+          );
+        });
+      });
+      return response;
+    } catch (error) {
+      console.error('[Sparkit Mimic] Failed to fetch image:', error);
+      throw error;
+    }
   }
 
   // Blob 转 File
