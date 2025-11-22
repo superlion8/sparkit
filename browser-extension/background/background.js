@@ -1,5 +1,7 @@
 // Background service worker
 
+const API_BASE_URL = 'https://sparkiai.com';
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Sparkit Mimic extension installed');
 });
@@ -54,14 +56,6 @@ async function getAuthTokenFromSparkit() {
 
 // 监听来自 content script 的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'generateMimic') {
-    // 处理生成请求
-    handleGenerateMimic(request.data)
-      .then(result => sendResponse({ success: true, data: result }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true; // 异步响应
-  }
-  
   if (request.action === 'getAuthToken') {
     // 处理获取 token 请求
     getAuthTokenFromSparkit()
@@ -72,12 +66,108 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     return true; // 异步响应
   }
+  
+  if (request.action === 'fetchCharacters') {
+    // 代理获取角色列表请求
+    fetch(`${API_BASE_URL}/api/characters`, {
+      headers: {
+        'Authorization': `Bearer ${request.accessToken}`
+      }
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => sendResponse(data))
+      .catch(error => {
+        console.error('[Background] Error fetching characters:', error);
+        sendResponse({ error: error.message, characters: [] });
+      });
+    return true; // 异步响应
+  }
+  
+  if (request.action === 'fetchImage') {
+    // 代理获取图片请求
+    fetch(`${API_BASE_URL}/api/download?url=${encodeURIComponent(request.url)}`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.blob();
+      })
+      .then(blob => {
+        // 将 Blob 转换为 base64
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64data = reader.result.split(',')[1]; // 移除 data:image/...;base64, 前缀
+          sendResponse({ 
+            blob: base64data,
+            type: blob.type || 'image/jpeg'
+          });
+        };
+        reader.onerror = () => {
+          sendResponse({ error: 'Failed to read blob' });
+        };
+        reader.readAsDataURL(blob);
+      })
+      .catch(error => {
+        console.error('[Background] Error fetching image:', error);
+        sendResponse({ error: error.message });
+      });
+    return true; // 异步响应
+  }
+  
+  if (request.action === 'generateMimic') {
+    // 处理生成请求
+    handleGenerateMimic(request.formData, request.accessToken)
+      .then(result => sendResponse({ success: true, data: result }))
+      .catch(error => {
+        console.error('[Background] Error generating mimic:', error);
+        sendResponse({ success: false, error: error.message });
+      });
+    return true; // 异步响应
+  }
 });
 
-async function handleGenerateMimic(data) {
-  // 这里可以添加额外的处理逻辑
-  // 目前主要逻辑在 content script 中
-  return data;
+async function handleGenerateMimic(formDataObj, accessToken) {
+  // 将 formDataObj 转换回 FormData
+  const formData = new FormData();
+  
+  for (const [key, value] of Object.entries(formDataObj)) {
+    if (value && typeof value === 'object' && value.data) {
+      // 这是文件数据，需要从 base64 转换回 File
+      const base64Data = value.data.split(',')[1] || value.data; // 移除 data URL 前缀（如果有）
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: value.type || 'image/jpeg' });
+      const file = new File([blob], value.name || 'file', { type: value.type || 'image/jpeg' });
+      formData.append(key, file);
+    } else {
+      formData.append(key, value);
+    }
+  }
+  
+  // 调用 API
+  const response = await fetch(`${API_BASE_URL}/api/generate/mimic`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    },
+    body: formData
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: '生成失败' }));
+    throw new Error(errorData.error || '生成失败');
+  }
+  
+  return await response.json();
 }
 
 // 监听来自 Sparkit 网站的 token 更新消息
