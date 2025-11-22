@@ -135,13 +135,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[Character API] Avatar uploaded successfully:', avatarData?.path);
+    console.log('[Character API] Avatar uploaded successfully:', {
+      path: avatarData?.path,
+      fullPath: avatarFileName,
+    });
     
     const { data: { publicUrl: avatarUrl } } = supabaseAdminClient.storage
       .from("character-assets")
       .getPublicUrl(avatarFileName);
     
-    console.log('[Character API] Avatar public URL:', avatarUrl);
+    console.log('[Character API] Avatar public URL:', {
+      url: avatarUrl,
+      fileName: avatarFileName,
+      bucket: 'character-assets',
+    });
+    
+    // 验证 URL 格式
+    if (!avatarUrl || !avatarUrl.startsWith('http')) {
+      console.error('[Character API] Invalid avatar URL:', avatarUrl);
+      return NextResponse.json(
+        { error: "生成头像 URL 失败，请检查 Storage 配置" },
+        { status: 500 }
+      );
+    }
 
     // 上传全身照（如果提供）
     let charImageUrl: string | null = null;

@@ -54,6 +54,18 @@ export default function CharactersPage() {
       console.log("[Character Page] Fetched characters:", data);
       const charactersList = data.characters || [];
       console.log("[Character Page] Characters list:", charactersList);
+      
+      // 检查每个角色的头像 URL
+      charactersList.forEach((char: Character) => {
+        console.log("[Character Page] Character avatar URL:", {
+          id: char.id,
+          name: char.char_name,
+          avatarUrl: char.char_avatar,
+          avatarUrlType: typeof char.char_avatar,
+          avatarUrlLength: char.char_avatar?.length,
+        });
+      });
+      
       setCharacters(charactersList);
     } catch (err: any) {
       console.error("Failed to fetch characters:", err);
@@ -219,9 +231,31 @@ export default function CharactersPage() {
                     src={character.char_avatar}
                     alt={character.char_name}
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      console.error("[Character Page] Failed to load avatar:", {
+                        characterId: character.id,
+                        characterName: character.char_name,
+                        avatarUrl: character.char_avatar,
+                        error: e,
+                      });
+                      // 隐藏图片，显示占位符
+                      e.currentTarget.style.display = 'none';
+                    }}
+                    onLoad={() => {
+                      console.log("[Character Page] Avatar loaded successfully:", {
+                        characterId: character.id,
+                        avatarUrl: character.char_avatar,
+                      });
+                    }}
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
+                    <User className="w-16 h-16 text-gray-400" />
+                  </div>
+                )}
+                {/* 如果图片加载失败，显示占位符 */}
+                {character.char_avatar && (
+                  <div className="w-full h-full flex items-center justify-center absolute inset-0 bg-gray-100 hidden">
                     <User className="w-16 h-16 text-gray-400" />
                   </div>
                 )}
