@@ -304,41 +304,38 @@ export async function POST(request: NextRequest) {
     }
 
     // 如果提供了 characterId，保存到角色资源
-    if (characterId && uploadedFinalImageUrls.length > 0) {
+    if (characterId && uploadedFinalImageUrls.length > 0 && user) {
       try {
-        const { user } = await validateRequestAuth(request);
-        if (user) {
-          // 验证角色属于当前用户
-          const { data: character } = await supabaseAdminClient
-            .from("characters")
-            .select("id")
-            .eq("id", characterId)
-            .eq("user_id", user.id)
-            .single();
+        // 验证角色属于当前用户
+        const { data: character } = await supabaseAdminClient
+          .from("characters")
+          .select("id")
+          .eq("id", characterId)
+          .eq("user_id", user.id)
+          .single();
 
-          if (character) {
-            // 保存生成任务到 generation_tasks 表，关联到角色
-            const taskId = `mimic-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-            const outputImageUrl = uploadedFinalImageUrls.length === 1 
-              ? uploadedFinalImageUrls[0] 
-              : JSON.stringify(uploadedFinalImageUrls);
+        if (character) {
+          // 保存生成任务到 generation_tasks 表，关联到角色
+          const taskId = `mimic-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const outputImageUrl = uploadedFinalImageUrls.length === 1 
+            ? uploadedFinalImageUrls[0] 
+            : JSON.stringify(uploadedFinalImageUrls);
 
-            await supabaseAdminClient
-              .from("generation_tasks")
-              .insert({
-                task_id: taskId,
-                task_type: "mimic",
-                email: user.email,
-                username: user.user_metadata?.full_name || user.email,
-                prompt: captionPrompt,
-                input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
-                output_image_url: outputImageUrl,
-                character_id: characterId,
-                task_time: new Date().toISOString(),
-              });
+          await supabaseAdminClient
+            .from("generation_tasks")
+            .insert({
+              task_id: taskId,
+              task_type: "mimic",
+              email: user.email,
+              username: user.user_metadata?.full_name || user.email,
+              prompt: captionPrompt,
+              input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
+              output_image_url: outputImageUrl,
+              character_id: characterId,
+              task_time: new Date().toISOString(),
+            });
 
-            console.log(`[Mimic API] Saved task to character ${characterId}:`, taskId);
-          }
+          console.log(`[Mimic API] Saved task to character ${characterId}:`, taskId);
         }
       } catch (saveError) {
         console.error("[Mimic API] Failed to save task to character:", saveError);
