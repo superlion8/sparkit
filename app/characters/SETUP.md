@@ -12,10 +12,12 @@
 2. 点击 **New bucket**
 3. 填写以下信息：
    - **Name**: `character-assets`
-   - **Public bucket**: ✅ 勾选（如果需要公开访问）
+   - **Public bucket**: ✅ **必须勾选**（这样才能通过 public URL 访问图片）
    - **File size limit**: 10 MB（或根据需求设置）
    - **Allowed MIME types**: `image/*, video/*`（或留空允许所有类型）
 4. 点击 **Create bucket**
+
+**重要提示**：如果 bucket 不是 public，图片将无法通过 public URL 访问，导致头像不显示。
 
 ### 2. 配置 Storage 策略
 
