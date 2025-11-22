@@ -90,8 +90,20 @@
   async function init() {
     try {
       // 从 storage 获取上次选择的角色
-      const result = await chrome.storage.local.get(['lastSelectedCharacterId']);
-      lastSelectedCharacterId = result.lastSelectedCharacterId;
+      try {
+        const result = await new Promise((resolve, reject) => {
+          chrome.storage.local.get(['lastSelectedCharacterId'], (items) => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+            } else {
+              resolve(items);
+            }
+          });
+        });
+        lastSelectedCharacterId = result.lastSelectedCharacterId;
+      } catch (error) {
+        console.error('[Sparkit Mimic] Error reading lastSelectedCharacterId:', error);
+      }
 
       // 尝试从 Sparkit 网站读取登录状态
       accessToken = await getAuthTokenFromSparkit();
@@ -157,13 +169,21 @@
       // 如果图片还没加载，等待加载完成
       if (img.naturalWidth === 0 || img.naturalHeight === 0) {
         // 图片还没加载，等待加载完成
-        img.addEventListener('load', () => {
-          if (img.naturalWidth >= 100 && img.naturalHeight >= 100) {
+        if (!img.dataset.sparkitLoadListener) {
+          img.dataset.sparkitLoadListener = 'true';
+          img.addEventListener('load', () => {
             // 重新处理这个图片
             img.dataset.sparkitProcessed = 'false';
+            delete img.dataset.sparkitLoadListener;
             attachMimicButtons();
-          }
-        }, { once: true });
+          }, { once: true });
+          
+          // 如果图片加载失败，也移除标记
+          img.addEventListener('error', () => {
+            img.dataset.sparkitProcessed = 'false';
+            delete img.dataset.sparkitLoadListener;
+          }, { once: true });
+        }
         return;
       }
       if (img.naturalWidth < 100 || img.naturalHeight < 100) return;
@@ -172,30 +192,38 @@
       let container = img.parentElement;
       let foundWrapper = false;
       
-      // 检查是否已经有包装器
-      while (container && container !== document.body) {
-        if (container.classList.contains('sparkit-image-wrapper')) {
-          foundWrapper = true;
-          break;
+      // 检查图片是否已经在包装器内
+      if (container && container.classList.contains('sparkit-image-wrapper')) {
+        foundWrapper = true;
+      } else {
+        // 向上查找包装器
+        let parent = container;
+        while (parent && parent !== document.body) {
+          if (parent.classList.contains('sparkit-image-wrapper')) {
+            container = parent;
+            foundWrapper = true;
+            break;
+          }
+          parent = parent.parentElement;
         }
-        container = container.parentElement;
       }
 
       // 如果没有包装器，创建一个
       if (!foundWrapper) {
+        // 确保图片有父节点
+        if (!img.parentNode) {
+          console.warn('[Sparkit Mimic] Image has no parent node, skipping');
+          return;
+        }
+        
         const wrapper = document.createElement('div');
         wrapper.className = 'sparkit-image-wrapper';
         wrapper.style.position = 'relative';
         wrapper.style.display = 'inline-block';
         
         // 插入包装器
-        if (img.parentNode) {
-          img.parentNode.insertBefore(wrapper, img);
-          wrapper.appendChild(img);
-        } else {
-          // 如果图片没有父节点，跳过
-          return;
-        }
+        img.parentNode.insertBefore(wrapper, img);
+        wrapper.appendChild(img);
         container = wrapper;
       }
 
@@ -217,9 +245,9 @@
       if (!container.dataset.sparkitEventsBound) {
         container.dataset.sparkitEventsBound = 'true';
         
-        // 鼠标事件
-        container.addEventListener('mouseenter', () => {
-          const btn = container.querySelector('.sparkit-mimic-button');
+        // 鼠标事件 - 使用事件委托
+        container.addEventListener('mouseenter', function handleMouseEnter() {
+          const btn = this.querySelector('.sparkit-mimic-button');
           if (btn) {
             if (accessToken && characters.length > 0) {
               btn.style.display = 'block';
@@ -233,20 +261,23 @@
           }
         });
 
-        container.addEventListener('mouseleave', () => {
-          const btn = container.querySelector('.sparkit-mimic-button');
+        container.addEventListener('mouseleave', function handleMouseLeave() {
+          const btn = this.querySelector('.sparkit-mimic-button');
           if (btn) {
             btn.style.display = 'none';
           }
         });
       }
 
-      // 点击事件
-      button.addEventListener('click', (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        handleMimicClick(img);
-      });
+      // 点击事件 - 确保不重复绑定
+      if (!button.dataset.sparkitClickBound) {
+        button.dataset.sparkitClickBound = 'true';
+        button.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          handleMimicClick(img);
+        });
+      }
     });
   }
 
