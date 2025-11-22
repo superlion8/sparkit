@@ -51,7 +51,10 @@ export default function CharactersPage() {
       }
 
       const data = await response.json();
-      setCharacters(data.characters || []);
+      console.log("[Character Page] Fetched characters:", data);
+      const charactersList = data.characters || [];
+      console.log("[Character Page] Characters list:", charactersList);
+      setCharacters(charactersList);
     } catch (err: any) {
       console.error("Failed to fetch characters:", err);
       setError(err.message || "获取角色列表失败");
@@ -100,13 +103,21 @@ export default function CharactersPage() {
         throw new Error(errorData.error || "创建角色失败");
       }
 
+      const result = await response.json();
+      console.log("[Character Page] Character created:", result);
+
       // 重置表单
       setCharName("");
       setCharAvatar([]);
       setCharImage([]);
       setShowCreateModal(false);
 
-      // 刷新列表
+      // 立即将新创建的角色添加到列表（优化用户体验）
+      if (result.character) {
+        setCharacters((prev) => [result.character, ...prev]);
+      }
+
+      // 刷新列表以确保数据同步
       await fetchCharacters();
     } catch (err: any) {
       console.error("Failed to create character:", err);
