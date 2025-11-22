@@ -135,6 +135,8 @@
         const data = await response.json();
         characters = data.characters || [];
         console.log('[Sparkit Mimic] Loaded characters:', characters.length);
+        // 重新附加按钮，因为现在有角色了
+        attachMimicButtons();
       }
     } catch (error) {
       console.error('[Sparkit Mimic] Failed to load characters:', error);
@@ -152,43 +154,81 @@
       img.dataset.sparkitProcessed = 'true';
 
       // 跳过太小的图片（可能是图标）
+      // 如果图片还没加载，等待加载完成
+      if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+        // 图片还没加载，等待加载完成
+        img.addEventListener('load', () => {
+          if (img.naturalWidth >= 100 && img.naturalHeight >= 100) {
+            // 重新处理这个图片
+            img.dataset.sparkitProcessed = 'false';
+            attachMimicButtons();
+          }
+        }, { once: true });
+        return;
+      }
       if (img.naturalWidth < 100 || img.naturalHeight < 100) return;
 
-      // 找到图片的容器
+      // 找到图片的容器或创建包装器
       let container = img.parentElement;
-      while (container && !container.classList.contains('sparkit-image-wrapper')) {
-        // 检查容器是否有 position: relative
-        const style = window.getComputedStyle(container);
-        if (style.position === 'relative' || style.position === 'absolute') {
+      let foundWrapper = false;
+      
+      // 检查是否已经有包装器
+      while (container && container !== document.body) {
+        if (container.classList.contains('sparkit-image-wrapper')) {
+          foundWrapper = true;
           break;
         }
         container = container.parentElement;
       }
 
-      // 创建包装器
-      if (!container || !container.classList.contains('sparkit-image-wrapper')) {
+      // 如果没有包装器，创建一个
+      if (!foundWrapper) {
         const wrapper = document.createElement('div');
         wrapper.className = 'sparkit-image-wrapper';
-        img.parentNode.insertBefore(wrapper, img);
-        wrapper.appendChild(img);
+        wrapper.style.position = 'relative';
+        wrapper.style.display = 'inline-block';
+        
+        // 插入包装器
+        if (img.parentNode) {
+          img.parentNode.insertBefore(wrapper, img);
+          wrapper.appendChild(img);
+        } else {
+          // 如果图片没有父节点，跳过
+          return;
+        }
         container = wrapper;
       }
 
-      // 创建 Mimic 按钮
-      const button = document.createElement('button');
-      button.className = 'sparkit-mimic-button';
-      button.textContent = 'Mimic';
-      button.style.display = 'none';
-
-      container.appendChild(button);
+      // 检查是否已经有按钮
+      let button = container.querySelector('.sparkit-mimic-button');
+      if (!button) {
+        // 创建 Mimic 按钮
+        button = document.createElement('button');
+        button.className = 'sparkit-mimic-button';
+        button.textContent = 'Mimic';
+        button.style.display = 'none';
+        container.appendChild(button);
+      }
 
       // 存储图片和按钮的映射
       mimicButtons.set(img, { button, container });
+
+      // 移除旧的事件监听器（如果存在）
+      const newContainer = container.cloneNode(true);
+      container.parentNode.replaceChild(newContainer, container);
+      container = newContainer;
+      button = container.querySelector('.sparkit-mimic-button');
 
       // 鼠标事件
       container.addEventListener('mouseenter', () => {
         if (accessToken && characters.length > 0) {
           button.style.display = 'block';
+        } else {
+          console.log('[Sparkit Mimic] Button not shown:', {
+            hasToken: !!accessToken,
+            charactersCount: characters.length,
+            imgSrc: img.src?.substring(0, 50)
+          });
         }
       });
 
