@@ -457,7 +457,19 @@
     const newToken = await getAuthTokenFromSparkit();
     if (newToken && newToken !== accessToken) {
       accessToken = newToken;
-      await chrome.storage.local.set({ accessToken });
+      try {
+        await new Promise((resolve, reject) => {
+          chrome.storage.local.set({ accessToken }, () => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+            } else {
+              resolve();
+            }
+          });
+        });
+      } catch (error) {
+        console.error('[Sparkit Mimic] Error saving token in interval:', error);
+      }
       await loadCharacters();
     }
   }, 30000);
