@@ -438,7 +438,15 @@
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'tokenUpdated') {
       accessToken = request.accessToken;
-      chrome.storage.local.set({ accessToken });
+      try {
+        chrome.storage.local.set({ accessToken }, () => {
+          if (chrome.runtime.lastError) {
+            console.error('[Sparkit Mimic] Error saving token update:', chrome.runtime.lastError);
+          }
+        });
+      } catch (error) {
+        console.error('[Sparkit Mimic] Error saving token update:', error);
+      }
       loadCharacters();
     }
     return true;
