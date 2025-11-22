@@ -114,18 +114,19 @@ export async function POST(request: NextRequest) {
       console.error("[Character API] Failed to upload avatar:", {
         error: avatarError,
         message: avatarError.message,
-        statusCode: avatarError.statusCode,
         fileName: avatarFileName,
       });
       
       // 提供更详细的错误信息
       let errorMessage = "上传头像失败";
-      if (avatarError.message?.includes("Bucket not found") || avatarError.message?.includes("does not exist")) {
+      const errorMsg = avatarError.message || String(avatarError);
+      
+      if (errorMsg.includes("Bucket not found") || errorMsg.includes("does not exist")) {
         errorMessage = "Storage bucket 'character-assets' 不存在，请在 Supabase Dashboard 中创建该 bucket";
-      } else if (avatarError.message?.includes("new row violates row-level security")) {
+      } else if (errorMsg.includes("new row violates row-level security") || errorMsg.includes("row-level security")) {
         errorMessage = "Storage 权限配置错误，请检查 Storage 策略设置";
       } else {
-        errorMessage = `上传头像失败: ${avatarError.message || "未知错误"}`;
+        errorMessage = `上传头像失败: ${errorMsg}`;
       }
       
       return NextResponse.json(
