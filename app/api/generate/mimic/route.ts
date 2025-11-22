@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateRequestAuth } from "@/lib/auth";
+import { supabaseAdminClient } from "@/lib/supabaseAdmin";
 
 const AIMOVELY_API_URL = "https://dev.aimovely.com";
 
 export async function POST(request: NextRequest) {
-  const { errorResponse } = await validateRequestAuth(request);
+  const { errorResponse, user } = await validateRequestAuth(request);
   if (errorResponse) {
     return errorResponse;
   }
