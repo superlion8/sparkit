@@ -19,7 +19,8 @@ import {
   PlayCircle,
   ChevronDown,
   ChevronUp,
-  Wand2
+  Wand2,
+  Users
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -99,6 +100,28 @@ export default function Sidebar() {
             </Link>
           );
         })}
+      </div>
+
+      {/* Character Section */}
+      <div className="mb-4">
+        <div className="px-4 mb-2">
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Character</p>
+        </div>
+        <Link
+          href="/characters"
+          onClick={() => setMobileMenuOpen(false)}
+          className={`
+            flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+            ${
+              pathname === "/characters" || pathname?.startsWith("/characters/")
+                ? "bg-primary-100 text-primary-700 font-medium"
+                : "text-gray-700 hover:bg-gray-100"
+            }
+          `}
+        >
+          <Users className="w-5 h-5" />
+          <span>角色管理</span>
+        </Link>
       </div>
 
       {/* Video Tools Section */}
