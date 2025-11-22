@@ -285,6 +285,9 @@ export async function POST(request: NextRequest) {
         }
 
         // Upload final images
+        // 初始化数组，确保长度与finalImages一致
+        uploadedFinalImageUrls.length = finalImages.length;
+        
         for (let i = 0; i < finalImages.length; i++) {
           try {
             const finalUploadResult = await uploadImageToAimovely(
@@ -293,28 +296,23 @@ export async function POST(request: NextRequest) {
               `final-${i}`
             );
             if (finalUploadResult?.url) {
-              uploadedFinalImageUrls.push(finalUploadResult.url);
+              uploadedFinalImageUrls[i] = finalUploadResult.url;
               console.log(`最终图片 ${i + 1} 上传成功:`, finalUploadResult.url);
             } else {
-              // Fallback to base64 if upload fails
-              uploadedFinalImageUrls.push(finalImages[i]);
-              console.warn(`最终图片 ${i + 1} 上传失败，使用 base64`);
+              // 上传失败，保持为undefined，后续会使用base64
+              console.warn(`最终图片 ${i + 1} 上传失败，将使用 base64`);
             }
           } catch (uploadError) {
             console.error(`上传最终图片 ${i + 1} 失败:`, uploadError);
-            // Fallback to base64
-            uploadedFinalImageUrls.push(finalImages[i]);
+            // 上传失败，保持为undefined
           }
         }
       } catch (uploadError) {
         console.error("上传生成的图片到 Aimovely 失败:", uploadError);
-        // Fallback to base64 images
-        uploadedFinalImageUrls.push(...finalImages);
+        // 全部失败，数组保持为空
       }
-    } else {
-      // No Aimovely token, use base64
-      uploadedFinalImageUrls.push(...finalImages);
     }
+    // 如果没有Aimovely token，uploadedFinalImageUrls保持为空数组
 
     // 如果提供了 characterId，保存到角色资源
     if (characterId && uploadedFinalImageUrls.length > 0 && user) {
@@ -356,21 +354,59 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    // 优化响应：优先返回URL，只在必要时返回base64
+    // 如果Aimovely上传成功，就不返回base64以减少响应大小
+    // 这样可以大幅减少响应大小，避免"Failed to fetch"错误
+    const responseData: any = {
       captionPrompt,
       // Input image URLs
       referenceImageUrl: uploadedReferenceImageUrl,
       characterImageUrl: uploadedCharacterImageUrl,
       // Generated image URLs
       backgroundImageUrl: uploadedBackgroundImageUrl,
-      finalImageUrls: uploadedFinalImageUrls,
-      // Base64 images for display (fallback)
-      backgroundImageBase64: backgroundImage,
-      finalImagesBase64: finalImages,
       // Generation stats
       generatedCount: finalImages.length,
       requestedCount: numImages,
       errors: finalImageErrors.length > 0 ? finalImageErrors : undefined,
+    };
+
+    // 优化响应大小：只在Aimovely上传失败时才返回base64作为fallback
+    if (!uploadedBackgroundImageUrl && backgroundImage) {
+      // 背景图上传失败，返回base64
+      responseData.backgroundImageBase64 = backgroundImage;
+    }
+    
+    // 对于最终图片：构建混合数组，成功上传的用URL，失败的用null占位
+    // 失败的图片单独放在finalImagesBase64数组中
+    const finalImageUrls: (string | null)[] = [];
+    const finalImagesBase64: string[] = [];
+    
+    for (let i = 0; i < finalImages.length; i++) {
+      if (uploadedFinalImageUrls[i]) {
+        // 上传成功，使用URL
+        finalImageUrls.push(uploadedFinalImageUrls[i]);
+      } else {
+        // 上传失败，URL数组用null占位，base64单独存储
+        finalImageUrls.push(null);
+        finalImagesBase64.push(finalImages[i]);
+      }
+    }
+    
+    // 更新finalImageUrls（成功的是URL，失败的是null）
+    responseData.finalImageUrls = finalImageUrls;
+    
+    // 只有在有base64图片时才添加到响应中
+    // 注意：finalImagesBase64的索引与finalImageUrls中null的位置对应
+    if (finalImagesBase64.length > 0) {
+      responseData.finalImagesBase64 = finalImagesBase64;
+    }
+
+    return NextResponse.json(responseData, {
+      headers: {
+        'Content-Type': 'application/json',
+        // 增加超时时间提示（实际超时由平台控制）
+        'X-Response-Time': 'long',
+      },
     });
   } catch (error: any) {
     console.error("Error in Mimic generation:", error);
