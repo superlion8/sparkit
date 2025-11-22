@@ -8,48 +8,73 @@
     try {
       // 方法1: 尝试从 window 对象获取 Supabase client（如果已加载）
       if (window.__SUPABASE_CLIENT__) {
-        const { data: { session } } = await window.__SUPABASE_CLIENT__.auth.getSession();
-        if (session?.access_token) {
-          return session.access_token;
+        try {
+          const { data: { session } } = await window.__SUPABASE_CLIENT__.auth.getSession();
+          if (session?.access_token) {
+            console.log('[Sparkit Auth] Got token from __SUPABASE_CLIENT__');
+            return session.access_token;
+          }
+        } catch (e) {
+          console.log('[Sparkit Auth] __SUPABASE_CLIENT__ error:', e);
         }
       }
 
       // 方法2: 从 Local Storage 查找 Supabase session
       // Supabase 存储格式: sb-<project-ref>-auth-token
-      const supabaseUrl = 'https://' + window.location.hostname.split('.').slice(-2).join('.');
-      const projectRef = supabaseUrl.match(/supabase\.co/)?.[0] ? 
-        localStorage.key(0)?.match(/sb-([^-]+)-auth-token/)?.[1] : null;
-      
       // 遍历所有 localStorage keys 查找 Supabase session
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.includes('auth-token')) {
+        if (key && (key.includes('auth-token') || key.startsWith('sb-'))) {
           try {
             const value = localStorage.getItem(key);
             if (value) {
               const sessionData = JSON.parse(value);
+              
+              // 检查不同的数据结构
               if (sessionData?.access_token) {
+                console.log('[Sparkit Auth] Got token from localStorage key:', key);
                 return sessionData.access_token;
               }
-              // 也可能存储的是整个 session 对象
               if (sessionData?.currentSession?.access_token) {
+                console.log('[Sparkit Auth] Got token from currentSession:', key);
                 return sessionData.currentSession.access_token;
+              }
+              // Supabase 可能存储为 { access_token: ..., expires_at: ... }
+              if (sessionData?.expires_at && sessionData?.access_token) {
+                console.log('[Sparkit Auth] Got token from session data:', key);
+                return sessionData.access_token;
               }
             }
           } catch (e) {
-            // 忽略解析错误
+            // 忽略解析错误，继续查找
           }
         }
       }
 
       // 方法3: 尝试调用 Supabase API 获取 session（如果页面已加载 Supabase）
       if (window.supabase && window.supabase.auth) {
-        const { data: { session } } = await window.supabase.auth.getSession();
-        if (session?.access_token) {
-          return session.access_token;
+        try {
+          const { data: { session } } = await window.supabase.auth.getSession();
+          if (session?.access_token) {
+            console.log('[Sparkit Auth] Got token from window.supabase');
+            return session.access_token;
+          }
+        } catch (e) {
+          console.log('[Sparkit Auth] window.supabase error:', e);
         }
       }
 
+      // 方法4: 尝试从 React Context 或全局变量获取（如果页面已加载）
+      // 检查是否有全局的 auth context
+      if (window.__REACT_AUTH_CONTEXT__) {
+        const authContext = window.__REACT_AUTH_CONTEXT__;
+        if (authContext.accessToken) {
+          console.log('[Sparkit Auth] Got token from React context');
+          return authContext.accessToken;
+        }
+      }
+
+      console.log('[Sparkit Auth] No token found');
       return null;
     } catch (error) {
       console.error('[Sparkit Auth] Error getting access token:', error);
@@ -76,8 +101,8 @@
   const originalSetItem = localStorage.setItem;
   localStorage.setItem = function(key, value) {
     originalSetItem.apply(this, arguments);
-    // 检查是否是 Supabase auth token
-    if (key && key.includes('auth-token')) {
+    // 检查是否是 Supabase auth token 或任何包含 'auth' 的 key
+    if (key && (key.includes('auth-token') || key.includes('auth') || key.startsWith('sb-'))) {
       // 延迟一下，确保数据已写入
       setTimeout(async () => {
         const token = await getAccessToken();
@@ -89,9 +114,24 @@
             // 忽略错误（插件可能未安装）
           });
         }
-      }, 100);
+      }, 200);
     }
   };
+
+  // 监听 storage 事件（跨标签页同步）
+  window.addEventListener('storage', async (e) => {
+    if (e.key && (e.key.includes('auth-token') || e.key.includes('auth') || e.key.startsWith('sb-'))) {
+      const token = await getAccessToken();
+      if (token) {
+        chrome.runtime.sendMessage({
+          action: 'tokenUpdated',
+          accessToken: token
+        }).catch(() => {
+          // 忽略错误
+        });
+      }
+    }
+  });
 
   // 定期检查 session（每5秒）
   setInterval(async () => {
