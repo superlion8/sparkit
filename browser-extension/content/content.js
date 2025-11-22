@@ -13,44 +13,76 @@
   async function getAuthTokenFromSparkit() {
     try {
       // 尝试从 Sparkit 网站的标签页读取 token
-      const tabs = await chrome.tabs.query({ url: 'https://sparkiai.com/*' });
+      let tabs = [];
+      try {
+        tabs = await chrome.tabs.query({ url: 'https://sparkiai.com/*' });
+        console.log('[Sparkit Mimic] Found Sparkit tabs:', tabs.length);
+      } catch (error) {
+        console.error('[Sparkit Mimic] Error querying tabs:', error);
+        // 如果查询失败，尝试从 storage 读取缓存的 token
+        const result = await chrome.storage.local.get(['accessToken']);
+        if (result.accessToken) {
+          console.log('[Sparkit Mimic] Using cached token from storage (after tab query error)');
+          return result.accessToken;
+        }
+        return null;
+      }
       
       if (tabs.length > 0) {
         // 向 Sparkit 网站的 content script 发送消息获取 token
         try {
           const response = await chrome.tabs.sendMessage(tabs[0].id, { action: 'getAuthToken' });
           if (response && response.accessToken) {
-            console.log('[Sparkit Mimic] Got token from Sparkit tab');
+            console.log('[Sparkit Mimic] ✓ Got token from Sparkit tab');
             return response.accessToken;
+          } else {
+            console.log('[Sparkit Mimic] No token in response:', response);
           }
         } catch (error) {
-          console.log('[Sparkit Mimic] Could not get token from Sparkit tab:', error.message);
+          console.log('[Sparkit Mimic] Could not get token from Sparkit tab:', error.message, error);
           // 如果 content script 未加载，等待一下再试
-          if (error.message.includes('Could not establish connection')) {
+          if (error.message && error.message.includes('Could not establish connection')) {
+            console.log('[Sparkit Mimic] Content script not loaded, retrying...');
             // Content script 可能还未加载，等待后重试
             await new Promise(resolve => setTimeout(resolve, 1000));
             try {
               const retryResponse = await chrome.tabs.sendMessage(tabs[0].id, { action: 'getAuthToken' });
               if (retryResponse && retryResponse.accessToken) {
+                console.log('[Sparkit Mimic] ✓ Got token on retry');
                 return retryResponse.accessToken;
+              } else {
+                console.log('[Sparkit Mimic] No token in retry response:', retryResponse);
               }
             } catch (retryError) {
-              console.log('[Sparkit Mimic] Retry failed:', retryError.message);
+              console.log('[Sparkit Mimic] Retry failed:', retryError.message, retryError);
             }
           }
         }
+      } else {
+        console.log('[Sparkit Mimic] No Sparkit tabs found');
       }
       
       // 如果无法从标签页获取，尝试从 storage 读取缓存的 token
-      const result = await chrome.storage.local.get(['accessToken']);
-      if (result.accessToken) {
-        console.log('[Sparkit Mimic] Using cached token from storage');
-        return result.accessToken;
+      try {
+        const result = await chrome.storage.local.get(['accessToken']);
+        if (result.accessToken) {
+          console.log('[Sparkit Mimic] Using cached token from storage');
+          return result.accessToken;
+        } else {
+          console.log('[Sparkit Mimic] No cached token in storage');
+        }
+      } catch (storageError) {
+        console.error('[Sparkit Mimic] Error reading from storage:', storageError);
       }
       
       return null;
     } catch (error) {
       console.error('[Sparkit Mimic] Error getting auth token:', error);
+      console.error('[Sparkit Mimic] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       return null;
     }
   }
