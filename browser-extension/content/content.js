@@ -213,28 +213,33 @@
       // 存储图片和按钮的映射
       mimicButtons.set(img, { button, container });
 
-      // 移除旧的事件监听器（如果存在）
-      const newContainer = container.cloneNode(true);
-      container.parentNode.replaceChild(newContainer, container);
-      container = newContainer;
-      button = container.querySelector('.sparkit-mimic-button');
+      // 检查是否已经绑定过事件（通过检查 data 属性）
+      if (!container.dataset.sparkitEventsBound) {
+        container.dataset.sparkitEventsBound = 'true';
+        
+        // 鼠标事件
+        container.addEventListener('mouseenter', () => {
+          const btn = container.querySelector('.sparkit-mimic-button');
+          if (btn) {
+            if (accessToken && characters.length > 0) {
+              btn.style.display = 'block';
+            } else {
+              console.log('[Sparkit Mimic] Button not shown:', {
+                hasToken: !!accessToken,
+                charactersCount: characters.length,
+                imgSrc: img.src?.substring(0, 50)
+              });
+            }
+          }
+        });
 
-      // 鼠标事件
-      container.addEventListener('mouseenter', () => {
-        if (accessToken && characters.length > 0) {
-          button.style.display = 'block';
-        } else {
-          console.log('[Sparkit Mimic] Button not shown:', {
-            hasToken: !!accessToken,
-            charactersCount: characters.length,
-            imgSrc: img.src?.substring(0, 50)
-          });
-        }
-      });
-
-      container.addEventListener('mouseleave', () => {
-        button.style.display = 'none';
-      });
+        container.addEventListener('mouseleave', () => {
+          const btn = container.querySelector('.sparkit-mimic-button');
+          if (btn) {
+            btn.style.display = 'none';
+          }
+        });
+      }
 
       // 点击事件
       button.addEventListener('click', (e) => {
