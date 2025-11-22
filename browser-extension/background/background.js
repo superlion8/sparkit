@@ -129,6 +129,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     return true; // 异步响应
   }
+  
+  if (request.action === 'tokenUpdated' && request.accessToken) {
+    // 缓存 token
+    chrome.storage.local.set({ accessToken: request.accessToken });
+    console.log('[Background] Token updated from Sparkit website');
+    return false; // 不需要响应
+  }
+  
+  return false;
 });
 
 async function handleGenerateMimic(formDataObj, accessToken) {
