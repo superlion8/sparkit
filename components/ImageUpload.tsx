@@ -29,6 +29,8 @@ export default function ImageUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  // Ref to track the current batch being processed to avoid race conditions
+  const processingBatchRef = useRef<number>(0);
   
   // Upload method selection modal
   const [showUploadMethodModal, setShowUploadMethodModal] = useState(false);
@@ -151,6 +153,49 @@ export default function ImageUpload({
     await processFiles(fileArray);
   };
 
+  // Sync previews with images array whenever images change
+  useEffect(() => {
+    if (images.length === 0) {
+      setPreviews([]);
+      return;
+    }
+
+    // Increment batch number to track this processing batch
+    const currentBatch = ++processingBatchRef.current;
+    console.log(`[ImageUpload] Generating previews for batch ${currentBatch}, images count: ${images.length}`);
+
+    // Generate previews for all images
+    const previewPromises = images.map((file, index) => {
+      return new Promise<{ index: number; preview: string }>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve({ index, preview: reader.result as string });
+        };
+        reader.onerror = () => {
+          console.error(`[ImageUpload] Failed to read file at index ${index}`);
+          resolve({ index, preview: '' });
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    Promise.all(previewPromises).then((results) => {
+      // Check if this batch is still the latest batch
+      if (currentBatch !== processingBatchRef.current) {
+        console.log(`[ImageUpload] Batch ${currentBatch} is outdated, ignoring preview update`);
+        return;
+      }
+
+      // Sort by index to ensure correct order
+      const sortedPreviews = results
+        .sort((a, b) => a.index - b.index)
+        .map(r => r.preview);
+      
+      console.log(`[ImageUpload] Setting previews for batch ${currentBatch}, previews count: ${sortedPreviews.length}`);
+      setPreviews(sortedPreviews);
+    });
+  }, [images]);
+
   const processFiles = async (files: File[]) => {
     // 压缩图片文件
     const compressedFiles: File[] = [];
@@ -169,22 +214,23 @@ export default function ImageUpload({
       }
     }
     
-    const newImages = [...images, ...compressedFiles].slice(0, maxImages);
-    
-    setImages(newImages);
-    onImagesChange(newImages);
-
-    // Generate previews
-    const newPreviews: string[] = [];
-    newImages.forEach((file) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        newPreviews.push(reader.result as string);
-        if (newPreviews.length === newImages.length) {
-          setPreviews(newPreviews);
-        }
-      };
-      reader.readAsDataURL(file);
+    // 使用函数式更新确保使用最新的 images 状态，避免闭包问题
+    setImages((prevImages) => {
+      const newImages = [...prevImages, ...compressedFiles].slice(0, maxImages);
+      
+      console.log('[ImageUpload] Processing files:', {
+        prevImagesCount: prevImages.length,
+        compressedFilesCount: compressedFiles.length,
+        newImagesCount: newImages.length,
+        maxImages,
+      });
+      
+      // 立即通知父组件状态变化
+      onImagesChange(newImages);
+      
+      // Preview generation will be handled by useEffect when images state updates
+      
+      return newImages;
     });
   };
 
