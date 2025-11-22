@@ -72,22 +72,7 @@
   // 获取 Supabase session 的 access token
   async function getAccessToken() {
     try {
-      // 方法0: 使用注入的脚本函数（最可靠）
-      if (typeof window.__SPARKIT_GET_TOKEN__ === 'function') {
-        try {
-          const token = await window.__SPARKIT_GET_TOKEN__();
-          if (token) {
-            console.log('[Sparkit Auth] ✓ Got token from injected script');
-            return token;
-          }
-        } catch (e) {
-          console.log('[Sparkit Auth] Injected script error:', e);
-        }
-      } else {
-        console.log('[Sparkit Auth] __SPARKIT_GET_TOKEN__ not available');
-      }
-      
-      // 方法0.5: 直接调用 Sparkit 全局函数（如果已加载）
+      // 方法0: 直接调用 Sparkit 全局函数（最可靠，已确认可用）
       if (typeof window.__SPARKIT_GET_ACCESS_TOKEN__ === 'function') {
         try {
           const token = window.__SPARKIT_GET_ACCESS_TOKEN__();
@@ -99,7 +84,20 @@
           console.log('[Sparkit Auth] Error calling __SPARKIT_GET_ACCESS_TOKEN__:', e);
         }
       } else {
-        console.log('[Sparkit Auth] __SPARKIT_GET_ACCESS_TOKEN__ not available');
+        console.log('[Sparkit Auth] __SPARKIT_GET_ACCESS_TOKEN__ not available, type:', typeof window.__SPARKIT_GET_ACCESS_TOKEN__);
+      }
+      
+      // 方法0.5: 使用注入的脚本函数（备用）
+      if (typeof window.__SPARKIT_GET_TOKEN__ === 'function') {
+        try {
+          const token = await window.__SPARKIT_GET_TOKEN__();
+          if (token) {
+            console.log('[Sparkit Auth] ✓ Got token from injected script');
+            return token;
+          }
+        } catch (e) {
+          console.log('[Sparkit Auth] Injected script error:', e);
+        }
       }
 
       // 方法1: 尝试从 window 对象获取 Supabase client（如果已加载）
