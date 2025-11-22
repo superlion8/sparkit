@@ -67,10 +67,11 @@ CREATE POLICY "Users can delete their own favorites"
   ON character_favorites FOR DELETE
   USING (auth.uid() = user_id);
 
--- 3. 更新 tasks 表：添加 character_id 字段（如果还没有）
--- 注意：如果 tasks 表已经存在，需要手动添加这个字段
--- ALTER TABLE tasks ADD COLUMN IF NOT EXISTS character_id UUID REFERENCES characters(id) ON DELETE SET NULL;
--- CREATE INDEX IF NOT EXISTS idx_tasks_character_id ON tasks(character_id);
+-- 3. 更新 generation_tasks 表：添加 character_id 字段（如果还没有）
+-- 注意：如果 generation_tasks 表已经存在，需要手动添加这个字段
+-- 执行以下 SQL 来添加字段：
+-- ALTER TABLE generation_tasks ADD COLUMN IF NOT EXISTS character_id UUID REFERENCES characters(id) ON DELETE SET NULL;
+-- CREATE INDEX IF NOT EXISTS idx_generation_tasks_character_id ON generation_tasks(character_id);
 
 -- 4. 创建 Storage Bucket：character-assets
 -- 注意：需要在 Supabase Dashboard 的 Storage 部分手动创建 bucket
