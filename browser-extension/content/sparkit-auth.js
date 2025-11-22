@@ -80,32 +80,47 @@
       }
 
       // 方法2: 从 Local Storage 查找 Supabase session
+      // 先输出所有 localStorage keys 用于调试
+      const allKeys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        allKeys.push(localStorage.key(i));
+      }
+      console.log('[Sparkit Auth] All localStorage keys:', allKeys);
+      
       // Supabase 存储格式: sb-<project-ref>-auth-token
       // 遍历所有 localStorage keys 查找 Supabase session
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (key.includes('auth-token') || key.startsWith('sb-'))) {
+        if (key && (key.includes('auth-token') || key.includes('auth') || key.startsWith('sb-'))) {
           try {
             const value = localStorage.getItem(key);
+            console.log('[Sparkit Auth] Checking key:', key, 'value length:', value?.length);
             if (value) {
               const sessionData = JSON.parse(value);
+              console.log('[Sparkit Auth] Parsed data structure:', Object.keys(sessionData));
               
               // 检查不同的数据结构
               if (sessionData?.access_token) {
-                console.log('[Sparkit Auth] Got token from localStorage key:', key);
+                console.log('[Sparkit Auth] ✓ Got token from localStorage key:', key);
                 return sessionData.access_token;
               }
               if (sessionData?.currentSession?.access_token) {
-                console.log('[Sparkit Auth] Got token from currentSession:', key);
+                console.log('[Sparkit Auth] ✓ Got token from currentSession:', key);
                 return sessionData.currentSession.access_token;
               }
               // Supabase 可能存储为 { access_token: ..., expires_at: ... }
               if (sessionData?.expires_at && sessionData?.access_token) {
-                console.log('[Sparkit Auth] Got token from session data:', key);
+                console.log('[Sparkit Auth] ✓ Got token from session data:', key);
                 return sessionData.access_token;
+              }
+              // 检查是否有嵌套的 session 对象
+              if (sessionData?.session?.access_token) {
+                console.log('[Sparkit Auth] ✓ Got token from nested session:', key);
+                return sessionData.session.access_token;
               }
             }
           } catch (e) {
+            console.log('[Sparkit Auth] Parse error for key', key, ':', e.message);
             // 忽略解析错误，继续查找
           }
         }
