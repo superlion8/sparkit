@@ -3,8 +3,68 @@
 (function() {
   'use strict';
 
+  // 注入脚本到页面上下文，直接访问 Supabase client
+  function injectScript() {
+    const script = document.createElement('script');
+    script.textContent = `
+      (function() {
+        window.__SPARKIT_GET_TOKEN__ = async function() {
+          try {
+            // 方法1: 从 Supabase client 获取
+            if (window.__SUPABASE_CLIENT__) {
+              const { data: { session } } = await window.__SUPABASE_CLIENT__.auth.getSession();
+              if (session?.access_token) {
+                return session.access_token;
+              }
+            }
+            
+            // 方法2: 从全局 supabase 对象获取
+            if (window.supabase && window.supabase.auth) {
+              const { data: { session } } = await window.supabase.auth.getSession();
+              if (session?.access_token) {
+                return session.access_token;
+              }
+            }
+            
+            // 方法3: 从 React Context 获取（如果已暴露）
+            if (window.__REACT_AUTH_CONTEXT__?.accessToken) {
+              return window.__REACT_AUTH_CONTEXT__.accessToken;
+            }
+            
+            return null;
+          } catch (error) {
+            console.error('[Sparkit Auth Inject] Error:', error);
+            return null;
+          }
+        };
+      })();
+    `;
+    (document.head || document.documentElement).appendChild(script);
+    script.remove();
+  }
+
+  // 页面加载后注入脚本
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectScript);
+  } else {
+    injectScript();
+  }
+
   // 获取 Supabase session 的 access token
   async function getAccessToken() {
+    try {
+      // 方法0: 使用注入的脚本函数（最可靠）
+      if (window.__SPARKIT_GET_TOKEN__) {
+        try {
+          const token = await window.__SPARKIT_GET_TOKEN__();
+          if (token) {
+            console.log('[Sparkit Auth] Got token from injected script');
+            return token;
+          }
+        } catch (e) {
+          console.log('[Sparkit Auth] Injected script error:', e);
+        }
+      }
     try {
       // 方法1: 尝试从 window 对象获取 Supabase client（如果已加载）
       if (window.__SUPABASE_CLIENT__) {
