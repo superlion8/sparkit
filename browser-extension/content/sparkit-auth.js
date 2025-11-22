@@ -26,7 +26,19 @@
               }
             }
             
-            // 方法3: 从 React Context 获取（如果已暴露）
+            // 方法3: 从 Sparkit 全局函数获取（最可靠）
+            if (window.__SPARKIT_GET_ACCESS_TOKEN__) {
+              const token = window.__SPARKIT_GET_ACCESS_TOKEN__();
+              if (token) {
+                return token;
+              }
+            }
+            
+            // 方法4: 从 React Context 获取（如果已暴露）
+            if (window.__SPARKIT_AUTH_CONTEXT__?.accessToken) {
+              return window.__SPARKIT_AUTH_CONTEXT__.accessToken;
+            }
+            
             if (window.__REACT_AUTH_CONTEXT__?.accessToken) {
               return window.__REACT_AUTH_CONTEXT__.accessToken;
             }
