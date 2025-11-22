@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
     uploadFormData.append("file", file, file.name);
     // 添加业务类型参数
     uploadFormData.append("biz", "img2video");
+    uploadFormData.append("template_id", "1");
     
     console.log("Created FormData for Aimovely upload");
     console.log("FormData entries:");

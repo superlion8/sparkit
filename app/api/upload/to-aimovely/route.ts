@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
     const uploadFormData = new FormData();
     uploadFormData.append("file", file, file.name);
     uploadFormData.append("biz", "external_tool"); // Use same biz as Gemini upload
+    uploadFormData.append("template_id", "1");
 
     console.log("上传到 Aimovely:", `${AIMOVELY_API_URL}/v1/resource/upload`);
     const response = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
@@ -163,4 +164,3 @@ async function fetchAimovelyToken(email: string, vcode: string): Promise<string 
     return null;
   }
 }
-

@@ -203,6 +203,7 @@ async function uploadImageToAimovely(imageUrl: string, token: string): Promise<s
     const formData = new FormData();
     formData.append("file", file);
     formData.append("biz", "external_tool");
+    formData.append("template_id", "1");
 
     const response = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
       method: "POST",
@@ -229,4 +230,3 @@ async function uploadImageToAimovely(imageUrl: string, token: string): Promise<s
     return null;
   }
 }
-
