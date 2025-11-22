@@ -165,18 +165,6 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     ]
   );
 
-  // 暴露全局函数供浏览器插件使用
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // 暴露获取 token 的函数
-      (window as any).__SPARKIT_GET_ACCESS_TOKEN__ = () => {
-        return accessToken;
-      };
-      
-      // 暴露完整的 auth context（用于调试）
-      (window as any).__SPARKIT_AUTH_CONTEXT__ = value;
-    }
-  }, [accessToken, value]);
 
   return (
     <AuthContext.Provider value={value}>
