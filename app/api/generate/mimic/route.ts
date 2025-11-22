@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const referenceImage = formData.get("referenceImage") as File;
     const characterImage = formData.get("characterImage") as File;
+    const charAvatar = formData.get("charAvatar") as File | null; // 可选的 char_avatar（如果提供了 char_image）
     const aspectRatio = formData.get("aspectRatio") as string;
     const numImages = parseInt(formData.get("numImages") as string) || 1;
     const hotMode = formData.get("hotMode") === "true";
@@ -58,6 +59,16 @@ export async function POST(request: NextRequest) {
     
     const characterBuffer = await characterImage.arrayBuffer();
     const characterBase64 = Buffer.from(characterBuffer).toString("base64");
+    
+    // 处理 charAvatar（如果提供）
+    let charAvatarBase64: string | null = null;
+    let charAvatarMimeType: string | null = null;
+    if (charAvatar) {
+      const charAvatarBuffer = await charAvatar.arrayBuffer();
+      charAvatarBase64 = Buffer.from(charAvatarBuffer).toString("base64");
+      charAvatarMimeType = charAvatar.type || "image/jpeg";
+      console.log("[Mimic API] charAvatar provided:", charAvatar.name);
+    }
 
     // Upload input images to Aimovely first
     const aimovelyEmail = process.env.AIMOVELY_EMAIL;
@@ -225,7 +236,9 @@ export async function POST(request: NextRequest) {
             backgroundImage,
             captionPrompt,
             aspectRatio,
-            apiKey
+            apiKey,
+            charAvatarBase64,
+            charAvatarMimeType
           );
         }
         
@@ -709,15 +722,29 @@ scene setup: ${captionPrompt}
 
 negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorted anatomy, fake portrait-mode blur, CGI/illustration look`;
 
-  // Build image parts - only include background if provided
-  const imageParts: any[] = [
-    {
+  // Build image parts
+  // 如果提供了 charAvatar，先添加 char_avatar，然后添加 char_image
+  // 否则只添加 characterImage（作为 char_image）
+  const imageParts: any[] = [];
+  
+  if (charAvatarBase64 && charAvatarMimeType) {
+    // 添加 char_avatar
+    imageParts.push({
       inlineData: {
-        mimeType: characterMimeType,
-        data: characterBase64,
+        mimeType: charAvatarMimeType,
+        data: charAvatarBase64,
       },
+    });
+    console.log("已添加 char_avatar 到生成请求");
+  }
+  
+  // 添加 char_image（characterImage）
+  imageParts.push({
+    inlineData: {
+      mimeType: characterMimeType,
+      data: characterBase64,
     },
-  ];
+  });
 
   console.log(`Background image provided: ${backgroundImage ? 'Yes' : 'No'}, length: ${backgroundImage?.length || 0}`);
 

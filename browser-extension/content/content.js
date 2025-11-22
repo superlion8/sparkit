@@ -219,14 +219,28 @@
       const referenceImageBlob = await fetchImageAsBlob(imageUrl);
       const referenceImageFile = blobToFile(referenceImageBlob, 'reference.jpg');
 
-      // 下载角色图片
-      const characterImageBlob = await fetchImageAsBlob(character.char_avatar);
+      // 下载角色图片（优先使用 char_image，如果没有则使用 char_avatar）
+      const characterImageUrl = character.char_image || character.char_avatar;
+      if (!characterImageUrl) {
+        throw new Error('角色图片不存在');
+      }
+      const characterImageBlob = await fetchImageAsBlob(characterImageUrl);
       const characterImageFile = blobToFile(characterImageBlob, 'character.jpg');
+      
+      // 如果有 char_avatar，也上传（API 会使用两个图片）
+      let charAvatarFile = null;
+      if (character.char_avatar && character.char_image) {
+        const charAvatarBlob = await fetchImageAsBlob(character.char_avatar);
+        charAvatarFile = blobToFile(charAvatarBlob, 'char_avatar.jpg');
+      }
 
       // 准备 FormData
       const formData = new FormData();
       formData.append('referenceImage', referenceImageFile);
       formData.append('characterImage', characterImageFile);
+      if (charAvatarFile) {
+        formData.append('charAvatar', charAvatarFile); // 如果有单独的 avatar，也上传
+      }
       formData.append('keepBackground', keepBackground.toString());
       formData.append('numImages', '2'); // 默认生成 2 张
       formData.append('aspectRatio', 'default');
