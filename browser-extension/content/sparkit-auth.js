@@ -101,7 +101,7 @@
       } else {
         console.log('[Sparkit Auth] __SPARKIT_GET_ACCESS_TOKEN__ not available');
       }
-    try {
+
       // 方法1: 尝试从 window 对象获取 Supabase client（如果已加载）
       if (window.__SUPABASE_CLIENT__) {
         try {
