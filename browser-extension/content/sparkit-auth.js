@@ -27,11 +27,18 @@
             }
             
             // 方法3: 从 Sparkit 全局函数获取（最可靠）
-            if (window.__SPARKIT_GET_ACCESS_TOKEN__) {
-              const token = window.__SPARKIT_GET_ACCESS_TOKEN__();
-              if (token) {
-                return token;
+            if (typeof window.__SPARKIT_GET_ACCESS_TOKEN__ === 'function') {
+              try {
+                const token = window.__SPARKIT_GET_ACCESS_TOKEN__();
+                if (token) {
+                  console.log('[Sparkit Auth Inject] ✓ Got token from __SPARKIT_GET_ACCESS_TOKEN__');
+                  return token;
+                }
+              } catch (e) {
+                console.log('[Sparkit Auth Inject] Error calling __SPARKIT_GET_ACCESS_TOKEN__:', e);
               }
+            } else {
+              console.log('[Sparkit Auth Inject] __SPARKIT_GET_ACCESS_TOKEN__ not available');
             }
             
             // 方法4: 从 React Context 获取（如果已暴露）
@@ -66,16 +73,33 @@
   async function getAccessToken() {
     try {
       // 方法0: 使用注入的脚本函数（最可靠）
-      if (window.__SPARKIT_GET_TOKEN__) {
+      if (typeof window.__SPARKIT_GET_TOKEN__ === 'function') {
         try {
           const token = await window.__SPARKIT_GET_TOKEN__();
           if (token) {
-            console.log('[Sparkit Auth] Got token from injected script');
+            console.log('[Sparkit Auth] ✓ Got token from injected script');
             return token;
           }
         } catch (e) {
           console.log('[Sparkit Auth] Injected script error:', e);
         }
+      } else {
+        console.log('[Sparkit Auth] __SPARKIT_GET_TOKEN__ not available');
+      }
+      
+      // 方法0.5: 直接调用 Sparkit 全局函数（如果已加载）
+      if (typeof window.__SPARKIT_GET_ACCESS_TOKEN__ === 'function') {
+        try {
+          const token = window.__SPARKIT_GET_ACCESS_TOKEN__();
+          if (token) {
+            console.log('[Sparkit Auth] ✓ Got token from __SPARKIT_GET_ACCESS_TOKEN__');
+            return token;
+          }
+        } catch (e) {
+          console.log('[Sparkit Auth] Error calling __SPARKIT_GET_ACCESS_TOKEN__:', e);
+        }
+      } else {
+        console.log('[Sparkit Auth] __SPARKIT_GET_ACCESS_TOKEN__ not available');
       }
     try {
       // 方法1: 尝试从 window 对象获取 Supabase client（如果已加载）
@@ -174,6 +198,7 @@
     if (request.action === 'getAuthToken') {
       // 异步获取 token
       getAccessToken().then(accessToken => {
+        console.log('[Sparkit Auth] Sending token to extension:', accessToken ? 'Found' : 'Not found');
         sendResponse({ accessToken });
       }).catch(error => {
         console.error('[Sparkit Auth] Error:', error);
@@ -183,6 +208,34 @@
     }
     return false;
   });
+
+  // 页面加载完成后，尝试立即获取一次 token 并通知插件
+  if (document.readyState === 'complete') {
+    getAccessToken().then(token => {
+      if (token) {
+        chrome.runtime.sendMessage({
+          action: 'tokenUpdated',
+          accessToken: token
+        }).catch(() => {
+          // 忽略错误（插件可能未安装）
+        });
+      }
+    });
+  } else {
+    window.addEventListener('load', () => {
+      setTimeout(async () => {
+        const token = await getAccessToken();
+        if (token) {
+          chrome.runtime.sendMessage({
+            action: 'tokenUpdated',
+            accessToken: token
+          }).catch(() => {
+            // 忽略错误
+          });
+        }
+      }, 2000); // 等待页面完全加载
+    });
+  }
 
   // 监听 Local Storage 变化，通知插件更新
   const originalSetItem = localStorage.setItem;

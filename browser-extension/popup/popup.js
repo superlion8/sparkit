@@ -17,29 +17,32 @@ document.addEventListener('DOMContentLoaded', async () => {
       let token = null;
       
       if (tabs.length > 0) {
-        try {
-          const response = await chrome.tabs.sendMessage(tabs[0].id, { action: 'getAuthToken' });
-          if (response && response.accessToken) {
-            token = response.accessToken;
-            console.log('Got token from Sparkit tab');
-          }
-        } catch (error) {
-          console.log('Could not get token from Sparkit tab:', error.message);
-          // 如果 content script 未加载，等待后重试
-          if (error.message.includes('Could not establish connection')) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            try {
-              const retryResponse = await chrome.tabs.sendMessage(tabs[0].id, { action: 'getAuthToken' });
-              if (retryResponse && retryResponse.accessToken) {
-                token = retryResponse.accessToken;
-              }
-            } catch (retryError) {
-              console.log('Retry failed:', retryError.message);
+        // 尝试多次，因为 content script 可能需要时间加载
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            if (attempt > 0) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            const response = await chrome.tabs.sendMessage(tabs[0].id, { action: 'getAuthToken' });
+            if (response && response.accessToken) {
+              token = response.accessToken;
+              console.log(`Got token from Sparkit tab (attempt ${attempt + 1})`);
+              break;
+            }
+          } catch (error) {
+            console.log(`Attempt ${attempt + 1} failed:`, error.message);
+            if (attempt === 2) {
+              // 最后一次尝试失败，显示详细错误
+              statusDiv.textContent = `无法连接到 Sparkit 网站。请确保 Sparkit 网站已打开并刷新页面。`;
+              statusDiv.className = 'status error';
             }
           }
         }
       } else {
         console.log('No Sparkit tabs found');
+        statusDiv.textContent = '未找到 Sparkit 网站标签页。请先打开 https://sparkiai.com 并登录。';
+        statusDiv.className = 'status error';
       }
 
       // 如果无法从标签页获取，尝试从 storage 读取
