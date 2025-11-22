@@ -21,10 +21,25 @@ document.addEventListener('DOMContentLoaded', async () => {
           const response = await chrome.tabs.sendMessage(tabs[0].id, { action: 'getAuthToken' });
           if (response && response.accessToken) {
             token = response.accessToken;
+            console.log('Got token from Sparkit tab');
           }
         } catch (error) {
-          console.log('Could not get token from Sparkit tab:', error);
+          console.log('Could not get token from Sparkit tab:', error.message);
+          // 如果 content script 未加载，等待后重试
+          if (error.message.includes('Could not establish connection')) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            try {
+              const retryResponse = await chrome.tabs.sendMessage(tabs[0].id, { action: 'getAuthToken' });
+              if (retryResponse && retryResponse.accessToken) {
+                token = retryResponse.accessToken;
+              }
+            } catch (retryError) {
+              console.log('Retry failed:', retryError.message);
+            }
+          }
         }
+      } else {
+        console.log('No Sparkit tabs found');
       }
 
       // 如果无法从标签页获取，尝试从 storage 读取
