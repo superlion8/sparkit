@@ -8,21 +8,59 @@
   let characters = [];
   let lastSelectedCharacterId = null;
   let mimicButtons = new Map();
+  let extensionContextValid = true;
+
+  // 检查 extension context 是否有效
+  function checkExtensionContext() {
+    try {
+      // 尝试访问 chrome.runtime.id，如果无效会抛出错误
+      if (!chrome.runtime || !chrome.runtime.id) {
+        extensionContextValid = false;
+        return false;
+      }
+      return true;
+    } catch (error) {
+      extensionContextValid = false;
+      console.warn('[Sparkit Mimic] Extension context invalidated, stopping operations');
+      return false;
+    }
+  }
+
+  // 包装所有 chrome API 调用，检查 context 有效性
+  function safeChromeCall(callback) {
+    if (!checkExtensionContext()) {
+      return Promise.reject(new Error('Extension context invalidated'));
+    }
+    try {
+      return callback();
+    } catch (error) {
+      if (error.message && error.message.includes('Extension context invalidated')) {
+        extensionContextValid = false;
+      }
+      throw error;
+    }
+  }
 
   // 从 Sparkit 网站读取登录状态
   // Content script 无法直接使用 chrome.tabs.query，需要通过 background script
   async function getAuthTokenFromSparkit() {
+    if (!checkExtensionContext()) {
+      return null;
+    }
+    
     try {
       // 方法1: 从 storage 读取缓存的 token（最快）
       let cachedToken = null;
       try {
-        const result = await new Promise((resolve, reject) => {
-          chrome.storage.local.get(['accessToken'], (items) => {
-            if (chrome.runtime.lastError) {
-              reject(chrome.runtime.lastError);
-            } else {
-              resolve(items);
-            }
+        const result = await safeChromeCall(() => {
+          return new Promise((resolve, reject) => {
+            chrome.storage.local.get(['accessToken'], (items) => {
+              if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+              } else {
+                resolve(items);
+              }
+            });
           });
         });
         if (result && result.accessToken) {
@@ -39,13 +77,15 @@
       
       // 方法2: 通过 background script 获取 token
       try {
-        const response = await new Promise((resolve, reject) => {
-          chrome.runtime.sendMessage({ action: 'getAuthToken' }, (response) => {
-            if (chrome.runtime.lastError) {
-              reject(chrome.runtime.lastError);
-            } else {
-              resolve(response);
-            }
+        const response = await safeChromeCall(() => {
+          return new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ action: 'getAuthToken' }, (response) => {
+              if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+              } else {
+                resolve(response);
+              }
+            });
           });
         });
         
@@ -53,13 +93,15 @@
           console.log('[Sparkit Mimic] ✓ Got token from background script');
           // 缓存 token
           try {
-            await new Promise((resolve, reject) => {
-              chrome.storage.local.set({ accessToken: response.accessToken }, () => {
-                if (chrome.runtime.lastError) {
-                  reject(chrome.runtime.lastError);
-                } else {
-                  resolve();
-                }
+            await safeChromeCall(() => {
+              return new Promise((resolve, reject) => {
+                chrome.storage.local.set({ accessToken: response.accessToken }, () => {
+                  if (chrome.runtime.lastError) {
+                    reject(chrome.runtime.lastError);
+                  } else {
+                    resolve();
+                  }
+                });
               });
             });
           } catch (setError) {
@@ -90,19 +132,23 @@
   async function init() {
     try {
       // 从 storage 获取上次选择的角色
-      try {
-        const result = await new Promise((resolve, reject) => {
-          chrome.storage.local.get(['lastSelectedCharacterId'], (items) => {
-            if (chrome.runtime.lastError) {
-              reject(chrome.runtime.lastError);
-            } else {
-              resolve(items);
-            }
+      if (checkExtensionContext()) {
+        try {
+          const result = await safeChromeCall(() => {
+            return new Promise((resolve, reject) => {
+              chrome.storage.local.get(['lastSelectedCharacterId'], (items) => {
+                if (chrome.runtime.lastError) {
+                  reject(chrome.runtime.lastError);
+                } else {
+                  resolve(items);
+                }
+              });
+            });
           });
-        });
-        lastSelectedCharacterId = result.lastSelectedCharacterId;
-      } catch (error) {
-        console.error('[Sparkit Mimic] Error reading lastSelectedCharacterId:', error);
+          lastSelectedCharacterId = result.lastSelectedCharacterId;
+        } catch (error) {
+          console.error('[Sparkit Mimic] Error reading lastSelectedCharacterId:', error);
+        }
       }
 
       // 尝试从 Sparkit 网站读取登录状态
@@ -110,18 +156,22 @@
       
       if (accessToken) {
         // 保存到 storage
-        try {
-          await new Promise((resolve, reject) => {
-            chrome.storage.local.set({ accessToken }, () => {
-              if (chrome.runtime.lastError) {
-                reject(chrome.runtime.lastError);
-              } else {
-                resolve();
-              }
+        if (checkExtensionContext()) {
+          try {
+            await safeChromeCall(() => {
+              return new Promise((resolve, reject) => {
+                chrome.storage.local.set({ accessToken }, () => {
+                  if (chrome.runtime.lastError) {
+                    reject(chrome.runtime.lastError);
+                  } else {
+                    resolve();
+                  }
+                });
+              });
             });
-          });
-        } catch (error) {
-          console.error('[Sparkit Mimic] Error saving token:', error);
+          } catch (error) {
+            console.error('[Sparkit Mimic] Error saving token:', error);
+          }
         }
         await loadCharacters();
       } else {
@@ -364,18 +414,22 @@
       const keepBackground = modal.querySelector('#sparkit-keep-background').checked;
       
       // 保存选择的角色
-      try {
-        await new Promise((resolve, reject) => {
-          chrome.storage.local.set({ lastSelectedCharacterId: characterId }, () => {
-            if (chrome.runtime.lastError) {
-              reject(chrome.runtime.lastError);
-            } else {
-              resolve();
-            }
+      if (checkExtensionContext()) {
+        try {
+          await safeChromeCall(() => {
+            return new Promise((resolve, reject) => {
+              chrome.storage.local.set({ lastSelectedCharacterId: characterId }, () => {
+                if (chrome.runtime.lastError) {
+                  reject(chrome.runtime.lastError);
+                } else {
+                  resolve();
+                }
+              });
+            });
           });
-        });
-      } catch (error) {
-        console.error('[Sparkit Mimic] Error saving lastSelectedCharacterId:', error);
+        } catch (error) {
+          console.error('[Sparkit Mimic] Error saving lastSelectedCharacterId:', error);
+        }
       }
       lastSelectedCharacterId = characterId;
 
@@ -501,54 +555,84 @@
   }
 
   // 监听 storage 变化
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName === 'local' && changes.accessToken) {
-      accessToken = changes.accessToken.newValue;
-      if (accessToken) {
-        loadCharacters();
-      }
-    }
-  });
-
-  // 监听来自 Sparkit 网站的 token 更新消息
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'tokenUpdated') {
-      accessToken = request.accessToken;
-      try {
-        chrome.storage.local.set({ accessToken }, () => {
-          if (chrome.runtime.lastError) {
-            console.error('[Sparkit Mimic] Error saving token update:', chrome.runtime.lastError);
+  if (checkExtensionContext()) {
+    try {
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (!checkExtensionContext()) return;
+        if (areaName === 'local' && changes.accessToken) {
+          accessToken = changes.accessToken.newValue;
+          if (accessToken) {
+            loadCharacters();
           }
-        });
-      } catch (error) {
-        console.error('[Sparkit Mimic] Error saving token update:', error);
-      }
-      loadCharacters();
+        }
+      });
+    } catch (error) {
+      console.warn('[Sparkit Mimic] Could not set up storage listener:', error);
     }
-    return true;
-  });
 
-  // 定期检查登录状态（每30秒）
-  setInterval(async () => {
-    const newToken = await getAuthTokenFromSparkit();
-    if (newToken && newToken !== accessToken) {
-      accessToken = newToken;
-      try {
-        await new Promise((resolve, reject) => {
-          chrome.storage.local.set({ accessToken }, () => {
-            if (chrome.runtime.lastError) {
-              reject(chrome.runtime.lastError);
-            } else {
-              resolve();
+    // 监听来自 Sparkit 网站的 token 更新消息
+    try {
+      chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (!checkExtensionContext()) {
+          return false;
+        }
+        if (request.action === 'tokenUpdated') {
+          accessToken = request.accessToken;
+          if (checkExtensionContext()) {
+            try {
+              chrome.storage.local.set({ accessToken }, () => {
+                if (chrome.runtime.lastError) {
+                  console.error('[Sparkit Mimic] Error saving token update:', chrome.runtime.lastError);
+                }
+              });
+            } catch (error) {
+              console.error('[Sparkit Mimic] Error saving token update:', error);
             }
-          });
-        });
-      } catch (error) {
-        console.error('[Sparkit Mimic] Error saving token in interval:', error);
-      }
-      await loadCharacters();
+          }
+          loadCharacters();
+        }
+        return true;
+      });
+    } catch (error) {
+      console.warn('[Sparkit Mimic] Could not set up message listener:', error);
     }
-  }, 30000);
+
+    // 定期检查登录状态（每30秒）
+    setInterval(async () => {
+      if (!checkExtensionContext()) {
+        return;
+      }
+      try {
+        const newToken = await getAuthTokenFromSparkit();
+        if (newToken && newToken !== accessToken) {
+          accessToken = newToken;
+          if (checkExtensionContext()) {
+            try {
+              await safeChromeCall(() => {
+                return new Promise((resolve, reject) => {
+                  chrome.storage.local.set({ accessToken }, () => {
+                    if (chrome.runtime.lastError) {
+                      reject(chrome.runtime.lastError);
+                    } else {
+                      resolve();
+                    }
+                  });
+                });
+              });
+            } catch (error) {
+              console.error('[Sparkit Mimic] Error saving token in interval:', error);
+            }
+          }
+          await loadCharacters();
+        }
+      } catch (error) {
+        // 忽略 context invalidated 错误
+        if (!error.message || !error.message.includes('Extension context invalidated')) {
+          console.error('[Sparkit Mimic] Error in interval check:', error);
+        }
+      }
+    }, 30000);
+  }
 
   // 初始化
   init();
