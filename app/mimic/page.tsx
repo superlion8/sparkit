@@ -115,20 +115,39 @@ export default function MimicPage() {
         setEditableCaptionPrompt(data.captionPrompt); // 同时设置可编辑版本
       }
 
-      // Use base64 images for display if available (avoids CORS issues)
+      // 优先使用URL，如果不存在则使用base64
+      // 这样可以避免CORS问题，同时减少响应大小
       const displayBackgroundImage =
-        data.backgroundImageBase64 && data.backgroundImageBase64.length > 0
-          ? data.backgroundImageBase64
-          : data.backgroundImageUrl || data.backgroundImage;
+        data.backgroundImageUrl || 
+        data.backgroundImageBase64 || 
+        data.backgroundImage || 
+        "";
       setBackgroundImage(displayBackgroundImage);
 
-      // Use finalImageUrls if available, otherwise fallback to base64
-      const displayFinalImages =
-        data.finalImageUrls && data.finalImageUrls.length > 0
-          ? data.finalImageUrls
-          : data.finalImagesBase64 && data.finalImagesBase64.length > 0
-          ? data.finalImagesBase64
-          : data.finalImages || [];
+      // 合并finalImageUrls和finalImagesBase64
+      // finalImageUrls中null的位置对应finalImagesBase64中的base64图片
+      const displayFinalImages: string[] = [];
+      const finalUrls = data.finalImageUrls || [];
+      const finalBase64 = data.finalImagesBase64 || [];
+      let base64Index = 0; // base64数组的索引
+      
+      for (let i = 0; i < finalUrls.length; i++) {
+        if (finalUrls[i]) {
+          // URL存在，使用URL
+          displayFinalImages.push(finalUrls[i]);
+        } else if (base64Index < finalBase64.length) {
+          // URL为null，使用对应的base64
+          displayFinalImages.push(finalBase64[base64Index]);
+          base64Index++;
+        } else {
+          // 兜底：如果都没有，尝试使用旧的finalImages
+          const fallback = data.finalImages?.[i];
+          if (fallback) {
+            displayFinalImages.push(fallback);
+          }
+        }
+      }
+      
       setFinalImages(displayFinalImages);
 
       // Log task event with all image URLs
@@ -261,13 +280,30 @@ export default function MimicPage() {
 
       const data = await response.json();
 
-      // Use finalImageUrls if available, otherwise fallback to base64
-      const displayFinalImages =
-        data.finalImageUrls && data.finalImageUrls.length > 0
-          ? data.finalImageUrls
-          : data.finalImagesBase64 && data.finalImagesBase64.length > 0
-          ? data.finalImagesBase64
-          : data.finalImages || [];
+      // 合并finalImageUrls和finalImagesBase64
+      // finalImageUrls中null的位置对应finalImagesBase64中的base64图片
+      const displayFinalImages: string[] = [];
+      const finalUrls = data.finalImageUrls || [];
+      const finalBase64 = data.finalImagesBase64 || [];
+      let base64Index = 0; // base64数组的索引
+      
+      for (let i = 0; i < finalUrls.length; i++) {
+        if (finalUrls[i]) {
+          // URL存在，使用URL
+          displayFinalImages.push(finalUrls[i]);
+        } else if (base64Index < finalBase64.length) {
+          // URL为null，使用对应的base64
+          displayFinalImages.push(finalBase64[base64Index]);
+          base64Index++;
+        } else {
+          // 兜底：如果都没有，尝试使用旧的finalImages
+          const fallback = data.finalImages?.[i];
+          if (fallback) {
+            displayFinalImages.push(fallback);
+          }
+        }
+      }
+      
       setFinalImages(displayFinalImages);
 
       // Log task event
