@@ -700,10 +700,14 @@ async function generateFinalImage(
   aspectRatio: string | null,
   apiKey: string
 ): Promise<string> {
-  // Build final prompt: take autentic photo of the character, use instagram friendly composition, keep character features identical
+  // Build final prompt according to user requirements
   const finalPrompt = `take autentic photo of the character, use instagram friendly composition. Shot on the character should have identical face, features, skin tone, hairstyle, body proportions, and vibe. 
 
-scene setup: ${captionPrompt}`;
+characters are shown in {{char_avatar}} and {{char_image}}. ${backgroundImage ? 'backgorund is shown in {{background_image}}.' : ''}
+
+scene setup: ${captionPrompt}
+
+negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorted anatomy, fake portrait-mode blur, CGI/illustration look`;
 
   // Build image parts - only include background if provided
   const imageParts: any[] = [
