@@ -179,15 +179,6 @@ async function handleGenerateMimic(formDataObj, accessToken) {
   return await response.json();
 }
 
-// 监听来自 Sparkit 网站的 token 更新消息
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'tokenUpdated' && request.accessToken) {
-    // 缓存 token
-    chrome.storage.local.set({ accessToken: request.accessToken });
-    console.log('[Background] Token updated from Sparkit website');
-  }
-});
-
 // 定期检查登录状态（每30秒）
 setInterval(async () => {
   const token = await getAuthTokenFromSparkit();
