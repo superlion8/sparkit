@@ -711,7 +711,9 @@ async function generateFinalImage(
   backgroundImage: string,
   captionPrompt: string,
   aspectRatio: string | null,
-  apiKey: string
+  apiKey: string,
+  charAvatarBase64?: string | null,
+  charAvatarMimeType?: string | null
 ): Promise<string> {
   // Build final prompt according to user requirements
   const finalPrompt = `take autentic photo of the character, use instagram friendly composition. Shot on the character should have identical face, features, skin tone, hairstyle, body proportions, and vibe. 
