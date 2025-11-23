@@ -29,12 +29,12 @@ export async function GET(
     }
 
     // 从 generation_tasks 表中查询该角色的所有生成内容
-    // 注意：需要在生成任务时关联 character_id，目前先返回空数组
-    // 后续集成时，需要在生成任务时传入 character_id
+    // 只返回 completed 状态的任务，pending/processing/failed 任务通过单独的 API 获取
     const { data: tasks, error: tasksError } = await supabaseAdminClient
       .from("generation_tasks")
       .select("*")
       .eq("character_id", params.id)
+      .eq("status", "completed")  // 🆕 只返回已完成的任务
       .order("task_time", { ascending: false });
 
     if (tasksError) {

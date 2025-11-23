@@ -55,6 +55,7 @@ export async function GET(
       .from("generation_tasks")
       .select("*")
       .in("task_id", taskIds)
+      .eq("status", "completed")  // 🆕 只返回已完成的任务
       .order("task_time", { ascending: false });
 
     if (tasksError) {
