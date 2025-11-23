@@ -726,7 +726,8 @@ export default function CharacterDetailPage() {
           })}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
