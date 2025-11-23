@@ -48,6 +48,57 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 如果提供了 characterId，先创建 pending 任务
+    const baseTaskId = `mimic-${Date.now()}`;
+    let createdPendingTaskIds: string[] = [];
+    
+    if (characterId && user) {
+      try {
+        // 验证角色属于当前用户
+        const { data: character } = await supabaseAdminClient
+          .from("characters")
+          .select("id")
+          .eq("id", characterId)
+          .eq("user_id", user.id)
+          .single();
+
+        if (character) {
+          console.log(`[Mimic API] Creating ${numImages} pending tasks for character ${characterId}`);
+          
+          // 创建 numImages 个 pending 任务
+          const pendingTasksToInsert = [];
+          
+          for (let i = 0; i < numImages; i++) {
+            const taskId = `${baseTaskId}-${i}-${Math.random().toString(36).substr(2, 9)}`;
+            createdPendingTaskIds.push(taskId);
+            
+            pendingTasksToInsert.push({
+              task_id: taskId,
+              task_type: "mimic",
+              email: user.email,
+              username: user.user_metadata?.full_name || user.email,
+              prompt: customCaptionPrompt || "等待反推提示词...",
+              character_id: characterId,
+              status: "pending",
+              started_at: new Date().toISOString(),
+              task_time: new Date().toISOString(),
+            });
+          }
+          
+          if (pendingTasksToInsert.length > 0) {
+            await supabaseAdminClient
+              .from("generation_tasks")
+              .insert(pendingTasksToInsert);
+            
+            console.log(`[Mimic API] Created ${pendingTasksToInsert.length} pending tasks`);
+          }
+        }
+      } catch (error) {
+        console.error("[Mimic API] Failed to create pending tasks:", error);
+        // 不中断流程，继续生成
+      }
+    }
+
     // Convert images to base64
     let referenceBase64: string = "";
     let uploadedReferenceImageUrl: string | null = null;
@@ -326,32 +377,57 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (character) {
-          // 每张生成的图片单独创建一条记录
-          const baseTaskId = `mimic-${Date.now()}`;
-          const tasksToInsert = [];
-          
-          for (let i = 0; i < uploadedFinalImageUrls.length; i++) {
-            if (uploadedFinalImageUrls[i]) {
-              tasksToInsert.push({
-                task_id: `${baseTaskId}-${i}-${Math.random().toString(36).substr(2, 9)}`,
-                task_type: "mimic",
-                email: user.email,
-                username: user.user_metadata?.full_name || user.email,
-                prompt: captionPrompt,
-                input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
-                output_image_url: uploadedFinalImageUrls[i],
-                character_id: characterId,
-                task_time: new Date().toISOString(),
-              });
-            }
-          }
-          
-          if (tasksToInsert.length > 0) {
-            await supabaseAdminClient
-              .from("generation_tasks")
-              .insert(tasksToInsert);
+          // 如果之前创建了 pending 任务，更新它们；否则创建新任务
+          if (createdPendingTaskIds.length > 0) {
+            console.log(`[Mimic API] Updating ${createdPendingTaskIds.length} pending tasks to completed`);
             
-            console.log(`[Mimic API] Saved ${tasksToInsert.length} tasks to character ${characterId}`);
+            // 更新每个 pending 任务为 completed
+            for (let i = 0; i < Math.min(uploadedFinalImageUrls.length, createdPendingTaskIds.length); i++) {
+              if (uploadedFinalImageUrls[i]) {
+                await supabaseAdminClient
+                  .from("generation_tasks")
+                  .update({
+                    output_image_url: uploadedFinalImageUrls[i],
+                    input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
+                    prompt: captionPrompt,
+                    status: "completed",
+                    completed_at: new Date().toISOString(),
+                  })
+                  .eq("task_id", createdPendingTaskIds[i]);
+              }
+            }
+            
+            console.log(`[Mimic API] Updated ${uploadedFinalImageUrls.length} tasks to completed`);
+          } else {
+            // 兼容旧逻辑：如果没有创建 pending 任务，直接插入
+            const tasksToInsert = [];
+            
+            for (let i = 0; i < uploadedFinalImageUrls.length; i++) {
+              if (uploadedFinalImageUrls[i]) {
+                tasksToInsert.push({
+                  task_id: `${baseTaskId}-${i}-${Math.random().toString(36).substr(2, 9)}`,
+                  task_type: "mimic",
+                  email: user.email,
+                  username: user.user_metadata?.full_name || user.email,
+                  prompt: captionPrompt,
+                  input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
+                  output_image_url: uploadedFinalImageUrls[i],
+                  character_id: characterId,
+                  status: "completed",
+                  started_at: new Date().toISOString(),
+                  completed_at: new Date().toISOString(),
+                  task_time: new Date().toISOString(),
+                });
+              }
+            }
+            
+            if (tasksToInsert.length > 0) {
+              await supabaseAdminClient
+                .from("generation_tasks")
+                .insert(tasksToInsert);
+              
+              console.log(`[Mimic API] Saved ${tasksToInsert.length} tasks to character ${characterId}`);
+            }
           }
 
           // 保存参考图（reference image）到 character_references 表
@@ -447,6 +523,26 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error("Error in Mimic generation:", error);
     console.error("Error stack:", error.stack);
+    
+    // 如果创建了 pending 任务，更新为 failed
+    if (createdPendingTaskIds.length > 0) {
+      try {
+        console.log(`[Mimic API] Updating ${createdPendingTaskIds.length} pending tasks to failed`);
+        
+        for (const taskId of createdPendingTaskIds) {
+          await supabaseAdminClient
+            .from("generation_tasks")
+            .update({
+              status: "failed",
+              error_message: error.message || "生成失败",
+              completed_at: new Date().toISOString(),
+            })
+            .eq("task_id", taskId);
+        }
+      } catch (updateError) {
+        console.error("[Mimic API] Failed to update tasks to failed:", updateError);
+      }
+    }
     
     // Determine status code based on error type
     let statusCode = 500;
