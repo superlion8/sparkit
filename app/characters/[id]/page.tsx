@@ -43,6 +43,7 @@ export default function CharacterDetailPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [favorites, setFavorites] = useState<Asset[]>([]);
   const [references, setReferences] = useState<Reference[]>([]);
+  const [pendingTasks, setPendingTasks] = useState<Asset[]>([]); // 进行中的任务
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"assets" | "favorites" | "references">("assets");
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +55,25 @@ export default function CharacterDetailPage() {
       fetchAssets();
       fetchFavorites();
       fetchReferences();
+      fetchPendingTasks();
     }
   }, [isAuthenticated, accessToken, characterId]);
+
+  // 轮询进行中的任务
+  useEffect(() => {
+    if (!isAuthenticated || !accessToken || !characterId) return;
+
+    // 每 5 秒轮询一次进行中的任务
+    const intervalId = setInterval(() => {
+      fetchPendingTasks();
+      // 如果有进行中的任务，也刷新资源列表（检查是否完成）
+      if (pendingTasks.length > 0) {
+        fetchAssets();
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [isAuthenticated, accessToken, characterId, pendingTasks.length]);
 
   const fetchCharacter = async () => {
     if (!accessToken || !characterId) return;
@@ -141,6 +159,27 @@ export default function CharacterDetailPage() {
       setReferences(data.references || []);
     } catch (err: any) {
       console.error("Failed to fetch references:", err);
+    }
+  };
+
+  const fetchPendingTasks = async () => {
+    if (!accessToken || !characterId) return;
+
+    try {
+      const response = await fetch(`/api/characters/${characterId}/tasks/pending`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("获取进行中任务失败");
+      }
+
+      const data = await response.json();
+      setPendingTasks(data.pendingTasks || []);
+    } catch (err: any) {
+      console.error("Failed to fetch pending tasks:", err);
     }
   };
 
@@ -474,6 +513,43 @@ export default function CharacterDetailPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* 显示进行中的任务（Loading 卡片） */}
+          {activeTab === "assets" && pendingTasks.map((task) => (
+            <div
+              key={task.id}
+              className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-pulse"
+            >
+              <div className="aspect-square bg-gradient-to-br from-purple-100 to-blue-100 relative flex items-center justify-center">
+                {/* Loading 动画 */}
+                <div className="text-center">
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
+                  <p className="text-gray-700 font-medium">生成中...</p>
+                  <p className="text-gray-500 text-sm mt-2">
+                    {task.status === 'pending' ? '等待中' : '处理中'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50">
+                {task.prompt && (
+                  <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                    {task.prompt}
+                  </p>
+                )}
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+                    {task.task_type}
+                  </span>
+                  <span>
+                    {new Date(task.started_at || task.task_time).toLocaleTimeString("zh-CN")}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* 显示已完成的资源 */}
           {currentAssets.map((asset) => {
             const urls = getAssetUrls(asset);
             const mainUrl = getAssetUrl(asset);
