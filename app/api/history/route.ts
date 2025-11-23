@@ -83,6 +83,7 @@ export async function GET(request: NextRequest) {
       .from("generation_tasks")
       .select("*", { count: "exact" })
       .eq("email", user?.email)
+      .eq("status", "completed")  // 🆕 只返回已完成的任务，pending/processing/failed 通过单独的 API 获取
       .order("task_time", { ascending: false });
 
     // Filter by task type if specified
