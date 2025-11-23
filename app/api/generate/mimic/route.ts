@@ -353,6 +353,36 @@ export async function POST(request: NextRequest) {
             
             console.log(`[Mimic API] Saved ${tasksToInsert.length} tasks to character ${characterId}`);
           }
+
+          // 保存参考图（reference image）到 character_references 表
+          if (uploadedReferenceImageUrl) {
+            try {
+              // 检查是否已存在相同的参考图（避免重复）
+              const { data: existingRef } = await supabaseAdminClient
+                .from("character_references")
+                .select("id")
+                .eq("character_id", characterId)
+                .eq("reference_image_url", uploadedReferenceImageUrl)
+                .maybeSingle();
+
+              if (!existingRef) {
+                await supabaseAdminClient
+                  .from("character_references")
+                  .insert({
+                    character_id: characterId,
+                    reference_image_url: uploadedReferenceImageUrl,
+                    created_at: new Date().toISOString(),
+                  });
+                
+                console.log(`[Mimic API] Saved reference image to character ${characterId}`);
+              } else {
+                console.log(`[Mimic API] Reference image already exists for character ${characterId}`);
+              }
+            } catch (refError) {
+              console.error("[Mimic API] Failed to save reference image:", refError);
+              // 不中断流程
+            }
+          }
         }
       } catch (saveError) {
         console.error("[Mimic API] Failed to save task to character:", saveError);

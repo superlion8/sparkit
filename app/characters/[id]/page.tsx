@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { ArrowLeft, User, Heart, HeartOff, Image as ImageIcon, Video, Download } from "lucide-react";
+import { ArrowLeft, User, Heart, HeartOff, Image as ImageIcon, Video, Download, Trash2, Copy, Check } from "lucide-react";
 import { downloadImage } from "@/lib/downloadUtils";
 
 interface Character {
@@ -27,6 +27,12 @@ interface Asset {
   is_favorite: boolean;
 }
 
+interface Reference {
+  id: string;
+  reference_image_url: string;
+  created_at: string;
+}
+
 export default function CharacterDetailPage() {
   const { accessToken, isAuthenticated } = useAuth();
   const router = useRouter();
@@ -36,15 +42,18 @@ export default function CharacterDetailPage() {
   const [character, setCharacter] = useState<Character | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [favorites, setFavorites] = useState<Asset[]>([]);
+  const [references, setReferences] = useState<Reference[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"assets" | "favorites">("assets");
+  const [activeTab, setActiveTab] = useState<"assets" | "favorites" | "references">("assets");
   const [error, setError] = useState<string | null>(null);
+  const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAuthenticated && accessToken && characterId) {
       fetchCharacter();
       fetchAssets();
       fetchFavorites();
+      fetchReferences();
     }
   }, [isAuthenticated, accessToken, characterId]);
 
@@ -114,6 +123,27 @@ export default function CharacterDetailPage() {
     }
   };
 
+  const fetchReferences = async () => {
+    if (!accessToken || !characterId) return;
+
+    try {
+      const response = await fetch(`/api/characters/${characterId}/references`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("获取参考图列表失败");
+      }
+
+      const data = await response.json();
+      setReferences(data.references || []);
+    } catch (err: any) {
+      console.error("Failed to fetch references:", err);
+    }
+  };
+
   const handleToggleFavorite = async (asset: Asset) => {
     if (!accessToken || !characterId) return;
 
@@ -172,6 +202,68 @@ export default function CharacterDetailPage() {
     }
   };
 
+  const handleDeleteAsset = async (taskId: string) => {
+    if (!accessToken || !characterId) return;
+    
+    if (!confirm('确定要删除这个资源吗？此操作无法撤销。')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/characters/${characterId}/resources/${taskId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("删除失败");
+      }
+
+      // 更新本地状态
+      setAssets((prev) => prev.filter((a) => a.task_id !== taskId));
+      setFavorites((prev) => prev.filter((f) => f.task_id !== taskId));
+    } catch (err: any) {
+      console.error("Failed to delete asset:", err);
+      alert(err.message || "删除失败");
+    }
+  };
+
+  const handleCopyPrompt = (prompt: string) => {
+    navigator.clipboard.writeText(prompt).then(() => {
+      setCopiedPrompt(prompt);
+      setTimeout(() => setCopiedPrompt(null), 2000);
+    });
+  };
+
+  const handleDeleteReference = async (referenceId: string) => {
+    if (!accessToken || !characterId) return;
+    
+    if (!confirm('确定要删除这张参考图吗？')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/characters/${characterId}/references/${referenceId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("删除失败");
+      }
+
+      // 更新本地状态
+      setReferences((prev) => prev.filter((r) => r.id !== referenceId));
+    } catch (err: any) {
+      console.error("Failed to delete reference:", err);
+      alert(err.message || "删除失败");
+    }
+  };
+
   const getAssetUrl = (asset: Asset): string | null => {
     if (asset.output_image_url) {
       try {
@@ -220,7 +312,7 @@ export default function CharacterDetailPage() {
     );
   }
 
-  const currentAssets = activeTab === "assets" ? assets : favorites;
+  const currentAssets = activeTab === "references" ? [] : (activeTab === "assets" ? assets : favorites);
 
   return (
     <div className="max-w-7xl mx-auto p-6 lg:p-8">
@@ -294,11 +386,73 @@ export default function CharacterDetailPage() {
           >
             收藏 ({favorites.length})
           </button>
+          <button
+            onClick={() => setActiveTab("references")}
+            className={`px-6 py-3 font-medium transition-colors border-b-2 ${
+              activeTab === "references"
+                ? "border-primary-600 text-primary-600"
+                : "border-transparent text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            参考 ({references.length})
+          </button>
         </div>
       </div>
 
       {/* Content */}
-      {currentAssets.length === 0 ? (
+      {activeTab === "references" ? (
+        references.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+            <ImageIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">还没有参考图</h2>
+            <p className="text-gray-600">
+              使用 Mimic 功能时的参考图将自动保存在这里
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {references.map((ref) => (
+              <div
+                key={ref.id}
+                className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+              >
+                <div className="aspect-square bg-gray-100 relative group">
+                  <img
+                    src={ref.reference_image_url}
+                    alt="Reference"
+                    className="w-full h-full object-cover"
+                  />
+                  
+                  {/* Delete Button */}
+                  <button
+                    onClick={() => handleDeleteReference(ref.id)}
+                    className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+
+                  {/* Download Button */}
+                  <button
+                    onClick={() => downloadImage(ref.reference_image_url)}
+                    className="absolute top-2 left-2 p-2 bg-white/80 text-gray-600 rounded-full hover:bg-white transition-colors shadow-lg opacity-0 group-hover:opacity-100"
+                  >
+                    <Download className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-4">
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>参考图</span>
+                    <span>
+                      {new Date(ref.created_at).toLocaleDateString("zh-CN")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : currentAssets.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
           {activeTab === "assets" ? (
             <>
@@ -371,28 +525,54 @@ export default function CharacterDetailPage() {
                     )}
                   </button>
 
-                  {/* Download Button */}
-                  {mainUrl && (
+                  {/* Action Buttons */}
+                  <div className="absolute top-2 left-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Download Button */}
+                    {mainUrl && (
+                      <button
+                        onClick={() => {
+                          if (isImage) {
+                            downloadImage(mainUrl);
+                          } else {
+                            window.open(mainUrl, "_blank");
+                          }
+                        }}
+                        className="p-2 bg-white/80 text-gray-600 rounded-full hover:bg-white transition-colors shadow-lg"
+                      >
+                        <Download className="w-5 h-5" />
+                      </button>
+                    )}
+                    
+                    {/* Delete Button */}
                     <button
-                      onClick={() => {
-                        if (isImage) {
-                          downloadImage(mainUrl);
-                        } else {
-                          window.open(mainUrl, "_blank");
-                        }
-                      }}
-                      className="absolute top-2 left-2 p-2 bg-white/80 text-gray-600 rounded-full hover:bg-white transition-colors shadow-lg opacity-0 group-hover:opacity-100"
+                      onClick={() => handleDeleteAsset(asset.task_id)}
+                      className="p-2 bg-red-500/80 text-white rounded-full hover:bg-red-500 transition-colors shadow-lg"
                     >
-                      <Download className="w-5 h-5" />
+                      <Trash2 className="w-5 h-5" />
                     </button>
-                  )}
+                  </div>
                 </div>
 
                 <div className="p-4">
                   {asset.prompt && (
-                    <p className="text-sm text-gray-700 mb-2 line-clamp-2">
-                      {asset.prompt}
-                    </p>
+                    <div className="mb-2">
+                      <div className="flex items-start gap-2">
+                        <p className="text-sm text-gray-700 line-clamp-2 flex-1">
+                          {asset.prompt}
+                        </p>
+                        <button
+                          onClick={() => handleCopyPrompt(asset.prompt!)}
+                          className="flex-shrink-0 p-1.5 text-gray-500 hover:text-primary-600 rounded transition-colors"
+                          title="复制提示词"
+                        >
+                          {copiedPrompt === asset.prompt ? (
+                            <Check className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
                   )}
                   <div className="flex items-center justify-between text-xs text-gray-500">
                     <span>{asset.task_type}</span>
