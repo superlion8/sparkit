@@ -412,8 +412,8 @@ export async function POST(request: NextRequest) {
     }
     // 如果没有Aimovely token，uploadedFinalImageUrls保持为空数组
 
-    // 如果提供了 characterId，保存到角色资源
-    if (characterId && uploadedFinalImageUrls.length > 0 && user) {
+    // 如果提供了 characterId，更新任务状态或保存到角色资源
+    if (characterId && user) {
       try {
         // 验证角色属于当前用户
         const { data: character } = await supabaseAdminClient
@@ -424,13 +424,17 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (character) {
-          // 如果之前创建了 pending 任务，更新它们；否则创建新任务
+          // 如果之前创建了 pending 任务，必须更新它们（无论是否上传成功）
           if (createdPendingTaskIds.length > 0) {
-            console.log(`[Mimic API] Updating ${createdPendingTaskIds.length} pending tasks to completed`);
+            console.log(`[Mimic API] Updating ${createdPendingTaskIds.length} pending tasks`);
             
-            // 更新每个 pending 任务为 completed
-            for (let i = 0; i < Math.min(uploadedFinalImageUrls.length, createdPendingTaskIds.length); i++) {
+            // 更新每个 pending 任务
+            for (let i = 0; i < createdPendingTaskIds.length; i++) {
+              const taskId = createdPendingTaskIds[i];
+              
+              // 检查是否有对应的上传成功的图片
               if (uploadedFinalImageUrls[i]) {
+                // 上传成功，更新为 completed
                 await supabaseAdminClient
                   .from("generation_tasks")
                   .update({
@@ -440,13 +444,34 @@ export async function POST(request: NextRequest) {
                     status: "completed",
                     completed_at: new Date().toISOString(),
                   })
-                  .eq("task_id", createdPendingTaskIds[i]);
+                  .eq("task_id", taskId);
+                
+                console.log(`[Mimic API] Task ${i + 1} updated to completed`);
+              } else {
+                // 上传失败或生成失败，更新为 failed
+                let errorMsg = "图片生成或上传失败";
+                if (finalImageErrors.length > 0) {
+                  // 如果有生成错误，使用第一个错误信息
+                  errorMsg = finalImageErrors[0];
+                }
+                
+                await supabaseAdminClient
+                  .from("generation_tasks")
+                  .update({
+                    status: "failed",
+                    error_message: errorMsg,
+                    completed_at: new Date().toISOString(),
+                    prompt: captionPrompt || "等待反推提示词...",
+                  })
+                  .eq("task_id", taskId);
+                
+                console.log(`[Mimic API] Task ${i + 1} updated to failed: ${errorMsg}`);
               }
             }
             
-            console.log(`[Mimic API] Updated ${uploadedFinalImageUrls.length} tasks to completed`);
-          } else {
-            // 兼容旧逻辑：如果没有创建 pending 任务，直接插入
+            console.log(`[Mimic API] All ${createdPendingTaskIds.length} tasks updated`);
+          } else if (uploadedFinalImageUrls.length > 0) {
+            // 兼容旧逻辑：如果没有创建 pending 任务，且有上传成功的图片，才插入
             const tasksToInsert = [];
             
             for (let i = 0; i < uploadedFinalImageUrls.length; i++) {
