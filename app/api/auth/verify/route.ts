@@ -4,7 +4,7 @@ import { validateRequestAuth } from "@/lib/auth";
 export async function GET(request: NextRequest) {
   const { errorResponse, user } = await validateRequestAuth(request);
   
-  if (errorResponse) {
+  if (errorResponse || !user) {
     return NextResponse.json({ valid: false }, { status: 401 });
   }
 
