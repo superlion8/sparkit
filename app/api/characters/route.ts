@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabaseAdminClient
       .from("characters")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", user!.id)
       .order("created_at", { ascending: false });
 
     if (error) {
