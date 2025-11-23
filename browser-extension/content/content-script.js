@@ -1,4 +1,14 @@
 // Content Script V2 - 将按钮直接插入图片容器，模仿 Pinterest 的实现
+
+// 检查是否在 Sparkit 网站上，如果是则不运行插件
+if (window.location.hostname === 'sparkiai.com' || 
+    window.location.hostname === 'www.sparkiai.com' ||
+    (window.location.hostname === 'localhost' && window.location.port === '3000')) {
+  console.log('[Sparkit Mimic V2] Running on Sparkit website, plugin disabled to avoid conflicts');
+  // 直接退出，不执行任何代码
+  throw new Error('Plugin disabled on Sparkit website');
+}
+
 console.log('[Sparkit Mimic V2] Content script loaded');
 
 // 全局状态
