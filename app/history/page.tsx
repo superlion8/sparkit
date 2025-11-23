@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download, Copy, Check, X, ZoomIn, Trash2 } from "lucide-react";
+import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download, Copy, Check, X, ZoomIn, Trash2, AlertCircle } from "lucide-react";
 import { downloadImage, downloadVideo } from "@/lib/downloadUtils";
 
 interface GenerationTask {
@@ -18,6 +18,10 @@ interface GenerationTask {
   input_video_url: string | null;
   output_image_url: string | null;
   output_video_url: string | null;
+  status?: string; // pending, processing, completed, failed
+  started_at?: string;
+  completed_at?: string;
+  error_message?: string;
 }
 
 interface PaginationInfo {
@@ -81,6 +85,7 @@ const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photo
 export default function HistoryPage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
+  const [pendingTasks, setPendingTasks] = useState<GenerationTask[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [pagination, setPagination] = useState<PaginationInfo>({
@@ -96,8 +101,25 @@ export default function HistoryPage() {
   useEffect(() => {
     if (isAuthenticated && accessToken) {
       fetchHistory(1);
+      fetchPendingTasks();
     }
   }, [isAuthenticated, accessToken, filterType]);
+
+  // 轮询进行中的任务
+  useEffect(() => {
+    if (!isAuthenticated || !accessToken) return;
+
+    // 每 5 秒轮询一次进行中的任务
+    const intervalId = setInterval(() => {
+      fetchPendingTasks();
+      // 如果有进行中的任务，也刷新历史列表（检查是否完成）
+      if (pendingTasks.length > 0) {
+        fetchHistory(pagination.page);
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [isAuthenticated, accessToken, pendingTasks.length, pagination.page]);
 
   // 监听ESC键关闭预览
   useEffect(() => {
@@ -144,6 +166,27 @@ export default function HistoryPage() {
       setError(err.message || "获取历史记录失败");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPendingTasks = async () => {
+    if (!accessToken) return;
+
+    try {
+      const response = await fetch(`/api/history/pending`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("获取进行中任务失败");
+      }
+
+      const data = await response.json();
+      setPendingTasks(data.pendingTasks || []);
+    } catch (err: any) {
+      console.error("Failed to fetch pending tasks:", err);
     }
   };
 
@@ -291,16 +334,88 @@ export default function HistoryPage() {
         </div>
       )}
 
-      {!loading && !error && tasks.length === 0 && (
+      {!loading && !error && tasks.length === 0 && pendingTasks.length === 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
           <History className="w-16 h-16 mx-auto mb-4 text-gray-400 opacity-50" />
           <p className="text-gray-500">暂无生成记录</p>
         </div>
       )}
 
-      {!loading && !error && tasks.length > 0 && (
+      {!loading && !error && (tasks.length > 0 || pendingTasks.length > 0) && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            {/* 显示进行中的任务（Loading 卡片） */}
+            {pendingTasks.map((task) => {
+              const isFailed = task.status === 'failed';
+              const isPending = task.status === 'pending';
+              const isProcessing = task.status === 'processing';
+              
+              return (
+                <div
+                  key={task.id}
+                  className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden ${!isFailed && 'animate-pulse'}`}
+                >
+                  <div className={`aspect-square relative flex items-center justify-center ${
+                    isFailed 
+                      ? 'bg-gradient-to-br from-red-50 to-orange-50' 
+                      : 'bg-gradient-to-br from-purple-100 to-blue-100'
+                  }`}>
+                    <div className="text-center px-4">
+                      {isFailed ? (
+                        <>
+                          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+                          <p className="text-red-700 font-medium">生成失败</p>
+                          {task.error_message && (
+                            <p className="text-red-600 text-sm mt-2 line-clamp-2">
+                              {task.error_message}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
+                          <p className="text-gray-700 font-medium">生成中...</p>
+                          <p className="text-gray-500 text-sm mt-2">
+                            {isPending ? '等待反推提示词...' : '处理中'}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                    
+                    {/* 失败任务的删除按钮 */}
+                    {isFailed && (
+                      <button
+                        onClick={() => handleDeleteTask(task.task_id)}
+                        className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className={`p-4 ${isFailed ? 'bg-red-50' : 'bg-gray-50'}`}>
+                    {task.prompt && (
+                      <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                        {task.prompt}
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <span className={`inline-block w-2 h-2 rounded-full ${
+                          isFailed ? 'bg-red-500' : 'bg-blue-500 animate-pulse'
+                        }`}></span>
+                        {TASK_TYPE_LABELS[task.task_type] || task.task_type}
+                      </span>
+                      <span>
+                        {new Date(task.started_at || task.task_time).toLocaleTimeString("zh-CN")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* 显示已完成的任务 */}
             {tasks.map((task) => (
               <div
                 key={task.id}
