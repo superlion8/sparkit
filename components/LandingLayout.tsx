@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import AuthBadge from "@/components/AuthBadge";
+import NotificationCenter from "@/components/NotificationCenter";
 
 export default function LandingLayout({
   children,
@@ -28,7 +29,10 @@ export default function LandingLayout({
               <h1 className="text-base font-semibold text-gray-900">Sparkit</h1>
             </div>
           </div>
-          <AuthBadge />
+          <div className="flex items-center gap-3">
+            <NotificationCenter />
+            <AuthBadge />
+          </div>
         </header>
         <div className="flex-1 overflow-y-auto">
           {children}
