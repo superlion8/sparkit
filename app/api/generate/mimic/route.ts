@@ -64,6 +64,52 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (character) {
+          // 🆕 清理该角色所有旧的 pending/processing/failed 任务（避免界面显示历史遗留任务）
+          // 同时清理 completed 但没有输出图片的任务（这些是失败的任务）
+          try {
+            // 1. 清理 pending/processing/failed 任务
+            const { data: oldPendingTasks } = await supabaseAdminClient
+              .from("generation_tasks")
+              .select("task_id, status")
+              .eq("character_id", characterId)
+              .eq("email", user.email)
+              .in("status", ["pending", "processing", "failed"]);
+            
+            if (oldPendingTasks && oldPendingTasks.length > 0) {
+              console.log(`[Mimic API] Cleaning up ${oldPendingTasks.length} old pending/processing/failed tasks`);
+              
+              await supabaseAdminClient
+                .from("generation_tasks")
+                .delete()
+                .eq("character_id", characterId)
+                .eq("email", user.email)
+                .in("status", ["pending", "processing", "failed"]);
+            }
+            
+            // 2. 清理 completed 但没有输出图片的任务（这些是失败但标记为 completed 的任务）
+            const { data: emptyCompletedTasks } = await supabaseAdminClient
+              .from("generation_tasks")
+              .select("task_id")
+              .eq("character_id", characterId)
+              .eq("email", user.email)
+              .eq("status", "completed")
+              .eq("task_type", "mimic")
+              .is("output_image_url", null);
+            
+            if (emptyCompletedTasks && emptyCompletedTasks.length > 0) {
+              console.log(`[Mimic API] Cleaning up ${emptyCompletedTasks.length} empty completed tasks`);
+              
+              const taskIdsToDelete = emptyCompletedTasks.map(t => t.task_id);
+              await supabaseAdminClient
+                .from("generation_tasks")
+                .delete()
+                .in("task_id", taskIdsToDelete);
+            }
+          } catch (cleanupError) {
+            console.error("[Mimic API] Failed to cleanup old tasks:", cleanupError);
+            // 不中断流程
+          }
+          
           console.log(`[Mimic API] Creating ${numImages} pending tasks for character ${characterId}`);
           
           // 创建 numImages 个 pending 任务
