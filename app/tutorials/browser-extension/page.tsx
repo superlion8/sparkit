@@ -41,11 +41,24 @@ export default function BrowserExtensionTutorial() {
             <p className="text-gray-700 leading-relaxed mb-3">
               Sparkit 浏览器插件让你可以在 <strong>Pinterest</strong> 和 <strong>Instagram</strong> 等平台上，直接对任意图片进行 Mimic 操作。只需鼠标悬停，点击按钮，就能快速将图片场景应用到你的角色上。
             </p>
-            <div className="flex items-start gap-2 text-sm text-gray-600 bg-white rounded-lg p-3">
+            <div className="flex items-start gap-2 text-sm text-gray-600 bg-white rounded-lg p-3 mb-4">
               <Zap className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
               <p>
                 <strong>核心优势：</strong>1 秒提交，批量操作，自动保存到角色资源，无需等待生成完成。
               </p>
+            </div>
+            <div className="flex items-center justify-center">
+              <a
+                href="/sparkit-browser-extension.zip"
+                download="sparkit-browser-extension.zip"
+                className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                <Download className="w-6 h-6" />
+                <div className="text-left">
+                  <div className="text-base">立即下载插件</div>
+                  <div className="text-xs text-green-100">sparkit-browser-extension.zip</div>
+                </div>
+              </a>
             </div>
           </div>
 
@@ -66,11 +79,24 @@ export default function BrowserExtensionTutorial() {
                     1
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-2">获取插件文件</h3>
+                    <h3 className="font-semibold text-gray-900 mb-2">下载插件文件</h3>
                     <p className="text-gray-600 mb-3">
-                      联系技术支持或管理员获取插件文件包（ZIP 或文件夹）。
+                      点击下方按钮下载 Sparkit 浏览器插件安装包（ZIP 文件）。
                     </p>
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <a
+                      href="/sparkit-browser-extension.zip"
+                      download="sparkit-browser-extension.zip"
+                      className="inline-flex items-center gap-2 px-5 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium shadow-md hover:shadow-lg"
+                    >
+                      <Download className="w-5 h-5" />
+                      <span>下载 Sparkit 浏览器插件</span>
+                    </a>
+                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        <strong>提示：</strong>下载后解压 ZIP 文件到任意位置，下一步会用到。
+                      </p>
+                    </div>
+                    <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <p className="text-sm text-yellow-800">
                         <strong>注意：</strong>插件目前为内部测试版本，暂未上架 Chrome 应用商店。
                       </p>
@@ -139,11 +165,16 @@ export default function BrowserExtensionTutorial() {
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 mb-2">选择插件文件夹</h3>
                     <p className="text-gray-600 mb-3">
-                      在弹出的文件选择对话框中，选择插件的 <strong>browser-extension</strong> 文件夹，点击「选择」。
+                      在弹出的文件选择对话框中，选择你刚才解压的 <strong>browser-extension</strong> 文件夹，点击「选择」。
                     </p>
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-3">
+                      <p className="text-sm text-blue-800">
+                        <strong>重要：</strong>选择的是解压后的文件夹，不是 ZIP 文件本身。文件夹内应该包含 manifest.json 等文件。
+                      </p>
+                    </div>
                     <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                       <p className="text-sm text-green-800">
-                        <strong>成功标志：</strong>扩展程序列表中会出现 "Sparkit Mimic" 插件卡片。
+                        <strong>成功标志：</strong>扩展程序列表中会出现 "Sparkit Mimic" 插件卡片，图标为紫色火花。
                       </p>
                     </div>
                   </div>
