@@ -249,8 +249,22 @@ function tryAddMimicButtonToImage(imgElement) {
     hoverOverlay.style.display = 'none';
     const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
     hoverOverlay.style.display = 'block';
+    
     if (elementBelow && elementBelow !== hoverOverlay) {
-      elementBelow.click();
+      // 检查是否有 click 方法
+      if (typeof elementBelow.click === 'function') {
+        elementBelow.click();
+      } else {
+        // 如果没有 click 方法，手动触发合成点击事件
+        const clickEvent = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          clientX: e.clientX,
+          clientY: e.clientY
+        });
+        elementBelow.dispatchEvent(clickEvent);
+      }
     }
   });
   
