@@ -25,6 +25,10 @@ interface Asset {
   prompt: string | null;
   task_time: string;
   is_favorite: boolean;
+  status?: string; // pending, processing, completed, failed
+  started_at?: string;
+  completed_at?: string;
+  error_message?: string;
 }
 
 interface Reference {
