@@ -1,0 +1,585 @@
+// Content Script - 注入到网页中，监听图片 hover 并添加 Mimic 按钮
+console.log('[Sparkit Mimic] Content script loaded');
+
+// 全局状态
+let currentHoveredImage = null;
+let mimicModal = null;
+let isModalOpen = false;
+let processedImages = new WeakSet(); // 记录已处理的图片
+
+// 初始化
+function init() {
+  console.log('[Sparkit Mimic] Initializing...');
+  
+  // 创建 Mimic 模态框
+  createMimicModal();
+  
+  // 使用 Mutation Observer 监听新加载的图片
+  setupImageObserver();
+  
+  // 处理已存在的图片
+  processExistingImages();
+  
+  console.log('[Sparkit Mimic] Initialized successfully');
+}
+
+// 处理页面上已存在的图片
+function processExistingImages() {
+  const images = document.querySelectorAll('img');
+  images.forEach(img => addMimicButtonToImage(img));
+}
+
+// 为图片添加 Mimic 按钮
+function addMimicButtonToImage(imgElement) {
+  // 避免重复处理
+  if (processedImages.has(imgElement)) return;
+  
+  // 检查图片是否足够大
+  const rect = imgElement.getBoundingClientRect();
+  if (rect.width < 100 || rect.height < 100) return;
+  
+  // 排除 Sparkit 插件自己的元素
+  if (imgElement.closest('#sparkit-mimic-modal')) return;
+  
+  // 查找合适的容器（图片的父元素或祖父元素）
+  let container = imgElement.parentElement;
+  if (!container) return;
+  
+  // 确保容器有相对定位
+  const containerPosition = window.getComputedStyle(container).position;
+  if (containerPosition === 'static') {
+    container.style.position = 'relative';
+  }
+  
+  // 创建按钮
+  const mimicButton = document.createElement('div');
+  mimicButton.className = 'sparkit-mimic-btn-inline';
+  mimicButton.innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+      <path d="M2 17l10 5 10-5"></path>
+      <path d="M2 12l10 5 10-5"></path>
+    </svg>
+    <span>Mimic</span>
+  `;
+  
+  // 存储图片引用
+  mimicButton._sparkitImage = imgElement;
+  
+  // 点击事件
+  mimicButton.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    currentHoveredImage = imgElement;
+    openMimicModal();
+  });
+  
+  // 插入到容器中
+  container.appendChild(mimicButton);
+  
+  // 标记已处理
+  processedImages.add(imgElement);
+  
+  console.log('[Sparkit Mimic] Added button to image');
+}
+
+// 创建 Mimic 模态框
+function createMimicModal() {
+  mimicModal = document.createElement('div');
+  mimicModal.id = 'sparkit-mimic-modal';
+  mimicModal.className = 'sparkit-modal';
+  mimicModal.style.display = 'none';
+  mimicModal.innerHTML = `
+    <div class="sparkit-modal-overlay"></div>
+    <div class="sparkit-modal-content">
+      <div class="sparkit-modal-header">
+        <h2>Mimic 角色替换</h2>
+        <button class="sparkit-modal-close">&times;</button>
+      </div>
+      <div class="sparkit-modal-body">
+        <!-- 预览区域 -->
+        <div class="sparkit-preview-section">
+          <div class="sparkit-preview-item">
+            <div class="sparkit-preview-label">参考图片</div>
+            <div class="sparkit-preview-image" id="sparkit-reference-preview">
+              <img src="" alt="Reference Image">
+            </div>
+          </div>
+          <div class="sparkit-preview-arrow">→</div>
+          <div class="sparkit-preview-item">
+            <div class="sparkit-preview-label">生成结果</div>
+            <div class="sparkit-preview-image" id="sparkit-result-preview">
+              <div class="sparkit-placeholder">等待生成...</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 设置区域 -->
+        <div class="sparkit-settings-section">
+          <!-- 角色选择 -->
+          <div class="sparkit-form-group">
+            <label>选择角色</label>
+            <div class="sparkit-character-selector">
+              <div id="sparkit-character-list" class="sparkit-character-list">
+                <div class="sparkit-loading">加载角色中...</div>
+              </div>
+              <button id="sparkit-change-character" class="sparkit-btn-secondary">
+                切换角色
+              </button>
+            </div>
+            <div id="sparkit-selected-character" class="sparkit-selected-character">
+              <span>请选择角色</span>
+            </div>
+          </div>
+          
+          <!-- 保留背景选项 -->
+          <div class="sparkit-form-group">
+            <label class="sparkit-checkbox-label">
+              <input type="checkbox" id="sparkit-keep-background" checked>
+              <span>保留参考图背景</span>
+            </label>
+            <p class="sparkit-help-text">勾选后将使用参考图的背景，取消勾选则只使用场景描述生成背景</p>
+          </div>
+        </div>
+        
+        <!-- 生成进度 -->
+        <div id="sparkit-progress-section" class="sparkit-progress-section" style="display: none;">
+          <div class="sparkit-progress-bar">
+            <div class="sparkit-progress-fill" id="sparkit-progress-fill"></div>
+          </div>
+          <div class="sparkit-progress-text" id="sparkit-progress-text">准备中...</div>
+        </div>
+        
+        <!-- 错误提示 -->
+        <div id="sparkit-error-section" class="sparkit-error-section" style="display: none;">
+          <div class="sparkit-error-icon">⚠️</div>
+          <div class="sparkit-error-text" id="sparkit-error-text"></div>
+        </div>
+      </div>
+      <div class="sparkit-modal-footer">
+        <button id="sparkit-cancel-btn" class="sparkit-btn-secondary">取消</button>
+        <button id="sparkit-generate-btn" class="sparkit-btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+          </svg>
+          <span>生成 (2张)</span>
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(mimicModal);
+  
+  // 绑定事件
+  mimicModal.querySelector('.sparkit-modal-overlay').addEventListener('click', closeMimicModal);
+  mimicModal.querySelector('.sparkit-modal-close').addEventListener('click', closeMimicModal);
+  mimicModal.querySelector('#sparkit-cancel-btn').addEventListener('click', closeMimicModal);
+  mimicModal.querySelector('#sparkit-generate-btn').addEventListener('click', handleGenerate);
+  mimicModal.querySelector('#sparkit-change-character').addEventListener('click', showCharacterList);
+}
+
+// 定时器用于防抖
+let hideButtonTimer = null;
+
+// 设置图片 hover 监听
+function setupImageHoverListeners() {
+  // 使用事件委托监听所有图片
+  document.addEventListener('mouseover', handleImageHover, true);
+  document.addEventListener('mouseout', handleImageLeave, true);
+  
+  // 监听按钮本身的 hover，防止闪烁
+  mimicButton.addEventListener('mouseenter', () => {
+    // 鼠标进入按钮，取消隐藏
+    if (hideButtonTimer) {
+      clearTimeout(hideButtonTimer);
+      hideButtonTimer = null;
+    }
+  });
+  
+  mimicButton.addEventListener('mouseleave', () => {
+    // 鼠标离开按钮，延迟隐藏
+    hideButtonTimer = setTimeout(() => {
+      if (!isModalOpen) {
+        hideMimicButton();
+      }
+    }, 200);
+  });
+}
+
+// 处理图片 hover
+function handleImageHover(e) {
+  const target = e.target;
+  
+  // 检查是否是图片元素
+  if (target.tagName !== 'IMG') return;
+  
+  // 检查图片是否足够大（避免小图标）
+  const rect = target.getBoundingClientRect();
+  if (rect.width < 100 || rect.height < 100) return;
+  
+  // 排除 Sparkit 插件自己的元素
+  if (target.closest('#sparkit-mimic-button') || target.closest('#sparkit-mimic-modal')) {
+    return;
+  }
+  
+  // 取消之前的隐藏定时器
+  if (hideButtonTimer) {
+    clearTimeout(hideButtonTimer);
+    hideButtonTimer = null;
+  }
+  
+  currentHoveredImage = target;
+  showMimicButton(target);
+}
+
+// 处理图片 leave
+function handleImageLeave(e) {
+  const target = e.target;
+  if (target.tagName !== 'IMG') return;
+  
+  const relatedTarget = e.relatedTarget;
+  
+  // 如果鼠标移动到按钮上，不隐藏
+  if (relatedTarget && (
+    relatedTarget === mimicButton || 
+    mimicButton.contains(relatedTarget)
+  )) {
+    return;
+  }
+  
+  // 延迟隐藏，给鼠标时间移动到按钮上
+  hideButtonTimer = setTimeout(() => {
+    if (!mimicButton.matches(':hover') && !isModalOpen) {
+      hideMimicButton();
+    }
+  }, 200);
+}
+
+// 显示 Mimic 按钮
+function showMimicButton(imgElement) {
+  const rect = imgElement.getBoundingClientRect();
+  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+  
+  mimicButton.style.display = 'flex';
+  mimicButton.style.position = 'absolute';
+  mimicButton.style.left = `${rect.right + scrollLeft - 90}px`;
+  mimicButton.style.top = `${rect.bottom + scrollTop - 40}px`;
+  mimicButton.style.zIndex = '999999';
+}
+
+// 隐藏 Mimic 按钮
+function hideMimicButton() {
+  if (!isModalOpen) {
+    mimicButton.style.display = 'none';
+    currentHoveredImage = null;
+  }
+}
+
+// 打开 Mimic 模态框
+async function openMimicModal() {
+  if (!currentHoveredImage) {
+    console.error('[Sparkit Mimic] No image selected');
+    return;
+  }
+  
+  isModalOpen = true;
+  mimicModal.style.display = 'block';
+  
+  // 设置预览图
+  const previewImg = mimicModal.querySelector('#sparkit-reference-preview img');
+  previewImg.src = currentHoveredImage.src;
+  
+  // 加载角色列表和上次选择的角色
+  await loadCharacters();
+  await loadLastSelectedCharacter();
+  
+  // 重置状态
+  resetModalState();
+}
+
+// 关闭 Mimic 模态框
+function closeMimicModal() {
+  isModalOpen = false;
+  mimicModal.style.display = 'none';
+  hideMimicButton();
+  resetModalState();
+}
+
+// 重置模态框状态
+function resetModalState() {
+  // 隐藏进度和错误
+  document.getElementById('sparkit-progress-section').style.display = 'none';
+  document.getElementById('sparkit-error-section').style.display = 'none';
+  
+  // 清空结果预览
+  const resultPreview = document.getElementById('sparkit-result-preview');
+  resultPreview.innerHTML = '<div class="sparkit-placeholder">等待生成...</div>';
+  
+  // 启用生成按钮
+  document.getElementById('sparkit-generate-btn').disabled = false;
+}
+
+// 加载角色列表
+async function loadCharacters() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'getCharacters'
+    });
+    
+    if (response.success) {
+      displayCharacters(response.characters);
+    } else {
+      throw new Error(response.error || '加载角色失败');
+    }
+  } catch (error) {
+    console.error('[Sparkit Mimic] Failed to load characters:', error);
+    const characterList = document.getElementById('sparkit-character-list');
+    characterList.innerHTML = '<div class="sparkit-error">加载角色失败，请检查登录状态</div>';
+  }
+}
+
+// 显示角色列表
+function displayCharacters(characters) {
+  const characterList = document.getElementById('sparkit-character-list');
+  
+  if (!characters || characters.length === 0) {
+    characterList.innerHTML = '<div class="sparkit-empty">暂无角色，请先在 Sparkit 创建角色</div>';
+    return;
+  }
+  
+  characterList.innerHTML = characters.map(character => `
+    <div class="sparkit-character-item" data-character-id="${character.id}">
+      <img src="${character.char_avatar || character.char_image}" alt="${character.char_name}" 
+           onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect fill=%22%23667eea%22 width=%22100%22 height=%22100%22/><text x=%2250%%22 y=%2250%%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22white%22 font-size=%2240%22>${character.char_name ? character.char_name[0] : '?'}</text></svg>'">
+      <div class="sparkit-character-info">
+        <div class="sparkit-character-name">${character.char_name || '未命名角色'}</div>
+        ${character.description ? `<div class="sparkit-character-desc">${character.description}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+  
+  // 绑定点击事件
+  characterList.querySelectorAll('.sparkit-character-item').forEach(item => {
+    item.addEventListener('click', () => {
+      selectCharacter(item.dataset.characterId);
+    });
+  });
+}
+
+// 选择角色
+async function selectCharacter(characterId) {
+  try {
+    // 获取角色详情
+    const response = await chrome.runtime.sendMessage({
+      action: 'getCharacter',
+      characterId: characterId
+    });
+    
+    if (response.success) {
+      const character = response.character;
+      
+      // 显示选中的角色
+      const selectedCharacter = document.getElementById('sparkit-selected-character');
+      selectedCharacter.innerHTML = `
+        <img src="${character.char_avatar || character.char_image}" alt="${character.char_name}"
+             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect fill=%22%23667eea%22 width=%22100%22 height=%22100%22/><text x=%2250%%22 y=%2250%%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22white%22 font-size=%2240%22>${character.char_name ? character.char_name[0] : '?'}</text></svg>'">
+        <div class="sparkit-character-info">
+          <div class="sparkit-character-name">${character.char_name || '未命名角色'}</div>
+          ${character.description ? `<div class="sparkit-character-desc">${character.description}</div>` : ''}
+        </div>
+      `;
+      selectedCharacter.dataset.characterId = characterId;
+      
+      // 隐藏角色列表
+      document.getElementById('sparkit-character-list').style.display = 'none';
+      
+      // 保存选择
+      await saveLastSelectedCharacter(characterId);
+    }
+  } catch (error) {
+    console.error('[Sparkit Mimic] Failed to select character:', error);
+    showError('选择角色失败');
+  }
+}
+
+// 显示角色列表（切换角色）
+function showCharacterList() {
+  const characterList = document.getElementById('sparkit-character-list');
+  characterList.style.display = characterList.style.display === 'none' ? 'grid' : 'none';
+}
+
+// 加载上次选择的角色
+async function loadLastSelectedCharacter() {
+  try {
+    const result = await chrome.storage.local.get(['lastSelectedCharacter']);
+    if (result.lastSelectedCharacter) {
+      await selectCharacter(result.lastSelectedCharacter);
+    }
+  } catch (error) {
+    console.error('[Sparkit Mimic] Failed to load last selected character:', error);
+  }
+}
+
+// 保存上次选择的角色
+async function saveLastSelectedCharacter(characterId) {
+  try {
+    await chrome.storage.local.set({ lastSelectedCharacter: characterId });
+  } catch (error) {
+    console.error('[Sparkit Mimic] Failed to save last selected character:', error);
+  }
+}
+
+// 处理生成
+async function handleGenerate() {
+  const selectedCharacter = document.getElementById('sparkit-selected-character');
+  const characterId = selectedCharacter.dataset.characterId;
+  
+  if (!characterId) {
+    showError('请先选择角色');
+    return;
+  }
+  
+  const keepBackground = document.getElementById('sparkit-keep-background').checked;
+  const referenceImageUrl = currentHoveredImage.src;
+  
+  console.log('[Sparkit Mimic] Starting generation:', {
+    characterId,
+    keepBackground,
+    referenceImageUrl: referenceImageUrl.substring(0, 100) + '...'
+  });
+  
+  // 禁用生成按钮
+  const generateBtn = document.getElementById('sparkit-generate-btn');
+  generateBtn.disabled = true;
+  
+  // 显示进度
+  showProgress('准备中...', 0);
+  
+  try {
+    // 下载参考图
+    showProgress('下载参考图片...', 10);
+    console.log('[Sparkit Mimic] Downloading reference image...');
+    const referenceImageBlob = await downloadImage(referenceImageUrl);
+    console.log('[Sparkit Mimic] Reference image downloaded, size:', referenceImageBlob.size);
+    
+    // 调用后台服务生成
+    showProgress('调用 Mimic API...', 20);
+    console.log('[Sparkit Mimic] Sending message to background...');
+    const response = await chrome.runtime.sendMessage({
+      action: 'generateMimic',
+      data: {
+        characterId: characterId,
+        referenceImageBlob: await blobToBase64(referenceImageBlob),
+        keepBackground: keepBackground,
+        numImages: 2
+      }
+    });
+    
+    console.log('[Sparkit Mimic] Background response:', response);
+    
+    if (response.success) {
+      showProgress('生成成功！', 100);
+      displayResults(response.results);
+      
+      // 3秒后隐藏进度
+      setTimeout(() => {
+        document.getElementById('sparkit-progress-section').style.display = 'none';
+      }, 3000);
+    } else {
+      throw new Error(response.error || '生成失败');
+    }
+  } catch (error) {
+    console.error('[Sparkit Mimic] Generation failed:', error);
+    console.error('[Sparkit Mimic] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    showError(error.message || '生成失败，请重试');
+  } finally {
+    generateBtn.disabled = false;
+  }
+}
+
+// 显示进度
+function showProgress(text, progress) {
+  const progressSection = document.getElementById('sparkit-progress-section');
+  const progressFill = document.getElementById('sparkit-progress-fill');
+  const progressText = document.getElementById('sparkit-progress-text');
+  
+  progressSection.style.display = 'block';
+  progressFill.style.width = `${progress}%`;
+  progressText.textContent = text;
+  
+  // 隐藏错误
+  document.getElementById('sparkit-error-section').style.display = 'none';
+}
+
+// 显示错误
+function showError(message) {
+  const errorSection = document.getElementById('sparkit-error-section');
+  const errorText = document.getElementById('sparkit-error-text');
+  
+  errorSection.style.display = 'block';
+  errorText.textContent = message;
+  
+  // 隐藏进度
+  document.getElementById('sparkit-progress-section').style.display = 'none';
+}
+
+// 显示结果
+function displayResults(results) {
+  const resultPreview = document.getElementById('sparkit-result-preview');
+  
+  if (!results || results.length === 0) {
+    resultPreview.innerHTML = '<div class="sparkit-error">生成失败</div>';
+    return;
+  }
+  
+  resultPreview.innerHTML = `
+    <div class="sparkit-result-grid">
+      ${results.map((result, index) => `
+        <div class="sparkit-result-item">
+          <img src="${result.imageUrl}" alt="Result ${index + 1}">
+          <a href="${result.imageUrl}" download="mimic-result-${index + 1}.png" class="sparkit-download-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </a>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// 下载图片
+async function downloadImage(url) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Failed to download image');
+    return await response.blob();
+  } catch (error) {
+    console.error('[Sparkit Mimic] Failed to download image:', error);
+    throw error;
+  }
+}
+
+// Blob 转 Base64
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// 页面加载完成后初始化
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+

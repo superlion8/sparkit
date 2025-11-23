@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sparkit Mimic 插件诊断工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        h1 {
+            color: #667eea;
+            margin-bottom: 24px;
+        }
+        
+        .step {
+            background: #f9fafb;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-bottom: 16px;
+            border-radius: 8px;
+        }
+        
+        .step h3 {
+            color: #374151;
+            margin-bottom: 12px;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        
+        .status.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .status.warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 12px;
+        }
+        
+        button:hover {
+            background: #5568d3;
+        }
+        
+        .code {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            margin-top: 12px;
+        }
+        
+        .alert {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Sparkit Mimic 插件诊断</h1>
+        
+        <div class="alert">
+            <strong>⚠️ 重要：</strong> 请按照下面的步骤顺序操作，确保每一步都完成后再进行下一步。
+        </div>
+        
+        <div class="step">
+            <h3>步骤 1: 重新加载插件 <span id="step1" class="status warning">待执行</span></h3>
+            <p>1. 打开 <code>chrome://extensions/</code></p>
+            <p>2. 找到 <strong>Sparkit Mimic</strong> 插件</p>
+            <p>3. 点击刷新按钮 ⟳</p>
+            <p>4. 如果看到权限请求，点击"允许"</p>
+            <button onclick="markStep(1)">✓ 已完成步骤 1</button>
+        </div>
+        
+        <div class="step">
+            <h3>步骤 2: 登录 Sparkit <span id="step2" class="status warning">待执行</span></h3>
+            <p>1. 打开新标签页访问 <a href="https://sparkiai.com" target="_blank">https://sparkiai.com</a></p>
+            <p>2. 使用你的账号登录</p>
+            <p>3. 登录成功后，保持标签页打开</p>
+            <button onclick="window.open('https://sparkiai.com', '_blank')">打开 Sparkit</button>
+            <button onclick="markStep(2)">✓ 已完成步骤 2</button>
+        </div>
+        
+        <div class="step">
+            <h3>步骤 3: 检查 Token Bridge <span id="step3" class="status warning">待检查</span></h3>
+            <p>在 <strong>sparkiai.com 标签页</strong> 按 F12 打开控制台，应该看到：</p>
+            <div class="code">
+[Sparkit Token Bridge] Loaded on sparkiai.com
+[Sparkit Token Bridge] Token synced to extension
+[Sparkit Token Bridge] Initialized, token sync scheduled
+            </div>
+            <p><strong>如果没看到这些日志：</strong></p>
+            <p>→ 在 sparkiai.com 标签页按 Ctrl+R (或 Cmd+R) 刷新页面</p>
+            <button onclick="checkTokenBridge()">检查 Token Bridge</button>
+        </div>
+        
+        <div class="step">
+            <h3>步骤 4: 验证 Token 存储 <span id="step4" class="status warning">待检查</span></h3>
+            <p>检查插件是否成功存储了认证 token</p>
+            <button onclick="checkToken()">检查 Token 存储</button>
+            <div id="token-result" class="code" style="display: none; margin-top: 12px;"></div>
+        </div>
+        
+        <div class="step">
+            <h3>步骤 5: 测试插件状态 <span id="step5" class="status warning">待测试</span></h3>
+            <p>1. 点击浏览器工具栏的插件图标（紫色 S）</p>
+            <p>2. 查看弹窗中的状态</p>
+            <p>3. 应该显示：</p>
+            <div class="code">
+✅ API 状态: 已连接
+✅ 登录状态: 已登录 (你的邮箱)
+            </div>
+            <button onclick="markStep(5)">✓ 状态正常</button>
+        </div>
+        
+        <div class="step" style="background: #d1fae5; border-left-color: #10b981;">
+            <h3>🎉 完成诊断</h3>
+            <p id="final-status">请完成上述所有步骤</p>
+        </div>
+    </div>
+    
+    <script>
+        let completedSteps = new Set();
+        
+        function markStep(step) {
+            completedSteps.add(step);
+            const statusEl = document.getElementById(`step${step}`);
+            statusEl.textContent = '已完成';
+            statusEl.className = 'status success';
+            
+            if (completedSteps.size === 5) {
+                document.getElementById('final-status').innerHTML = 
+                    '✅ 所有步骤已完成！现在可以使用 Mimic 功能了。<br>' +
+                    '试试访问 Pinterest 或 Instagram，悬停图片查看 Mimic 按钮。';
+            }
+        }
+        
+        async function checkTokenBridge() {
+            const statusEl = document.getElementById('step3');
+            try {
+                // 尝试向 sparkiai.com 标签页发送消息
+                const [tab] = await chrome.tabs.query({ url: 'https://sparkiai.com/*' });
+                if (tab) {
+                    await chrome.tabs.sendMessage(tab.id, { type: 'REQUEST_TOKEN_SYNC' });
+                    statusEl.textContent = '✅ Token Bridge 正常';
+                    statusEl.className = 'status success';
+                    completedSteps.add(3);
+                    
+                    // 等待同步完成
+                    setTimeout(checkToken, 1000);
+                } else {
+                    statusEl.textContent = '❌ 未找到 Sparkit 标签页';
+                    statusEl.className = 'status error';
+                    alert('请先打开并登录 sparkiai.com');
+                }
+            } catch (error) {
+                statusEl.textContent = '❌ 检查失败';
+                statusEl.className = 'status error';
+                alert('检查失败：' + error.message);
+            }
+        }
+        
+        async function checkToken() {
+            const statusEl = document.getElementById('step4');
+            const resultEl = document.getElementById('token-result');
+            
+            try {
+                const result = await chrome.storage.local.get(['sparkitAccessToken', 'tokenUpdatedAt']);
+                
+                if (result.sparkitAccessToken) {
+                    const tokenPreview = result.sparkitAccessToken.substring(0, 20) + '...';
+                    const updatedAt = result.tokenUpdatedAt ? 
+                        new Date(result.tokenUpdatedAt).toLocaleString() : '未知';
+                    
+                    resultEl.innerHTML = `✅ Token 已存储\n` +
+                        `Token 预览: ${tokenPreview}\n` +
+                        `更新时间: ${updatedAt}`;
+                    resultEl.style.display = 'block';
+                    
+                    statusEl.textContent = '✅ Token 正常';
+                    statusEl.className = 'status success';
+                    completedSteps.add(4);
+                } else {
+                    resultEl.innerHTML = '❌ 未找到 Token\n\n' +
+                        '可能的原因：\n' +
+                        '1. 未在 sparkiai.com 登录\n' +
+                        '2. Token Bridge 未运行\n' +
+                        '3. 插件权限不足\n\n' +
+                        '请返回步骤 2 重新登录，然后刷新 sparkiai.com 页面';
+                    resultEl.style.display = 'block';
+                    
+                    statusEl.textContent = '❌ 未找到 Token';
+                    statusEl.className = 'status error';
+                }
+            } catch (error) {
+                resultEl.innerHTML = '❌ 检查失败: ' + error.message;
+                resultEl.style.display = 'block';
+                
+                statusEl.textContent = '❌ 检查失败';
+                statusEl.className = 'status error';
+            }
+        }
+    </script>
+</body>
+</html>
+

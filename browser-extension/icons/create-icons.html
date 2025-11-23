@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create PNG Icons</title>
+</head>
+<body>
+    <canvas id="canvas16" width="16" height="16"></canvas>
+    <canvas id="canvas32" width="32" height="32"></canvas>
+    <canvas id="canvas48" width="48" height="48"></canvas>
+    <canvas id="canvas128" width="128" height="128"></canvas>
+    
+    <script>
+        function createIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // 紫色渐变背景
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#8B5CF6');
+            gradient.addColorStop(1, '#6366F1');
+            
+            // 填充圆角矩形背景
+            ctx.fillStyle = gradient;
+            const radius = size * 0.2;
+            ctx.beginPath();
+            ctx.moveTo(radius, 0);
+            ctx.lineTo(size - radius, 0);
+            ctx.quadraticCurveTo(size, 0, size, radius);
+            ctx.lineTo(size, size - radius);
+            ctx.quadraticCurveTo(size, size, size - radius, size);
+            ctx.lineTo(radius, size);
+            ctx.quadraticCurveTo(0, size, 0, size - radius);
+            ctx.lineTo(0, radius);
+            ctx.quadraticCurveTo(0, 0, radius, 0);
+            ctx.fill();
+            
+            // 绘制白色 S 字母
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${size * 0.6}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('S', size / 2, size / 2);
+            
+            // 下载图片
+            canvas.toBlob(function(blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `icon-${size}.png`;
+                a.click();
+            });
+        }
+        
+        // 延迟创建，确保渲染完成
+        setTimeout(() => {
+            createIcon('canvas16', 16);
+            setTimeout(() => createIcon('canvas32', 32), 500);
+            setTimeout(() => createIcon('canvas48', 48), 1000);
+            setTimeout(() => createIcon('canvas128', 128), 1500);
+            
+            setTimeout(() => {
+                alert('所有图标已生成！请检查下载文件夹，然后将 PNG 文件移动到 icons/ 文件夹');
+            }, 2500);
+        }, 100);
+    </script>
+</body>
+</html>

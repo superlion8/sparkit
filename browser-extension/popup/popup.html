@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sparkit Mimic 插件</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 350px;
+      min-height: 400px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
+    .container {
+      padding: 24px;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    
+    .logo {
+      width: 60px;
+      height: 60px;
+      margin: 0 auto 16px;
+      background: white;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+    }
+    
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    
+    .subtitle {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    
+    .status-card {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    
+    .status-row:last-child {
+      margin-bottom: 0;
+    }
+    
+    .status-label {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    
+    .status-value {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+    
+    .status-indicator.offline {
+      background: #ef4444;
+    }
+    
+    .info-card {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    
+    .info-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    
+    .info-list {
+      list-style: none;
+    }
+    
+    .info-list li {
+      font-size: 13px;
+      opacity: 0.9;
+      margin-bottom: 8px;
+      padding-left: 16px;
+      position: relative;
+    }
+    
+    .info-list li:before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      font-weight: bold;
+    }
+    
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    
+    .btn-primary {
+      background: white;
+      color: #667eea;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+    
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+    }
+    
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .footer {
+      text-align: center;
+      font-size: 12px;
+      opacity: 0.8;
+      margin-top: 20px;
+    }
+    
+    .footer a {
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    
+    .footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">✨</div>
+      <h1>Sparkit Mimic</h1>
+      <div class="subtitle">AI 角色替换插件</div>
+    </div>
+    
+    <div class="status-card">
+      <div class="status-row">
+        <div class="status-label">连接状态</div>
+        <div class="status-value" id="connection-status">
+          <span class="status-indicator offline"></span>
+          <span>检查中...</span>
+        </div>
+      </div>
+      <div class="status-row">
+        <div class="status-label">登录状态</div>
+        <div class="status-value" id="auth-status">
+          <span>检查中...</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="info-card">
+      <div class="info-title">使用方法</div>
+      <ul class="info-list">
+        <li>在 Pinterest、Instagram 等网站浏览图片</li>
+        <li>鼠标悬停在图片上，点击右下角的 Mimic 按钮</li>
+        <li>选择角色并配置设置</li>
+        <li>点击生成，等待结果</li>
+      </ul>
+    </div>
+    
+    <div class="button-group">
+      <button class="btn btn-primary" id="open-sparkit">
+        打开 Sparkit 网站
+      </button>
+      <button class="btn btn-secondary" id="open-settings">
+        插件设置
+      </button>
+    </div>
+    
+    <div class="footer">
+      Made with ❤️ by <a href="https://sparkiai.com" target="_blank">Sparkit</a>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
+

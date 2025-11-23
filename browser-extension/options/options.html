@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sparkit Mimic - 设置</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+    
+    h1 {
+      color: #667eea;
+      margin-bottom: 24px;
+    }
+    
+    .setting-item {
+      margin-bottom: 24px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .setting-item:last-child {
+      border-bottom: none;
+    }
+    
+    .setting-label {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #374151;
+    }
+    
+    .setting-description {
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 12px;
+    }
+    
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    button:hover {
+      background: #5568d3;
+    }
+    
+    .success {
+      background: #10b981;
+      color: white;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 16px;
+      display: none;
+    }
+    
+    .info-box {
+      background: #f0f4ff;
+      border-left: 4px solid #667eea;
+      padding: 16px;
+      border-radius: 4px;
+      margin-bottom: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚙️ Sparkit Mimic 设置</h1>
+    
+    <div class="info-box">
+      <strong>提示：</strong> 确保您已在 Sparkit 网站登录，插件会自动同步您的登录状态。
+    </div>
+    
+    <div class="setting-item">
+      <div class="setting-label">清除缓存</div>
+      <div class="setting-description">
+        如果遇到登录问题，可以尝试清除插件缓存的数据。
+      </div>
+      <button id="clear-cache">清除缓存</button>
+      <div id="clear-success" class="success">✅ 缓存已清除！</div>
+    </div>
+    
+    <div class="setting-item">
+      <div class="setting-label">重新同步登录状态</div>
+      <div class="setting-description">
+        手动触发从 Sparkit 网站同步登录令牌。
+      </div>
+      <button id="sync-token">同步登录状态</button>
+      <div id="sync-success" class="success">✅ 同步成功！</div>
+    </div>
+    
+    <div class="setting-item">
+      <div class="setting-label">关于</div>
+      <div class="setting-description">
+        Sparkit Mimic v1.0.0<br>
+        在任何网页上使用 AI 角色替换功能
+      </div>
+      <button onclick="window.open('https://sparkiai.com')">访问 Sparkit 网站</button>
+    </div>
+  </div>
+  
+  <script src="options.js"></script>
+</body>
+</html>
+
