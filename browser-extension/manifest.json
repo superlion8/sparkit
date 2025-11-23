@@ -29,8 +29,7 @@
         "https://*.instagram.com/*",
         "https://*.xiaohongshu.com/*",
         "https://*.twitter.com/*",
-        "https://*.x.com/*",
-        "<all_urls>"
+        "https://*.x.com/*"
       ],
       "js": [
         "content/content-script.js"
