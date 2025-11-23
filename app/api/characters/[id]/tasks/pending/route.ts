@@ -30,13 +30,13 @@ export async function GET(
       );
     }
 
-    // 获取进行中的任务（pending 或 processing）
+    // 获取进行中的任务（pending, processing, failed）
     const { data: pendingTasks, error } = await supabaseAdminClient
       .from("generation_tasks")
       .select("*")
       .eq("character_id", characterId)
       .eq("email", user!.email)
-      .in("status", ["pending", "processing"])
+      .in("status", ["pending", "processing", "failed"])
       .order("started_at", { ascending: false });
 
     if (error) {

@@ -86,6 +86,8 @@ async function handleGetCharacter(characterId, sendResponse) {
 
 // 生成 Mimic
 async function handleGenerateMimic(data, sendResponse) {
+  console.log('[Sparkit Mimic BG] ========== GENERATE START ==========');
+  
   try {
     console.log('[Sparkit Mimic BG] Starting Mimic generation...');
     console.log('[Sparkit Mimic BG] Data:', {

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download, Copy, Check, X, ZoomIn } from "lucide-react";
+import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download, Copy, Check, X, ZoomIn, Trash2 } from "lucide-react";
 import { downloadImage, downloadVideo } from "@/lib/downloadUtils";
 
 interface GenerationTask {
@@ -201,6 +201,33 @@ export default function HistoryPage() {
     }
   };
 
+  const handleDeleteTask = async (taskId: string) => {
+    if (!accessToken) return;
+    
+    if (!confirm('确定要删除这条记录吗？此操作无法撤销。')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/history?taskId=${taskId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('删除失败');
+      }
+
+      // 刷新当前页面
+      fetchHistory(pagination.page);
+    } catch (err: any) {
+      console.error('删除失败:', err);
+      alert(err.message || '删除失败，请重试');
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="max-w-7xl mx-auto p-6 lg:p-8">
@@ -277,8 +304,17 @@ export default function HistoryPage() {
             {tasks.map((task) => (
               <div
                 key={task.id}
-                className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+                className="relative bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group"
               >
+                {/* Delete Button (Top Right) */}
+                <button
+                  onClick={() => handleDeleteTask(task.task_id)}
+                  className="absolute top-2 right-2 z-10 p-2 bg-red-500/90 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                  title="删除记录"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+
                 {/* Preview */}
                 <div className={(() => {
                   const parsedUrls = parseImageUrls(task.output_image_url);

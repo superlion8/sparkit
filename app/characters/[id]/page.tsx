@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { ArrowLeft, User, Heart, HeartOff, Image as ImageIcon, Video, Download, Trash2, Copy, Check } from "lucide-react";
+import { ArrowLeft, User, Heart, HeartOff, Image as ImageIcon, Video, Download, Trash2, Copy, Check, X, AlertCircle } from "lucide-react";
 import { downloadImage } from "@/lib/downloadUtils";
 
 interface Character {
@@ -52,6 +52,7 @@ export default function CharacterDetailPage() {
   const [activeTab, setActiveTab] = useState<"assets" | "favorites" | "references">("assets");
   const [error, setError] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAuthenticated && accessToken && characterId) {
@@ -358,9 +359,31 @@ export default function CharacterDetailPage() {
   const currentAssets = activeTab === "references" ? [] : (activeTab === "assets" ? assets : favorites);
 
   return (
-    <div className="max-w-7xl mx-auto p-6 lg:p-8">
-      {/* Header */}
-      <div className="mb-8">
+    <>
+      {/* Lightbox Modal */}
+      {lightboxImage && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={lightboxImage}
+            alt="Enlarged view"
+            className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
+      <div className="max-w-7xl mx-auto p-6 lg:p-8">
+        {/* Header */}
+        <div className="mb-8">
         <button
           onClick={() => router.push("/characters")}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
@@ -463,7 +486,8 @@ export default function CharacterDetailPage() {
                   <img
                     src={ref.reference_image_url}
                     alt="Reference"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover cursor-pointer"
+                    onClick={() => setLightboxImage(ref.reference_image_url)}
                   />
                   
                   {/* Delete Button */}
@@ -518,40 +542,75 @@ export default function CharacterDetailPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* 显示进行中的任务（Loading 卡片） */}
-          {activeTab === "assets" && pendingTasks.map((task) => (
-            <div
-              key={task.id}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-pulse"
-            >
-              <div className="aspect-square bg-gradient-to-br from-purple-100 to-blue-100 relative flex items-center justify-center">
-                {/* Loading 动画 */}
-                <div className="text-center">
-                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
-                  <p className="text-gray-700 font-medium">生成中...</p>
-                  <p className="text-gray-500 text-sm mt-2">
-                    {task.status === 'pending' ? '等待中' : '处理中'}
-                  </p>
+          {activeTab === "assets" && pendingTasks.map((task) => {
+            const isFailed = task.status === 'failed';
+            const isPending = task.status === 'pending';
+            const isProcessing = task.status === 'processing';
+            
+            return (
+              <div
+                key={task.id}
+                className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden ${!isFailed && 'animate-pulse'}`}
+              >
+                <div className={`aspect-square relative flex items-center justify-center ${
+                  isFailed 
+                    ? 'bg-gradient-to-br from-red-50 to-orange-50' 
+                    : 'bg-gradient-to-br from-purple-100 to-blue-100'
+                }`}>
+                  <div className="text-center px-4">
+                    {isFailed ? (
+                      <>
+                        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+                        <p className="text-red-700 font-medium">生成失败</p>
+                        {task.error_message && (
+                          <p className="text-red-600 text-sm mt-2 line-clamp-2">
+                            {task.error_message}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
+                        <p className="text-gray-700 font-medium">生成中...</p>
+                        <p className="text-gray-500 text-sm mt-2">
+                          {isPending ? '等待反推提示词...' : '处理中'}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  
+                  {/* 失败任务的删除按钮 */}
+                  {isFailed && (
+                    <button
+                      onClick={() => handleDeleteAsset(task.task_id)}
+                      className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
-              </div>
 
-              <div className="p-4 bg-gray-50">
-                {task.prompt && (
-                  <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                    {task.prompt}
-                  </p>
-                )}
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span className="flex items-center gap-1">
-                    <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-                    {task.task_type}
-                  </span>
-                  <span>
-                    {new Date(task.started_at || task.task_time).toLocaleTimeString("zh-CN")}
-                  </span>
+                <div className={`p-4 ${isFailed ? 'bg-red-50' : 'bg-gray-50'}`}>
+                  {task.prompt && (
+                    <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                      {task.prompt}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <span className={`inline-block w-2 h-2 rounded-full ${
+                        isFailed ? 'bg-red-500' : 'bg-blue-500 animate-pulse'
+                      }`}></span>
+                      {task.task_type}
+                    </span>
+                    <span>
+                      {new Date(task.started_at || task.task_time).toLocaleTimeString("zh-CN")}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* 显示已完成的资源 */}
           {currentAssets.map((asset) => {
@@ -570,7 +629,8 @@ export default function CharacterDetailPage() {
                       <img
                         src={mainUrl}
                         alt={asset.prompt || "Generated image"}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover cursor-pointer"
+                        onClick={() => setLightboxImage(mainUrl)}
                       />
                     ) : (
                       <video
