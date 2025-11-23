@@ -84,7 +84,9 @@ const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photo
 
 export default function HistoryPage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
+  const [activeTab, setActiveTab] = useState<"history" | "favorites">("history");
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
+  const [favorites, setFavorites] = useState<GenerationTask[]>([]);
   const [pendingTasks, setPendingTasks] = useState<GenerationTask[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -100,10 +102,14 @@ export default function HistoryPage() {
 
   useEffect(() => {
     if (isAuthenticated && accessToken) {
-      fetchHistory(1);
-      fetchPendingTasks();
+      if (activeTab === "history") {
+        fetchHistory(1);
+        fetchPendingTasks();
+      } else {
+        fetchFavorites();
+      }
     }
-  }, [isAuthenticated, accessToken, filterType]);
+  }, [isAuthenticated, accessToken, filterType, activeTab]);
 
   // 轮询进行中的任务
   useEffect(() => {
@@ -187,6 +193,32 @@ export default function HistoryPage() {
       setPendingTasks(data.pendingTasks || []);
     } catch (err: any) {
       console.error("Failed to fetch pending tasks:", err);
+    }
+  };
+
+  const fetchFavorites = async () => {
+    if (!accessToken) return;
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/favorites/global`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("获取收藏列表失败");
+      }
+
+      const data = await response.json();
+      setFavorites(data.favorites || []);
+    } catch (err: any) {
+      setError(err.message || "获取收藏列表失败");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -307,24 +339,59 @@ export default function HistoryPage() {
         <p className="text-gray-600 mt-2">查看你的所有 AI 生成记录</p>
       </div>
 
-      {/* Filter */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          筛选类型
-        </label>
-        <select
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-        >
-          <option value="all">全部</option>
-          {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
+      {/* Tab 切换 */}
+      <div className="mb-6 border-b border-gray-200">
+        <div className="flex gap-8">
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`pb-4 px-2 font-medium transition-colors relative ${
+              activeTab === "history"
+                ? "text-primary-600"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            全部历史
+            {activeTab === "history" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600"></div>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("favorites")}
+            className={`pb-4 px-2 font-medium transition-colors relative flex items-center gap-2 ${
+              activeTab === "favorites"
+                ? "text-primary-600"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <Heart className="w-4 h-4" />
+            我的收藏
+            {activeTab === "favorites" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600"></div>
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* Filter (只在历史 tab显示) */}
+      {activeTab === "history" && (
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            筛选类型
+          </label>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          >
+            <option value="all">全部</option>
+            {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {loading && <LoadingSpinner text="加载历史记录..." />}
 
@@ -334,14 +401,21 @@ export default function HistoryPage() {
         </div>
       )}
 
-      {!loading && !error && tasks.length === 0 && pendingTasks.length === 0 && (
+      {!loading && !error && activeTab === "history" && tasks.length === 0 && pendingTasks.length === 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
           <History className="w-16 h-16 mx-auto mb-4 text-gray-400 opacity-50" />
           <p className="text-gray-500">暂无生成记录</p>
         </div>
       )}
 
-      {!loading && !error && (tasks.length > 0 || pendingTasks.length > 0) && (
+      {!loading && !error && activeTab === "favorites" && favorites.length === 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+          <Heart className="w-16 h-16 mx-auto mb-4 text-gray-400 opacity-50" />
+          <p className="text-gray-500">暂无收藏</p>
+        </div>
+      )}
+
+      {!loading && !error && activeTab === "history" && (tasks.length > 0 || pendingTasks.length > 0) && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {/* 显示进行中的任务（Loading 卡片） */}
@@ -929,6 +1003,100 @@ export default function HistoryPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* 收藏 Tab - 显示收藏的图片 */}
+      {!loading && !error && activeTab === "favorites" && favorites.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {favorites.map((task) => (
+            <div key={task.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+              {/* 图片区域 */}
+              <div className="relative aspect-square bg-gray-100">
+                {task.output_image_url && (
+                  <img
+                    src={task.output_image_url}
+                    alt="Generated"
+                    className="w-full h-full object-cover cursor-pointer"
+                    onClick={() => setPreviewImage(task.output_image_url)}
+                  />
+                )}
+                {/* 收藏标记 */}
+                <div className="absolute top-2 right-2 bg-red-500 rounded-full p-2">
+                  <Heart className="w-4 h-4 text-white fill-current" />
+                </div>
+              </div>
+
+              {/* 信息区域 */}
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="px-2 py-1 bg-primary-100 text-primary-700 text-xs rounded font-medium">
+                    {TASK_TYPE_LABELS[task.task_type] || task.task_type}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {formatDate(task.task_time)}
+                  </span>
+                </div>
+
+                {task.prompt && (
+                  <div className="mb-3">
+                    <p className="text-sm text-gray-600 line-clamp-2">{task.prompt}</p>
+                    <button
+                      onClick={() => handleCopyPrompt(task.prompt!, task.task_id)}
+                      className="mt-1 text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                    >
+                      {copiedPromptId === task.task_id ? (
+                        <>
+                          <Check className="w-3 h-3" />
+                          已复制
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          复制 Prompt
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {/* 操作按钮 */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleDownloadImage(task.output_image_url!, task.task_id)}
+                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    下载
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (confirm("确定要取消收藏吗？")) {
+                        try {
+                          const response = await fetch(`/api/favorites/global?task_id=${task.task_id}`, {
+                            method: "DELETE",
+                            headers: {
+                              Authorization: `Bearer ${accessToken}`,
+                            },
+                          });
+                          if (response.ok) {
+                            fetchFavorites(); // 刷新列表
+                          }
+                        } catch (error) {
+                          console.error("Failed to remove favorite:", error);
+                          alert("取消收藏失败");
+                        }
+                      }
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-sm rounded-lg transition-colors"
+                  >
+                    <Heart className="w-4 h-4" />
+                    取消收藏
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Image Preview Modal */}
