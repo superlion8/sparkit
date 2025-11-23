@@ -326,27 +326,33 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (character) {
-          // 保存生成任务到 generation_tasks 表，关联到角色
-          const taskId = `mimic-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          const outputImageUrl = uploadedFinalImageUrls.length === 1 
-            ? uploadedFinalImageUrls[0] 
-            : JSON.stringify(uploadedFinalImageUrls);
-
-          await supabaseAdminClient
-            .from("generation_tasks")
-            .insert({
-              task_id: taskId,
-              task_type: "mimic",
-              email: user.email,
-              username: user.user_metadata?.full_name || user.email,
-              prompt: captionPrompt,
-              input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
-              output_image_url: outputImageUrl,
-              character_id: characterId,
-              task_time: new Date().toISOString(),
-            });
-
-          console.log(`[Mimic API] Saved task to character ${characterId}:`, taskId);
+          // 每张生成的图片单独创建一条记录
+          const baseTaskId = `mimic-${Date.now()}`;
+          const tasksToInsert = [];
+          
+          for (let i = 0; i < uploadedFinalImageUrls.length; i++) {
+            if (uploadedFinalImageUrls[i]) {
+              tasksToInsert.push({
+                task_id: `${baseTaskId}-${i}-${Math.random().toString(36).substr(2, 9)}`,
+                task_type: "mimic",
+                email: user.email,
+                username: user.user_metadata?.full_name || user.email,
+                prompt: captionPrompt,
+                input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
+                output_image_url: uploadedFinalImageUrls[i],
+                character_id: characterId,
+                task_time: new Date().toISOString(),
+              });
+            }
+          }
+          
+          if (tasksToInsert.length > 0) {
+            await supabaseAdminClient
+              .from("generation_tasks")
+              .insert(tasksToInsert);
+            
+            console.log(`[Mimic API] Saved ${tasksToInsert.length} tasks to character ${characterId}`);
+          }
         }
       } catch (saveError) {
         console.error("[Mimic API] Failed to save task to character:", saveError);
