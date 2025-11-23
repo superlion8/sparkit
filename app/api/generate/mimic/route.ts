@@ -10,6 +10,10 @@ export async function POST(request: NextRequest) {
     return errorResponse;
   }
 
+  // 在外层定义，以便 catch 块可以访问
+  let baseTaskId = `mimic-${Date.now()}`;
+  let createdPendingTaskIds: string[] = [];
+
   try {
     const formData = await request.formData();
     const referenceImage = formData.get("referenceImage") as File;
@@ -49,9 +53,6 @@ export async function POST(request: NextRequest) {
     }
 
     // 如果提供了 characterId，先创建 pending 任务
-    const baseTaskId = `mimic-${Date.now()}`;
-    let createdPendingTaskIds: string[] = [];
-    
     if (characterId && user) {
       try {
         // 验证角色属于当前用户
