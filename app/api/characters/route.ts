@@ -17,35 +17,59 @@ async function checkStorageBucket(bucketName: string): Promise<boolean> {
   }
 }
 
+// OPTIONS method for CORS preflight
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
+  });
+}
+
 // GET: 获取用户的所有 characters
 export async function GET(request: NextRequest) {
-  const { errorResponse, user } = await validateRequestAuth(request);
-  if (errorResponse) {
-    return errorResponse;
-  }
+  console.log("[API] GET /api/characters called");
+  
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
 
   try {
+    const { errorResponse, user } = await validateRequestAuth(request);
+    if (errorResponse) {
+      console.error("[API] Auth failed");
+      const response = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      Object.entries(headers).forEach(([k, v]) => response.headers.set(k, v));
+      return response;
+    }
+
     const { data, error } = await supabaseAdminClient
       .from("characters")
       .select("*")
-      .eq("user_id", user!.id)
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Failed to fetch characters:", error);
-      return NextResponse.json(
-        { error: "获取角色列表失败" },
-        { status: 500 }
-      );
+      console.error("[API] DB Error:", error);
+      const response = NextResponse.json({ error: "获取角色列表失败" }, { status: 500 });
+      Object.entries(headers).forEach(([k, v]) => response.headers.set(k, v));
+      return response;
     }
 
-    return NextResponse.json({ characters: data || [] });
+    const response = NextResponse.json({ characters: data || [] });
+    Object.entries(headers).forEach(([k, v]) => response.headers.set(k, v));
+    return response;
+
   } catch (error: any) {
-    console.error("Error fetching characters:", error);
-    return NextResponse.json(
-      { error: error?.message ?? "获取角色列表失败" },
-      { status: 500 }
-    );
+    console.error("[API] Unexpected Error:", error);
+    const response = NextResponse.json({ error: error?.message ?? "获取角色列表失败" }, { status: 500 });
+    Object.entries(headers).forEach(([k, v]) => response.headers.set(k, v));
+    return response;
   }
 }
 
@@ -220,4 +244,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
