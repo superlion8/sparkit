@@ -610,8 +610,6 @@ export default function HistoryPage() {
                 </div>
               );
             })}
-
-            ))}
           </div>
 
           {/* Pagination */}
