@@ -28,10 +28,10 @@ export async function GET(
       );
     }
 
-    // 查询收藏的 tasks
+    // 查询收藏的 tasks 和 image_url
     const { data: favorites, error: favoritesError } = await supabaseAdminClient
       .from("character_favorites")
-      .select("task_id")
+      .select("task_id, image_url")
       .eq("character_id", params.id)
       .eq("user_id", user!.id)
       .order("created_at", { ascending: false });
@@ -44,13 +44,13 @@ export async function GET(
       );
     }
 
-    // 根据 task_id 查询对应的任务详情
-    const taskIds = (favorites || []).map((f: any) => f.task_id);
-    
-    if (taskIds.length === 0) {
+    if (!favorites || favorites.length === 0) {
       return NextResponse.json({ favorites: [] });
     }
 
+    // 根据 task_id 查询对应的任务详情
+    const taskIds = favorites.map((f: any) => f.task_id);
+    
     const { data: tasks, error: tasksError } = await supabaseAdminClient
       .from("generation_tasks")
       .select("*")
@@ -66,17 +66,28 @@ export async function GET(
       );
     }
 
-    // 格式化收藏数据
-    const favoriteAssets = (tasks || []).map((task: any) => ({
-      id: task.id,
-      task_id: task.task_id,
-      task_type: task.task_type,
-      output_image_url: task.output_image_url,
-      output_video_url: task.output_video_url,
-      prompt: task.prompt,
-      task_time: task.task_time,
-      is_favorite: true,
-    }));
+    // 创建 task_id 到 task 的映射
+    const taskMap = new Map((tasks || []).map((task: any) => [task.task_id, task]));
+
+    // 格式化收藏数据，保留 image_url
+    const favoriteAssets = favorites
+      .map((favorite: any) => {
+        const task = taskMap.get(favorite.task_id);
+        if (!task) return null;
+        
+        return {
+          id: task.id,
+          task_id: task.task_id,
+          task_type: task.task_type,
+          // 如果有 image_url，优先使用它；否则使用完整的 output_image_url
+          output_image_url: favorite.image_url || task.output_image_url,
+          output_video_url: task.output_video_url,
+          prompt: task.prompt,
+          task_time: task.task_time,
+          is_favorite: true,
+        };
+      })
+      .filter((asset: any) => asset !== null);
 
     return NextResponse.json({ favorites: favoriteAssets });
   } catch (error: any) {
