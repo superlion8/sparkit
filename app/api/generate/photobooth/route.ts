@@ -671,11 +671,12 @@ export async function POST(request: NextRequest) {
       
       // Parse the pre-serialized JSON back to object for NextResponse.json()
       // This ensures Vercel handles Content-Length and compression correctly
-      const responseData = JSON.parse(responseJsonString);
+      // Use a different variable name to avoid shadowing the outer responseData
+      const parsedResponseData = JSON.parse(responseJsonString);
       
       // Use NextResponse.json() instead of manual NextResponse creation
       // This matches Mimic API and avoids Content-Length mismatch issues
-      const response = NextResponse.json(responseData, {
+      const response = NextResponse.json(parsedResponseData, {
         status: 200,
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
