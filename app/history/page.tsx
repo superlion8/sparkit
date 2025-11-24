@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download, Copy, Check, X, ZoomIn, Trash2, AlertCircle, Heart } from "lucide-react";
 import { downloadImage, downloadVideo } from "@/lib/downloadUtils";
+import FavoriteModal from "@/components/FavoriteModal";
 
 interface GenerationTask {
   id: string;
@@ -99,6 +100,8 @@ export default function HistoryPage() {
   const [filterType, setFilterType] = useState("all");
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [favoriteModalOpen, setFavoriteModalOpen] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAuthenticated && accessToken) {
@@ -495,14 +498,28 @@ export default function HistoryPage() {
                 key={task.id}
                 className="relative bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group"
               >
-                {/* Delete Button (Top Right) */}
-                <button
-                  onClick={() => handleDeleteTask(task.task_id)}
-                  className="absolute top-2 right-2 z-10 p-2 bg-red-500/90 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                  title="删除记录"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {/* Action Buttons (Top Right) */}
+                <div className="absolute top-2 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Favorite Button */}
+                  <button
+                    onClick={() => {
+                      setSelectedTaskId(task.task_id);
+                      setFavoriteModalOpen(true);
+                    }}
+                    className="p-2 bg-white/90 hover:bg-white text-red-500 rounded-full shadow-lg"
+                    title="收藏"
+                  >
+                    <Heart className="w-4 h-4" />
+                  </button>
+                  {/* Delete Button */}
+                  <button
+                    onClick={() => handleDeleteTask(task.task_id)}
+                    className="p-2 bg-red-500/90 hover:bg-red-600 text-white rounded-full shadow-lg"
+                    title="删除记录"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
 
                 {/* Preview */}
                 <div className={(() => {
@@ -1127,6 +1144,26 @@ export default function HistoryPage() {
             点击背景或按 ESC 关闭
           </div>
         </div>
+      )}
+
+      {/* Favorite Modal */}
+      {selectedTaskId && (
+        <FavoriteModal
+          isOpen={favoriteModalOpen}
+          onClose={() => {
+            setFavoriteModalOpen(false);
+            setSelectedTaskId(null);
+          }}
+          taskId={selectedTaskId}
+          onSuccess={() => {
+            // 刷新列表
+            if (activeTab === "history") {
+              fetchHistory(pagination.page);
+            } else {
+              fetchFavorites();
+            }
+          }}
+        />
       )}
     </div>
   );
