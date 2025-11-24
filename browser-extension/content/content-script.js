@@ -607,7 +607,7 @@ async function loadCharacters() {
     const response = await chrome.runtime.sendMessage({ action: 'getCharacters' });
     
     if (response.success) {
-      displayCharacters(response.characters);
+      await displayCharacters(response.characters);
     } else {
       showError('获取角色列表失败：' + (response.error || '未知错误'));
     }
@@ -621,7 +621,7 @@ async function loadCharacters() {
 let allCharacters = [];
 
 // 显示角色列表（在新的紧凑UI中）
-function displayCharacters(characters) {
+async function displayCharacters(characters) {
   const characterDisplay = mimicModal.querySelector('#sparkit-character-display');
   
   if (!characters || characters.length === 0) {
@@ -632,9 +632,29 @@ function displayCharacters(characters) {
   // 存储所有角色
   allCharacters = characters;
   
-  // 默认选择第一个角色
+  // 尝试读取上次选择的角色 ID
+  try {
+    const result = await chrome.storage.local.get(['lastSelectedCharacterId']);
+    const lastCharacterId = result.lastSelectedCharacterId;
+    
+    // 如果有上次选择的角色，尝试找到它
+    if (lastCharacterId) {
+      const lastCharacter = characters.find(c => c.id === lastCharacterId);
+      if (lastCharacter) {
+        console.log('[Sparkit Mimic] Restoring last selected character:', lastCharacter.char_name);
+        selectedCharacter = lastCharacter;
+        updateCharacterCard(lastCharacter);
+        return;
+      }
+    }
+  } catch (error) {
+    console.log('[Sparkit Mimic] Could not restore last character, using first:', error);
+  }
+  
+  // 如果没有上次选择的角色，或找不到，默认选择第一个角色
   const firstCharacter = characters[0];
   selectedCharacter = firstCharacter;
+  console.log('[Sparkit Mimic] Using first character:', firstCharacter.char_name);
   
   // 更新角色卡片显示
   updateCharacterCard(firstCharacter);
@@ -722,6 +742,15 @@ function showCharacterPicker() {
 function selectCharacter(character) {
   selectedCharacter = character;
   console.log('[Sparkit Mimic] Character selected:', character.char_name);
+  
+  // 保存角色选择到 chrome.storage，以便下次记住
+  chrome.storage.local.set({ 
+    lastSelectedCharacterId: character.id 
+  }).then(() => {
+    console.log('[Sparkit Mimic] Character selection saved:', character.char_name);
+  }).catch(error => {
+    console.error('[Sparkit Mimic] Failed to save character selection:', error);
+  });
   
   // 更新角色卡片显示
   updateCharacterCard(character);
