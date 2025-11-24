@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, Heart, Folder, User } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Character {
   id: string;
@@ -25,6 +26,7 @@ export default function FavoriteModal({
   onSuccess,
   characterId,
 }: FavoriteModalProps) {
+  const { accessToken } = useAuth();
   const [favoriteType, setFavoriteType] = useState<"global" | "character">("global");
   const [characters, setCharacters] = useState<Character[]>([]);
   const [selectedCharacter, setSelectedCharacter] = useState<string | null>(null);
@@ -46,8 +48,14 @@ export default function FavoriteModal({
   }, [isOpen, favoriteType, characterId]);
 
   const fetchCharacters = async () => {
+    if (!accessToken) return;
+    
     try {
-      const response = await fetch("/api/characters");
+      const response = await fetch("/api/characters", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         setCharacters(data.characters || []);
@@ -58,7 +66,7 @@ export default function FavoriteModal({
   };
 
   const handleFavorite = async () => {
-    if (loading) return;
+    if (loading || !accessToken) return;
 
     // 验证
     if (favoriteType === "character" && !selectedCharacter) {
@@ -75,14 +83,20 @@ export default function FavoriteModal({
         // 收藏到历史记录
         response = await fetch("/api/favorites/global", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
           body: JSON.stringify({ task_id: taskId }),
         });
       } else {
         // 收藏到角色
         response = await fetch(`/api/characters/${selectedCharacter}/favorites`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
           body: JSON.stringify({ task_id: taskId }),
         });
       }
