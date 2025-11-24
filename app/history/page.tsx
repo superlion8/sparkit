@@ -107,7 +107,7 @@ export default function HistoryPage() {
   useEffect(() => {
     if (isAuthenticated && accessToken) {
       if (activeTab === "history") {
-        fetchHistory(1);
+      fetchHistory(1);
         fetchPendingTasks();
       } else {
         fetchFavorites();
@@ -378,23 +378,23 @@ export default function HistoryPage() {
 
       {/* Filter (只在历史 tab显示) */}
       {activeTab === "history" && (
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            筛选类型
-          </label>
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          >
-            <option value="all">全部</option>
-            {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          筛选类型
+        </label>
+        <select
+          value={filterType}
+          onChange={(e) => setFilterType(e.target.value)}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        >
+          <option value="all">全部</option>
+          {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
       )}
 
       {loading && <LoadingSpinner text="加载历史记录..." />}
@@ -429,8 +429,8 @@ export default function HistoryPage() {
               const isProcessing = task.status === 'processing';
               
               return (
-                <div
-                  key={task.id}
+              <div
+                key={task.id}
                   className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden ${!isFailed && 'animate-pulse'}`}
                 >
                   <div className={`aspect-square relative flex items-center justify-center ${
@@ -462,12 +462,12 @@ export default function HistoryPage() {
                     
                     {/* 失败任务的删除按钮 */}
                     {isFailed && (
-                      <button
+                              <button
                         onClick={() => handleDeleteTask(task.task_id)}
                         className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
                       >
                         <Trash2 className="w-5 h-5" />
-                      </button>
+                              </button>
                     )}
                   </div>
 
@@ -488,9 +488,9 @@ export default function HistoryPage() {
                         {new Date(task.started_at || task.task_time).toLocaleTimeString("zh-CN")}
                       </span>
                     </div>
-                  </div>
-                </div>
-              );
+                            </div>
+                        </div>
+                      );
             })}
 
             {/* 显示已完成的任务 - 简化为单图显示 */}
@@ -524,7 +524,7 @@ export default function HistoryPage() {
                 return null;
               }
               
-              return (
+                      return (
                 <div
                   key={task.id}
                   className="relative bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group"
@@ -532,7 +532,7 @@ export default function HistoryPage() {
                   {/* Action Buttons (Top Right) */}
                   <div className="absolute top-2 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     {/* Favorite Button */}
-                    <button
+                              <button
                       onClick={() => {
                         setSelectedTaskId(task.task_id);
                         setSelectedImageUrl(imageUrl);
@@ -542,39 +542,39 @@ export default function HistoryPage() {
                       title="收藏"
                     >
                       <Heart className="w-4 h-4" />
-                    </button>
+                              </button>
                     {/* Delete Button */}
-                    <button
+                              <button
                       onClick={() => handleDeleteTask(task.task_id)}
                       className="p-2 bg-red-500/90 hover:bg-red-600 text-white rounded-full shadow-lg"
                       title="删除记录"
                     >
                       <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                              </button>
+                            </div>
 
                   {/* Preview - 统一单图显示 */}
                   <div className="aspect-square bg-gray-100 relative">
                     <img
                       src={imageUrl}
-                      alt="Generated"
-                      className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                              alt="Generated"
+                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
                       onClick={() => setPreviewImage(imageUrl)}
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                        const parent = target.parentElement;
-                        if (parent) {
-                          parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><div class="text-center"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-xs">图片加载失败</p></div></div>';
-                        }
-                      }}
-                    />
-                  </div>
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const parent = target.parentElement;
+                                if (parent) {
+                                  parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><div class="text-center"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-xs">图片加载失败</p></div></div>';
+                                }
+                              }}
+                            />
+                          </div>
 
                   {/* Info (Bottom) */}
                   <div className="p-4 bg-gray-50">
-                    {task.prompt && (
-                      <div className="mb-3">
+                  {task.prompt && (
+                    <div className="mb-3">
                         <p className="text-sm text-gray-600 line-clamp-2 mb-2">
                           {task.prompt}
                         </p>
@@ -599,13 +599,13 @@ export default function HistoryPage() {
                     </div>
 
                     {/* Download button */}
-                    <button
+                            <button
                       onClick={() => handleDownloadImage(imageUrl, task.task_id)}
                       className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded-lg transition-colors"
-                    >
-                      <Download className="w-4 h-4" />
+                            >
+                              <Download className="w-4 h-4" />
                       下载图片
-                    </button>
+                      </button>
                   </div>
                 </div>
               );

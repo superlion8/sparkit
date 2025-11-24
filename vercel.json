@@ -3,6 +3,23 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "regions": ["sin1"]
+  "regions": ["sin1"],
+  "functions": {
+    "app/api/generate/mimic/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/generate/photobooth/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/generate/gemini/route.ts": {
+      "maxDuration": 120
+    },
+    "app/api/generate/flux/route.ts": {
+      "maxDuration": 120
+    },
+    "app/api/video/generate/route.ts": {
+      "maxDuration": 180
+    }
+  }
 }
 

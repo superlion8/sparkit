@@ -309,46 +309,58 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 3: 生成最终图片
-    console.log(`Step 3: 生成最终图片 (${hotMode ? 'Qwen' : 'Gemini'})...`);
+    // Step 3: 生成最终图片（并行生成以节省时间）
+    console.log(`Step 3: 并行生成 ${numImages} 张最终图片 (${hotMode ? 'Qwen' : 'Gemini'})...`);
     const finalImages: string[] = [];
     const finalImageErrors: string[] = [];
 
-    // 生成多张图片，成功几张就输出几张
-    for (let i = 0; i < numImages; i++) {
-      try {
-        console.log(`正在生成第 ${i + 1}/${numImages} 张图片...`);
-        
-        let finalImage: string;
-        if (hotMode) {
-          // Use Qwen API for Hot Mode
-          finalImage = await generateFinalImageWithQwen(
-            characterImage,
-            captionPrompt
-          );
-        } else {
-          // Use Gemini API
-          finalImage = await generateFinalImage(
-            characterBase64,
-            characterImage.type,
-            backgroundImage,
-            captionPrompt,
-            aspectRatio,
-            apiKey,
-            charAvatarBase64,
-            charAvatarMimeType
-          );
+    // 并行生成多张图片，大幅减少总耗时
+    const generatePromises = Array.from({ length: numImages }, (_, i) => {
+      return (async () => {
+        try {
+          console.log(`开始生成第 ${i + 1}/${numImages} 张图片...`);
+          
+          let finalImage: string;
+          if (hotMode) {
+            // Use Qwen API for Hot Mode
+            finalImage = await generateFinalImageWithQwen(
+              characterImage,
+              captionPrompt
+            );
+          } else {
+            // Use Gemini API
+            finalImage = await generateFinalImage(
+              characterBase64,
+              characterImage.type,
+              backgroundImage,
+              captionPrompt,
+              aspectRatio,
+              apiKey,
+              charAvatarBase64,
+              charAvatarMimeType
+            );
+          }
+          
+          console.log(`第 ${i + 1} 张图片生成成功`);
+          return { success: true, image: finalImage, index: i };
+        } catch (error: any) {
+          console.error(`生成第 ${i + 1} 张图片失败:`, error);
+          return { success: false, error: error.message, index: i };
         }
-        
-        finalImages.push(finalImage);
-        console.log(`第 ${i + 1} 张图片生成成功`);
-      } catch (error: any) {
-        console.error(`生成第 ${i + 1} 张图片失败:`, error);
-        finalImageErrors.push(`第 ${i + 1} 张: ${error.message}`);
-        // 继续生成其他图片，不中断流程
-        console.warn(`跳过第 ${i + 1} 张图片，继续生成剩余图片`);
+      })();
+    });
+
+    // 等待所有图片生成完成
+    const results = await Promise.all(generatePromises);
+    
+    // 处理结果
+    results.forEach((result) => {
+      if (result.success) {
+        finalImages.push(result.image);
+      } else {
+        finalImageErrors.push(`第 ${result.index + 1} 张: ${result.error}`);
       }
-    }
+    });
 
     // 检查是否至少生成了一张图片
     if (finalImages.length === 0) {
@@ -382,29 +394,32 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Upload final images
-        // 初始化数组，确保长度与finalImages一致
-        uploadedFinalImageUrls.length = finalImages.length;
-        
-        for (let i = 0; i < finalImages.length; i++) {
-          try {
-            const finalUploadResult = await uploadImageToAimovely(
-              finalImages[i],
-              aimovelyToken,
-              `final-${i}`
-            );
-            if (finalUploadResult?.url) {
-              uploadedFinalImageUrls[i] = finalUploadResult.url;
-              console.log(`最终图片 ${i + 1} 上传成功:`, finalUploadResult.url);
-            } else {
-              // 上传失败，保持为undefined，后续会使用base64
-              console.warn(`最终图片 ${i + 1} 上传失败，将使用 base64`);
+        // 并行上传所有最终图片以节省时间
+        console.log(`并行上传 ${finalImages.length} 张最终图片...`);
+        const uploadPromises = finalImages.map((image, i) => {
+          return (async () => {
+            try {
+              const finalUploadResult = await uploadImageToAimovely(
+                image,
+                aimovelyToken,
+                `final-${i}`
+              );
+              if (finalUploadResult?.url) {
+                console.log(`最终图片 ${i + 1} 上传成功:`, finalUploadResult.url);
+                return finalUploadResult.url;
+              } else {
+                console.warn(`最终图片 ${i + 1} 上传失败`);
+                return null;
+              }
+            } catch (uploadError) {
+              console.error(`上传最终图片 ${i + 1} 失败:`, uploadError);
+              return null;
             }
-          } catch (uploadError) {
-            console.error(`上传最终图片 ${i + 1} 失败:`, uploadError);
-            // 上传失败，保持为undefined
-          }
-        }
+          })();
+        });
+        
+        const uploadResults = await Promise.all(uploadPromises);
+        uploadedFinalImageUrls.push(...uploadResults);
       } catch (uploadError) {
         console.error("上传生成的图片到 Aimovely 失败:", uploadError);
         // 全部失败，数组保持为空
