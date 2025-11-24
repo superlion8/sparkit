@@ -123,8 +123,9 @@ export default function HistoryPage() {
     const intervalId = setInterval(() => {
       fetchPendingTasks();
       // 如果有进行中的任务，也刷新历史列表（检查是否完成）
+      // 使用静默模式（silent=true），不触发整个页面的 loading 状态
       if (pendingTasks.length > 0) {
-        fetchHistory(pagination.page);
+        fetchHistory(pagination.page, true); // ← 静默刷新
       }
     }, 5000);
 
@@ -143,11 +144,14 @@ export default function HistoryPage() {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [previewImage]);
 
-  const fetchHistory = async (page: number) => {
+  const fetchHistory = async (page: number, silent: boolean = false) => {
     if (!accessToken) return;
 
-    setLoading(true);
-    setError("");
+    // 静默刷新模式：不触发 loading 状态，避免整个页面刷新
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
 
     try {
       const params = new URLSearchParams({
@@ -173,9 +177,13 @@ export default function HistoryPage() {
       setTasks(data.data);
       setPagination(data.pagination);
     } catch (err: any) {
-      setError(err.message || "获取历史记录失败");
+      if (!silent) {
+        setError(err.message || "获取历史记录失败");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
