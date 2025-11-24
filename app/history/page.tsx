@@ -102,6 +102,7 @@ export default function HistoryPage() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [favoriteModalOpen, setFavoriteModalOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAuthenticated && accessToken) {
@@ -500,17 +501,6 @@ export default function HistoryPage() {
               >
                 {/* Action Buttons (Top Right) */}
                 <div className="absolute top-2 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {/* Favorite Button */}
-                  <button
-                    onClick={() => {
-                      setSelectedTaskId(task.task_id);
-                      setFavoriteModalOpen(true);
-                    }}
-                    className="p-2 bg-white/90 hover:bg-white text-red-500 rounded-full shadow-lg"
-                    title="收藏"
-                  >
-                    <Heart className="w-4 h-4" />
-                  </button>
                   {/* Delete Button */}
                   <button
                     onClick={() => handleDeleteTask(task.task_id)}
@@ -544,7 +534,7 @@ export default function HistoryPage() {
                       if (parsedUrls.urls.length === 1) {
                         // Single image: use square aspect
                         return (
-                          <div className="w-full h-full aspect-square relative">
+                          <div className="w-full h-full aspect-square relative group">
                             <img
                               src={parsedUrls.urls[0]}
                               alt="Generated"
@@ -559,6 +549,19 @@ export default function HistoryPage() {
                                 }
                               }}
                             />
+                            {/* 收藏按钮 */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTaskId(task.task_id);
+                                setSelectedImageUrl(parsedUrls.urls[0]);
+                                setFavoriteModalOpen(true);
+                              }}
+                              className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-500 p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="收藏"
+                            >
+                              <Heart className="w-4 h-4" />
+                            </button>
                           </div>
                         );
                       }
@@ -586,17 +589,33 @@ export default function HistoryPage() {
                               <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded">
                                 {index + 1}
                               </div>
-                              {/* 单独下载按钮 */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  downloadImage(url, `pose-control-${index + 1}-${task.task_id}.png`);
-                                }}
-                                className="absolute top-1 right-1 bg-black/70 hover:bg-black/90 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                                title={`下载图片 ${index + 1}`}
-                              >
-                                <Download className="w-3 h-3" />
-                              </button>
+                              {/* 操作按钮 */}
+                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {/* 收藏按钮 */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTaskId(task.task_id);
+                                    setSelectedImageUrl(url);
+                                    setFavoriteModalOpen(true);
+                                  }}
+                                  className="bg-white/90 hover:bg-white text-red-500 p-1 rounded shadow-lg"
+                                  title={`收藏图片 ${index + 1}`}
+                                >
+                                  <Heart className="w-3 h-3" />
+                                </button>
+                                {/* 下载按钮 */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    downloadImage(url, `pose-control-${index + 1}-${task.task_id}.png`);
+                                  }}
+                                  className="bg-black/70 hover:bg-black/90 text-white p-1 rounded"
+                                  title={`下载图片 ${index + 1}`}
+                                >
+                                  <Download className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -608,7 +627,7 @@ export default function HistoryPage() {
                       if (parsedUrls.urls.poses.length === 1) {
                         // Single image: use square aspect
                         return (
-                          <div className="w-full h-full aspect-square relative">
+                          <div className="w-full h-full aspect-square relative group">
                     <img
                               src={parsedUrls.urls.poses[0]}
                               alt="Generated"
@@ -623,6 +642,19 @@ export default function HistoryPage() {
                                 }
                               }}
                             />
+                            {/* 收藏按钮 */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTaskId(task.task_id);
+                                setSelectedImageUrl(parsedUrls.urls.poses[0]);
+                                setFavoriteModalOpen(true);
+                              }}
+                              className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-500 p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="收藏"
+                            >
+                              <Heart className="w-4 h-4" />
+                            </button>
                           </div>
                         );
                       }
@@ -650,17 +682,33 @@ export default function HistoryPage() {
                               <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded">
                                 {index + 1}
                               </div>
-                              {/* 单独下载按钮 */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  downloadImage(url, `photobooth-pose-${index + 1}-${task.task_id}.png`);
-                                }}
-                                className="absolute top-1 right-1 bg-black/70 hover:bg-black/90 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                                title={`下载图片 ${index + 1}`}
-                              >
-                                <Download className="w-3 h-3" />
-                              </button>
+                              {/* 操作按钮 */}
+                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {/* 收藏按钮 */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTaskId(task.task_id);
+                                    setSelectedImageUrl(url);
+                                    setFavoriteModalOpen(true);
+                                  }}
+                                  className="bg-white/90 hover:bg-white text-red-500 p-1 rounded shadow-lg"
+                                  title={`收藏图片 ${index + 1}`}
+                                >
+                                  <Heart className="w-3 h-3" />
+                                </button>
+                                {/* 下载按钮 */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    downloadImage(url, `photobooth-pose-${index + 1}-${task.task_id}.png`);
+                                  }}
+                                  className="bg-black/70 hover:bg-black/90 text-white p-1 rounded"
+                                  title={`下载图片 ${index + 1}`}
+                                >
+                                  <Download className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -672,7 +720,7 @@ export default function HistoryPage() {
                       if (parsedUrls.urls.snapshots.length === 1) {
                         // Single image: use square aspect
                         return (
-                          <div className="w-full h-full aspect-square relative">
+                          <div className="w-full h-full aspect-square relative group">
                             <img
                               src={parsedUrls.urls.snapshots[0]}
                               alt="Generated"
@@ -687,6 +735,19 @@ export default function HistoryPage() {
                                 }
                               }}
                             />
+                            {/* 收藏按钮 */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTaskId(task.task_id);
+                                setSelectedImageUrl(parsedUrls.urls.snapshots[0]);
+                                setFavoriteModalOpen(true);
+                              }}
+                              className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-500 p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="收藏"
+                            >
+                              <Heart className="w-4 h-4" />
+                            </button>
                           </div>
                         );
                       }
@@ -714,17 +775,33 @@ export default function HistoryPage() {
                               <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded">
                                 {index + 1}
                               </div>
-                              {/* 单独下载按钮 */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  downloadImage(url, `snapshot-${index + 1}-${task.task_id}.png`);
-                                }}
-                                className="absolute top-1 right-1 bg-black/70 hover:bg-black/90 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                                title={`下载图片 ${index + 1}`}
-                              >
-                                <Download className="w-3 h-3" />
-                              </button>
+                              {/* 操作按钮 */}
+                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {/* 收藏按钮 */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTaskId(task.task_id);
+                                    setSelectedImageUrl(url);
+                                    setFavoriteModalOpen(true);
+                                  }}
+                                  className="bg-white/90 hover:bg-white text-red-500 p-1 rounded shadow-lg"
+                                  title={`收藏图片 ${index + 1}`}
+                                >
+                                  <Heart className="w-3 h-3" />
+                                </button>
+                                {/* 下载按钮 */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    downloadImage(url, `snapshot-${index + 1}-${task.task_id}.png`);
+                                  }}
+                                  className="bg-black/70 hover:bg-black/90 text-white p-1 rounded"
+                                  title={`下载图片 ${index + 1}`}
+                                >
+                                  <Download className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -778,17 +855,33 @@ export default function HistoryPage() {
                               <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded">
                                 {index + 1}
                               </div>
-                              {/* 单独下载按钮 */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  downloadImage(url, `mimic-${index + 1}-${task.task_id}.png`);
-                                }}
-                                className="absolute top-1 right-1 bg-black/70 hover:bg-black/90 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                                title={`下载图片 ${index + 1}`}
-                              >
-                                <Download className="w-3 h-3" />
-                              </button>
+                              {/* 操作按钮 */}
+                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {/* 收藏按钮 */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTaskId(task.task_id);
+                                    setSelectedImageUrl(url);
+                                    setFavoriteModalOpen(true);
+                                  }}
+                                  className="bg-white/90 hover:bg-white text-red-500 p-1 rounded shadow-lg"
+                                  title={`收藏图片 ${index + 1}`}
+                                >
+                                  <Heart className="w-3 h-3" />
+                                </button>
+                                {/* 下载按钮 */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    downloadImage(url, `mimic-${index + 1}-${task.task_id}.png`);
+                                  }}
+                                  className="bg-black/70 hover:bg-black/90 text-white p-1 rounded"
+                                  title={`下载图片 ${index + 1}`}
+                                >
+                                  <Download className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -800,13 +893,26 @@ export default function HistoryPage() {
                       const firstImage = parsedUrls.urls.final?.[0] || parsedUrls.urls.background;
                       if (firstImage) {
                         return (
-                          <div className="w-full h-full aspect-square relative">
+                          <div className="w-full h-full aspect-square relative group">
                             <img
                               src={firstImage}
                               alt="Generated"
                               className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
                               onClick={() => setPreviewImage(firstImage)}
                             />
+                            {/* 收藏按钮 */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTaskId(task.task_id);
+                                setSelectedImageUrl(firstImage);
+                                setFavoriteModalOpen(true);
+                              }}
+                              className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-500 p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="收藏"
+                            >
+                              <Heart className="w-4 h-4" />
+                            </button>
                           </div>
                         );
                       }
@@ -815,12 +921,27 @@ export default function HistoryPage() {
                     // Handle single image
                     if (parsedUrls?.type === 'single' && parsedUrls.urls) {
                       return (
-                        <img
-                          src={parsedUrls.urls}
-                          alt="Generated"
-                          className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                          onClick={() => setPreviewImage(parsedUrls.urls)}
-                        />
+                        <div className="w-full h-full relative group">
+                          <img
+                            src={parsedUrls.urls}
+                            alt="Generated"
+                            className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => setPreviewImage(parsedUrls.urls)}
+                          />
+                          {/* 收藏按钮 */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTaskId(task.task_id);
+                              setSelectedImageUrl(parsedUrls.urls);
+                              setFavoriteModalOpen(true);
+                            }}
+                            className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-500 p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="收藏"
+                          >
+                            <Heart className="w-4 h-4" />
+                          </button>
+                        </div>
                       );
                     }
                     
@@ -1179,8 +1300,10 @@ export default function HistoryPage() {
           onClose={() => {
             setFavoriteModalOpen(false);
             setSelectedTaskId(null);
+            setSelectedImageUrl(null);
           }}
           taskId={selectedTaskId}
+          imageUrl={selectedImageUrl || undefined}
           onSuccess={() => {
             // 刷新列表
             if (activeTab === "history") {

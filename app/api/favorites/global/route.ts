@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { task_id } = body;
+    const { task_id, image_url } = body;
 
     if (!task_id) {
       return NextResponse.json(
@@ -87,13 +87,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 检查是否已收藏
-    const { data: existing } = await supabaseAdminClient
+    // 检查是否已收藏（考虑 image_url）
+    let query = supabaseAdminClient
       .from("global_favorites")
       .select("id")
       .eq("task_id", task_id)
-      .eq("user_id", user!.email)
-      .single();
+      .eq("user_id", user!.email);
+
+    if (image_url) {
+      query = query.eq("image_url", image_url);
+    } else {
+      query = query.is("image_url", null);
+    }
+
+    const { data: existing } = await query.single();
 
     if (existing) {
       return NextResponse.json({ success: true, message: "已收藏" });
@@ -105,6 +112,7 @@ export async function POST(request: NextRequest) {
       .insert({
         task_id,
         user_id: user!.email,
+        image_url: image_url || null,
       });
 
     if (insertError) {

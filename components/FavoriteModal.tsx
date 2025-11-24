@@ -14,6 +14,7 @@ interface FavoriteModalProps {
   isOpen: boolean;
   onClose: () => void;
   taskId: string;
+  imageUrl?: string; // 具体要收藏的图片 URL（用于多图任务）
   onSuccess?: () => void;
   // 如果提供了 characterId，说明在角色页面，只能收藏到当前角色
   characterId?: string;
@@ -23,6 +24,7 @@ export default function FavoriteModal({
   isOpen,
   onClose,
   taskId,
+  imageUrl,
   onSuccess,
   characterId,
 }: FavoriteModalProps) {
@@ -87,7 +89,10 @@ export default function FavoriteModal({
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({ task_id: taskId }),
+          body: JSON.stringify({ 
+            task_id: taskId,
+            image_url: imageUrl || null,
+          }),
         });
       } else {
         // 收藏到角色
@@ -97,7 +102,10 @@ export default function FavoriteModal({
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({ task_id: taskId }),
+          body: JSON.stringify({ 
+            task_id: taskId,
+            image_url: imageUrl || null,
+          }),
         });
       }
 
