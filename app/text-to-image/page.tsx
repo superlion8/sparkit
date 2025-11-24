@@ -18,6 +18,7 @@ export default function TextToImagePage() {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("default");
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
+  const [generatedTaskIds, setGeneratedTaskIds] = useState<string[]>([]); // 保存每张图片对应的 taskId
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
 
@@ -38,9 +39,11 @@ export default function TextToImagePage() {
     setError("");
     setErrorDetails(null);
     setGeneratedImages([]);
+    setGeneratedTaskIds([]); // 清空旧的 taskIds
 
     try {
       const allImages: string[] = [];
+      const allTaskIds: string[] = []; // 收集所有 taskIds
 
       for (let i = 0; i < numImages; i++) {
         const formData = new FormData();
@@ -106,6 +109,8 @@ export default function TextToImagePage() {
               prompt,
               outputImageUrl: imageUrl,
             });
+            // 保存 taskId
+            allTaskIds.push(taskId);
             imageIndex += 1;
           }
 
@@ -119,6 +124,7 @@ export default function TextToImagePage() {
 
       if (allImages.length > 0) {
         setGeneratedImages(allImages);
+        setGeneratedTaskIds(allTaskIds); // 同时保存 taskIds
       } else {
         setError("API 返回成功但没有图片数据");
         setErrorDetails({ message: "No images in response", numImages, model });
@@ -291,7 +297,10 @@ export default function TextToImagePage() {
             )}
 
             {!loading && !authLoading && generatedImages.length > 0 && (
-              <ImageGrid images={generatedImages} />
+              <ImageGrid 
+                images={generatedImages} 
+                taskIds={generatedTaskIds}
+              />
             )}
           </div>
         </div>

@@ -21,6 +21,7 @@ export default function ImageToImagePage() {
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
+  const [generatedTaskIds, setGeneratedTaskIds] = useState<string[]>([]); // 保存每张图片对应的 taskId
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
 
@@ -46,6 +47,7 @@ export default function ImageToImagePage() {
     setError("");
     setErrorDetails(null);
     setGeneratedImages([]);
+    setGeneratedTaskIds([]); // 清空旧的 taskIds
 
     try {
       // Step 1: Upload images to Aimovely (尝试上传但不阻塞)
@@ -81,6 +83,7 @@ export default function ImageToImagePage() {
 
       // Step 2: Generate images
       const allImages: string[] = [];
+      const allTaskIds: string[] = []; // 收集所有 taskIds
 
       // For Hot Mode (Qwen), only generate 1 image per request
       if (hotMode) {
@@ -151,10 +154,13 @@ export default function ImageToImagePage() {
             outputImageUrl: data.images[0],
           });
 
+          // 保存 taskId
+          allTaskIds.push(taskId);
           allImages.push(...data.images);
         }
 
         setGeneratedImages(allImages);
+        setGeneratedTaskIds(allTaskIds); // 同时保存 taskIds
         setLoading(false);
         return;
       }
@@ -247,6 +253,8 @@ export default function ImageToImagePage() {
               inputImageUrl,
               outputImageUrl: imageUrl,
             });
+            // 保存 taskId
+            allTaskIds.push(taskId);
             imageIndex += 1;
           }
 
@@ -262,6 +270,7 @@ export default function ImageToImagePage() {
 
       if (allImages.length > 0) {
         setGeneratedImages(allImages);
+        setGeneratedTaskIds(allTaskIds); // 同时保存 taskIds
       } else {
         setError("API 返回成功但没有图片数据");
         setErrorDetails({ message: "No images in response", numImages, model });
@@ -486,7 +495,10 @@ export default function ImageToImagePage() {
             )}
 
             {!loading && !authLoading && generatedImages.length > 0 && (
-              <ImageGrid images={generatedImages} />
+              <ImageGrid 
+                images={generatedImages} 
+                taskIds={generatedTaskIds}
+              />
             )}
           </div>
         </div>

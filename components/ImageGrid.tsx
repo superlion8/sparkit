@@ -1,17 +1,22 @@
 "use client";
 
-import { Download, X, ZoomIn } from "lucide-react";
+import { Download, X, ZoomIn, Heart } from "lucide-react";
 import { useState } from "react";
 import { downloadImage } from "@/lib/downloadUtils";
+import FavoriteModal from "./FavoriteModal";
 
 interface ImageGridProps {
   images: string[];
+  taskIds?: string[]; // 每张图片对应的 task_id
   onDownload?: (url: string, index: number) => void;
 }
 
-export default function ImageGrid({ images, onDownload }: ImageGridProps) {
+export default function ImageGrid({ images, taskIds, onDownload }: ImageGridProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState("");
+  const [favoriteModalOpen, setFavoriteModalOpen] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
   const handleDownload = async (url: string, index: number) => {
     if (onDownload) {
@@ -30,6 +35,12 @@ export default function ImageGrid({ images, onDownload }: ImageGridProps) {
   const closeLightbox = () => {
     setLightboxOpen(false);
     setLightboxImage("");
+  };
+
+  const handleFavorite = (taskId: string, imageUrl: string) => {
+    setSelectedTaskId(taskId);
+    setSelectedImageUrl(imageUrl);
+    setFavoriteModalOpen(true);
   };
 
   if (images.length === 0) {
@@ -58,8 +69,20 @@ export default function ImageGrid({ images, onDownload }: ImageGridProps) {
               </div>
             </div>
 
-            {/* Download Button - Always visible */}
-            <div className="mt-4 flex justify-center">
+            {/* Action Buttons - Always visible */}
+            <div className="mt-4 flex justify-center gap-3">
+              {/* Favorite Button - Only show if taskId exists */}
+              {taskIds && taskIds[index] && (
+                <button
+                  onClick={() => handleFavorite(taskIds[index], url)}
+                  className="bg-white text-red-500 border-2 border-red-500 px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-red-50 transition-colors shadow-md"
+                  title="收藏图片"
+                >
+                  <Heart className="w-5 h-5" />
+                  收藏
+                </button>
+              )}
+              {/* Download Button */}
               <button
                 onClick={() => handleDownload(url, index)}
                 className="bg-primary-600 text-white px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-primary-700 transition-colors shadow-md"
@@ -91,6 +114,24 @@ export default function ImageGrid({ images, onDownload }: ImageGridProps) {
             onClick={(e) => e.stopPropagation()}
           />
         </div>
+      )}
+
+      {/* Favorite Modal */}
+      {selectedTaskId && (
+        <FavoriteModal
+          isOpen={favoriteModalOpen}
+          onClose={() => {
+            setFavoriteModalOpen(false);
+            setSelectedTaskId(null);
+            setSelectedImageUrl(null);
+          }}
+          taskId={selectedTaskId}
+          imageUrl={selectedImageUrl || undefined}
+          onSuccess={() => {
+            // 可以添加成功提示
+            console.log('Image favorited successfully');
+          }}
+        />
       )}
     </>
   );
