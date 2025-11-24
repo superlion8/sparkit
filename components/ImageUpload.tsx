@@ -58,6 +58,9 @@ export default function ImageUpload({
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [downloadingImage, setDownloadingImage] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyHasMore, setHistoryHasMore] = useState(true);
+  const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
   
   // Character selection modal
   const [showCharacterModal, setShowCharacterModal] = useState(false);
@@ -80,23 +83,28 @@ export default function ImageUpload({
   const CACHE_DURATION = 5 * 60 * 1000;
 
   // Fetch history when modal opens
-  const fetchHistory = async () => {
+  const fetchHistory = async (page: number = 1, append: boolean = false) => {
     if (!isAuthenticated || !accessToken) {
       console.log("Not authenticated, cannot fetch history");
       return;
     }
 
-    // Check cache first
-    if (historyCache && (Date.now() - historyCache.timestamp < CACHE_DURATION)) {
+    // Check cache first (only for first page)
+    if (page === 1 && !append && historyCache && (Date.now() - historyCache.timestamp < CACHE_DURATION)) {
       console.log("Using cached history records:", historyCache.records.length);
       setHistoryRecords(historyCache.records);
       return;
     }
 
-    setLoadingHistory(true);
+    if (append) {
+      setLoadingMoreHistory(true);
+    } else {
+      setLoadingHistory(true);
+    }
+    
     try {
-      console.log("Fetching fresh history data...");
-      const response = await fetch("/api/history?pageSize=50", {
+      console.log(`Fetching history page ${page}...`);
+      const response = await fetch(`/api/history?page=${page}&pageSize=50`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
@@ -118,26 +126,52 @@ export default function ImageUpload({
         );
         console.log("Records with images:", recordsWithImages.length);
         
-        // Update cache
-        setHistoryCache({
-          records: recordsWithImages,
-          timestamp: Date.now(),
-        });
-        setHistoryRecords(recordsWithImages);
+        // Check if there are more pages
+        const pagination = data.pagination;
+        if (pagination) {
+          setHistoryHasMore(pagination.page < pagination.totalPages);
+        } else {
+          // If no pagination data, check if we got full page
+          setHistoryHasMore(recordsWithImages.length === 50);
+        }
+        
+        if (append) {
+          // Append to existing records
+          setHistoryRecords(prev => [...prev, ...recordsWithImages]);
+        } else {
+          // Replace records
+          setHistoryRecords(recordsWithImages);
+          // Update cache (only for first page)
+          if (page === 1) {
+            setHistoryCache({
+              records: recordsWithImages,
+              timestamp: Date.now(),
+            });
+          }
+        }
+        
+        setHistoryPage(page);
       } else {
         console.error("Failed to fetch history:", response.status, response.statusText);
       }
     } catch (error) {
       console.error("Failed to fetch history:", error);
     } finally {
-      setLoadingHistory(false);
+      if (append) {
+        setLoadingMoreHistory(false);
+      } else {
+        setLoadingHistory(false);
+      }
     }
   };
 
   // Fetch history when modal opens
   useEffect(() => {
     if (showHistoryModal) {
-      fetchHistory();
+      // Reset pagination when opening modal
+      setHistoryPage(1);
+      setHistoryHasMore(true);
+      fetchHistory(1, false);
     }
   }, [showHistoryModal]);
 
@@ -715,27 +749,54 @@ export default function ImageUpload({
                   <p>暂无历史图片</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {historyRecords.map((record) => (
-                    <button
-                      key={record.id}
-                      onClick={() => handleSelectFromHistory(record.output_image_url!)}
-                      disabled={downloadingImage}
-                      className="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden hover:ring-2 hover:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <img
-                        src={record.output_image_url!}
-                        alt="历史图片"
-                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                          选择
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {historyRecords.map((record) => (
+                      <button
+                        key={record.id}
+                        onClick={() => handleSelectFromHistory(record.output_image_url!)}
+                        disabled={downloadingImage}
+                        className="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden hover:ring-2 hover:ring-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <img
+                          src={`/api/download?url=${encodeURIComponent(record.output_image_url!)}`}
+                          alt="历史图片"
+                          className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                          onError={(e) => {
+                            // 如果代理失败，显示占位图
+                            const target = e.target as HTMLImageElement;
+                            target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="14"%3E图片加载失败%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                            选择
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Load More Button */}
+                  {historyHasMore && (
+                    <div className="mt-6 flex justify-center">
+                      <button
+                        onClick={() => fetchHistory(historyPage + 1, true)}
+                        disabled={loadingMoreHistory}
+                        className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {loadingMoreHistory ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-400 border-t-gray-600"></div>
+                            <span>加载中...</span>
+                          </>
+                        ) : (
+                          <span>加载更多</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
