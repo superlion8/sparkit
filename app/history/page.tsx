@@ -1025,23 +1025,47 @@ export default function HistoryPage() {
       {/* 收藏 Tab - 显示收藏的图片 */}
       {!loading && !error && activeTab === "favorites" && favorites.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {favorites.map((task) => (
-            <div key={task.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-              {/* 图片区域 */}
-              <div className="relative aspect-square bg-gray-100">
-                {task.output_image_url && (
-                  <img
-                    src={task.output_image_url}
-                    alt="Generated"
-                    className="w-full h-full object-cover cursor-pointer"
-                    onClick={() => setPreviewImage(task.output_image_url)}
-                  />
-                )}
-                {/* 收藏标记 */}
-                <div className="absolute top-2 right-2 bg-red-500 rounded-full p-2">
-                  <Heart className="w-4 h-4 text-white fill-current" />
+          {favorites.map((task) => {
+            // 解析图片 URL
+            const parsedUrls = parseImageUrls(task.output_image_url);
+            let displayUrl: string | null = null;
+
+            // 根据类型提取第一张图片
+            if (parsedUrls) {
+              if (parsedUrls.type === 'single') {
+                displayUrl = parsedUrls.urls;
+              } else if (parsedUrls.type === 'mimic') {
+                displayUrl = parsedUrls.urls.final?.[0] || parsedUrls.urls.background || null;
+              } else if (parsedUrls.type === 'photobooth') {
+                displayUrl = parsedUrls.urls.poses?.[0] || null;
+              } else if (parsedUrls.type === 'snapshot') {
+                displayUrl = parsedUrls.urls.snapshots?.[0] || null;
+              } else if (parsedUrls.type === 'pose_control') {
+                displayUrl = parsedUrls.urls[0] || null;
+              }
+            }
+
+            return (
+              <div key={task.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+                {/* 图片区域 */}
+                <div className="relative aspect-square bg-gray-100">
+                  {displayUrl ? (
+                    <img
+                      src={displayUrl}
+                      alt="Generated"
+                      className="w-full h-full object-cover cursor-pointer"
+                      onClick={() => setPreviewImage(displayUrl)}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <ImageIcon className="w-16 h-16 text-gray-400" />
+                    </div>
+                  )}
+                  {/* 收藏标记 */}
+                  <div className="absolute top-2 right-2 bg-red-500 rounded-full p-2">
+                    <Heart className="w-4 h-4 text-white fill-current" />
+                  </div>
                 </div>
-              </div>
 
               {/* 信息区域 */}
               <div className="p-4">
@@ -1076,43 +1100,45 @@ export default function HistoryPage() {
                   </div>
                 )}
 
-                {/* 操作按钮 */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleDownloadImage(task.output_image_url!, task.task_id)}
-                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
-                  >
-                    <Download className="w-4 h-4" />
-                    下载
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (confirm("确定要取消收藏吗？")) {
-                        try {
-                          const response = await fetch(`/api/favorites/global?task_id=${task.task_id}`, {
-                            method: "DELETE",
-                            headers: {
-                              Authorization: `Bearer ${accessToken}`,
-                            },
-                          });
-                          if (response.ok) {
-                            fetchFavorites(); // 刷新列表
+                  {/* 操作按钮 */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => displayUrl && handleDownloadImage(displayUrl, task.task_id)}
+                      disabled={!displayUrl}
+                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Download className="w-4 h-4" />
+                      下载
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (confirm("确定要取消收藏吗？")) {
+                          try {
+                            const response = await fetch(`/api/favorites/global?task_id=${task.task_id}`, {
+                              method: "DELETE",
+                              headers: {
+                                Authorization: `Bearer ${accessToken}`,
+                              },
+                            });
+                            if (response.ok) {
+                              fetchFavorites(); // 刷新列表
+                            }
+                          } catch (error) {
+                            console.error("Failed to remove favorite:", error);
+                            alert("取消收藏失败");
                           }
-                        } catch (error) {
-                          console.error("Failed to remove favorite:", error);
-                          alert("取消收藏失败");
                         }
-                      }
-                    }}
-                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-sm rounded-lg transition-colors"
-                  >
-                    <Heart className="w-4 h-4" />
-                    取消收藏
-                  </button>
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-sm rounded-lg transition-colors"
+                    >
+                      <Heart className="w-4 h-4" />
+                      取消收藏
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
