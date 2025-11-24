@@ -5,8 +5,9 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
 import { useAuth } from "@/hooks/useAuth";
 import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
-import { Camera, Download, X, Maximize2 } from "lucide-react";
+import { Camera, Download, X, Maximize2, Heart } from "lucide-react";
 import { downloadImage } from "@/lib/downloadUtils";
+import FavoriteModal from "@/components/FavoriteModal";
 
 type AspectRatio = "default" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
 
@@ -25,10 +26,14 @@ export default function PhotoBoothPage() {
   const [loading, setLoading] = useState(false);
   const [poseDescriptions, setPoseDescriptions] = useState<PoseDescription[]>([]);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
+  const [generatedTaskIds, setGeneratedTaskIds] = useState<string[]>([]); // 保存每张图片对应的 taskId
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState<string>("");
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+  const [favoriteModalOpen, setFavoriteModalOpen] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   
   // Use ref to prevent duplicate requests
   const isGeneratingRef = useRef(false);
@@ -61,6 +66,7 @@ export default function PhotoBoothPage() {
     setErrorDetails(null);
     setPoseDescriptions([]);
     setGeneratedImages([]);
+    setGeneratedTaskIds([]); // 清空旧的 taskIds
     setCurrentStep("正在分析图片并生成pose描述...");
 
     try {
@@ -279,32 +285,35 @@ export default function PhotoBoothPage() {
       const displayImages = data.generatedImageUrls || [];
       setGeneratedImages(displayImages);
 
-      // Log task event with all image URLs
+      // Log task event - 为每张 pose 图片创建单独的 task
+      const taskIds: string[] = [];
       if (accessToken && displayImages.length > 0) {
-        const taskId = generateClientTaskId("photobooth");
+        const baseTaskId = generateClientTaskId("photobooth");
         
-        // Store all image URLs as JSON string
-        // Input image: {"input": "url"}
-        // Output images: {"poses": ["url1", "url2", ...]}
         const inputImageUrls = {
           input: data.inputImageUrl || null,
         };
-        const outputImageUrls = {
-          poses: data.generatedImageUrls || [],
-        };
-        
-        // Store as JSON string in the existing fields
         const inputImageUrlJson = JSON.stringify(inputImageUrls);
-        const outputImageUrlJson = JSON.stringify(outputImageUrls);
         
-        await logTaskEvent(accessToken, {
-          taskId,
-          taskType: "photobooth",
-          prompt: JSON.stringify(data.poseDescriptions),
-          inputImageUrl: inputImageUrlJson,
-          outputImageUrl: outputImageUrlJson,
-        });
+        // 为每张 pose 图片创建单独的 task
+        for (let i = 0; i < displayImages.length; i++) {
+          const taskId = displayImages.length > 1 ? `${baseTaskId}-${i}` : baseTaskId;
+          
+          await logTaskEvent(accessToken, {
+            taskId,
+            taskType: "photobooth",
+            prompt: data.poseDescriptions && data.poseDescriptions[i] 
+              ? JSON.stringify(data.poseDescriptions[i])
+              : JSON.stringify(data.poseDescriptions),
+            inputImageUrl: inputImageUrlJson,
+            outputImageUrl: displayImages[i], // 单张图片 URL
+          });
+          
+          taskIds.push(taskId);
+        }
       }
+      
+      setGeneratedTaskIds(taskIds); // 保存 taskIds
 
       // Show generation stats if available
       if (data.generatedCount !== undefined && data.requestedCount !== undefined) {
@@ -583,7 +592,22 @@ export default function PhotoBoothPage() {
                                   </div>
                                 </div>
                                 {imageUrl && (
-                                  <div className="mt-6">
+                                  <div className="mt-6 flex gap-4">
+                                    <button
+                                      onClick={() => {
+                                        const taskId = generatedTaskIds[index];
+                                        if (taskId) {
+                                          setSelectedTaskId(taskId);
+                                          setSelectedImageUrl(imageUrl);
+                                          setFavoriteModalOpen(true);
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-2 text-sm text-red-500 hover:text-red-600 font-medium"
+                                      disabled={!generatedTaskIds[index]}
+                                    >
+                                      <Heart className="w-4 h-4" />
+                                      收藏图片
+                                    </button>
                                     <button
                                       onClick={() => downloadImage(imageUrl, `photobooth-pose-${index + 1}.png`)}
                                       className="inline-flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700 font-medium"
@@ -640,6 +664,23 @@ export default function PhotoBoothPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Favorite Modal */}
+      {selectedTaskId && (
+        <FavoriteModal
+          isOpen={favoriteModalOpen}
+          onClose={() => {
+            setFavoriteModalOpen(false);
+            setSelectedTaskId(null);
+            setSelectedImageUrl(null);
+          }}
+          taskId={selectedTaskId}
+          imageUrl={selectedImageUrl || undefined}
+          onSuccess={() => {
+            console.log('Image favorited successfully');
+          }}
+        />
       )}
     </div>
   );

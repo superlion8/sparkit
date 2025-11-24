@@ -24,6 +24,7 @@ export default function MimicPage() {
   const [editableCaptionPrompt, setEditableCaptionPrompt] = useState("");
   const [backgroundImage, setBackgroundImage] = useState<string>("");
   const [finalImages, setFinalImages] = useState<string[]>([]);
+  const [finalTaskIds, setFinalTaskIds] = useState<string[]>([]); // 保存每张图片对应的 taskId
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState<string>("");
@@ -53,6 +54,7 @@ export default function MimicPage() {
     setEditableCaptionPrompt("");
     setBackgroundImage("");
     setFinalImages([]);
+    setFinalTaskIds([]); // 清空旧的 taskIds
     setCurrentStep("正在反推提示词...");
 
     try {
@@ -150,42 +152,34 @@ export default function MimicPage() {
       
       setFinalImages(displayFinalImages);
 
-      // Log task event with all image URLs
+      // Log task event - 为每张 final image 创建单独的 task
+      const taskIds: string[] = [];
       if (accessToken && displayFinalImages.length > 0) {
-        const taskId = generateClientTaskId("mimic");
+        const baseTaskId = generateClientTaskId("mimic");
         
-        // Store all image URLs as JSON string
-        // Input images: {"reference": "url1", "character": "url2"}
-        // Output images: {"background": "url1", "final": ["url2", "url3", ...]}
         const inputImageUrls = {
           reference: data.referenceImageUrl || null,
           character: data.characterImageUrls || [], // Now an array
         };
-        const outputImageUrls = {
-          background: data.backgroundImageUrl || null,
-          final: data.finalImageUrls || displayFinalImages,
-        };
-        
-        // Store as JSON string in the existing fields
-        // For compatibility, we'll store the first output image URL directly
-        // and store all URLs as JSON in a comment or separate field
         const inputImageUrlJson = JSON.stringify(inputImageUrls);
-        const outputImageUrlJson = JSON.stringify(outputImageUrls);
         
-        // Store the first output image URL directly for compatibility
-        const firstOutputImageUrl = Array.isArray(displayFinalImages) && displayFinalImages.length > 0
-          ? displayFinalImages[0]
-          : null;
-        
-        await logTaskEvent(accessToken, {
-          taskId,
-          taskType: "mimic",
-          prompt: data.captionPrompt,
-          // Store JSON in the URL fields (we'll parse this in admin dashboard)
-          inputImageUrl: inputImageUrlJson,
-          outputImageUrl: outputImageUrlJson,
-        });
+        // 为每张 final image 创建单独的 task
+        for (let i = 0; i < displayFinalImages.length; i++) {
+          const taskId = displayFinalImages.length > 1 ? `${baseTaskId}-${i}` : baseTaskId;
+          
+          await logTaskEvent(accessToken, {
+            taskId,
+            taskType: "mimic",
+            prompt: data.captionPrompt,
+            inputImageUrl: inputImageUrlJson,
+            outputImageUrl: displayFinalImages[i], // 单张图片 URL
+          });
+          
+          taskIds.push(taskId);
+        }
       }
+      
+      setFinalTaskIds(taskIds); // 保存 taskIds
 
       // Show generation stats if available
       if (data.generatedCount !== undefined && data.requestedCount !== undefined) {
@@ -232,6 +226,7 @@ export default function MimicPage() {
     setError("");
     setErrorDetails(null);
     setFinalImages([]);
+    setFinalTaskIds([]); // 清空旧的 taskIds
     setCurrentStep("正在使用修改后的提示词重新生成...");
 
     try {
@@ -306,28 +301,33 @@ export default function MimicPage() {
       
       setFinalImages(displayFinalImages);
 
-      // Log task event
+      // Log task event - 为每张 final image 创建单独的 task
+      const taskIds: string[] = [];
       if (accessToken && displayFinalImages.length > 0) {
-        const taskId = generateClientTaskId("mimic");
+        const baseTaskId = generateClientTaskId("mimic");
         
         const inputImageUrls = {
           character: data.characterImageUrls || [],
         };
-        const outputImageUrls = {
-          final: data.finalImageUrls || displayFinalImages,
-        };
-        
         const inputImageUrlJson = JSON.stringify(inputImageUrls);
-        const outputImageUrlJson = JSON.stringify(outputImageUrls);
         
-        await logTaskEvent(accessToken, {
-          taskId,
-          taskType: "mimic",
-          prompt: editableCaptionPrompt, // 使用用户修改后的 prompt
-          inputImageUrl: inputImageUrlJson,
-          outputImageUrl: outputImageUrlJson,
-        });
+        // 为每张 final image 创建单独的 task
+        for (let i = 0; i < displayFinalImages.length; i++) {
+          const taskId = displayFinalImages.length > 1 ? `${baseTaskId}-${i}` : baseTaskId;
+          
+          await logTaskEvent(accessToken, {
+            taskId,
+            taskType: "mimic",
+            prompt: editableCaptionPrompt, // 使用用户修改后的 prompt
+            inputImageUrl: inputImageUrlJson,
+            outputImageUrl: displayFinalImages[i], // 单张图片 URL
+          });
+          
+          taskIds.push(taskId);
+        }
       }
+      
+      setFinalTaskIds(taskIds); // 保存 taskIds
 
       setCurrentStep("生成完成！");
     } catch (err: any) {
@@ -589,7 +589,10 @@ export default function MimicPage() {
             {!loading && !authLoading && finalImages.length > 0 && (
               <div>
                 <h3 className="text-sm font-medium text-gray-700 mb-4">最终生成图片</h3>
-                <ImageGrid images={finalImages} />
+                <ImageGrid 
+                  images={finalImages} 
+                  taskIds={finalTaskIds}
+                />
               </div>
             )}
           </div>
