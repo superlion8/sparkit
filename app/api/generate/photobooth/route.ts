@@ -669,12 +669,15 @@ export async function POST(request: NextRequest) {
         console.warn(`⚠️ 响应体仍然较大 (${finalResponseSizeMB.toFixed(2)} MB)，可能影响传输`);
       }
       
-      // Create response - use pre-serialized JSON string to avoid double serialization
-      const response = new NextResponse(responseJsonString, {
+      // Parse the pre-serialized JSON back to object for NextResponse.json()
+      // This ensures Vercel handles Content-Length and compression correctly
+      const responseData = JSON.parse(responseJsonString);
+      
+      // Use NextResponse.json() instead of manual NextResponse creation
+      // This matches Mimic API and avoids Content-Length mismatch issues
+      const response = NextResponse.json(responseData, {
         status: 200,
         headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Content-Length': responseJsonString.length.toString(),
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',
           'Expires': '0',
@@ -696,7 +699,8 @@ export async function POST(request: NextRequest) {
       
       // Log a final checkpoint before returning
       console.log(`[${new Date().toISOString()}] 开始返回响应...`);
-      console.log(`响应体大小: ${finalResponseSizeKB} KB, Content-Length: ${responseJsonString.length}`);
+      console.log(`响应体大小: ${finalResponseSizeKB} KB (${finalResponseSizeMB.toFixed(2)} MB)`);
+      console.log(`生成的图片数量: ${successfulImageUrls.length}, Pose 描述数量: ${successfulPoseDescriptions.length}`);
       
       return response;
     } catch (responseError) {
