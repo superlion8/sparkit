@@ -501,6 +501,36 @@ export default function HistoryPage() {
               >
                 {/* Action Buttons (Top Right) */}
                 <div className="absolute top-2 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Favorite Button */}
+                  <button
+                    onClick={() => {
+                      // 获取第一张图片 URL 作为默认收藏
+                      const parsedUrls = parseImageUrls(task.output_image_url);
+                      let firstImageUrl: string | null = null;
+                      
+                      if (parsedUrls) {
+                        if (parsedUrls.type === 'single') {
+                          firstImageUrl = parsedUrls.urls;
+                        } else if (parsedUrls.type === 'mimic') {
+                          firstImageUrl = parsedUrls.urls.final?.[0] || parsedUrls.urls.background || null;
+                        } else if (parsedUrls.type === 'photobooth') {
+                          firstImageUrl = parsedUrls.urls.poses?.[0] || null;
+                        } else if (parsedUrls.type === 'snapshot') {
+                          firstImageUrl = parsedUrls.urls.snapshots?.[0] || null;
+                        } else if (parsedUrls.type === 'pose_control') {
+                          firstImageUrl = parsedUrls.urls[0] || null;
+                        }
+                      }
+                      
+                      setSelectedTaskId(task.task_id);
+                      setSelectedImageUrl(firstImageUrl);
+                      setFavoriteModalOpen(true);
+                    }}
+                    className="p-2 bg-white/90 hover:bg-white text-red-500 rounded-full shadow-lg"
+                    title="收藏"
+                  >
+                    <Heart className="w-4 h-4" />
+                  </button>
                   {/* Delete Button */}
                   <button
                     onClick={() => handleDeleteTask(task.task_id)}
