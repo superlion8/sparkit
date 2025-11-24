@@ -493,654 +493,124 @@ export default function HistoryPage() {
               );
             })}
 
-            {/* 显示已完成的任务 */}
-            {tasks.map((task) => (
-              <div
-                key={task.id}
-                className="relative bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group"
-              >
-                {/* Action Buttons (Top Right) */}
-                <div className="absolute top-2 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {/* Favorite Button */}
-                  <button
-                    onClick={() => {
-                      // 获取第一张图片 URL 作为默认收藏
-                      const parsedUrls = parseImageUrls(task.output_image_url);
-                      let firstImageUrl: string | null = null;
-                      
-                      if (parsedUrls) {
-                        if (parsedUrls.type === 'single') {
-                          firstImageUrl = parsedUrls.urls;
-                        } else if (parsedUrls.type === 'mimic') {
-                          firstImageUrl = parsedUrls.urls.final?.[0] || parsedUrls.urls.background || null;
-                        } else if (parsedUrls.type === 'photobooth') {
-                          firstImageUrl = parsedUrls.urls.poses?.[0] || null;
-                        } else if (parsedUrls.type === 'snapshot') {
-                          firstImageUrl = parsedUrls.urls.snapshots?.[0] || null;
-                        } else if (parsedUrls.type === 'pose_control') {
-                          firstImageUrl = parsedUrls.urls[0] || null;
-                        }
-                      }
-                      
-                      setSelectedTaskId(task.task_id);
-                      setSelectedImageUrl(firstImageUrl);
-                      setFavoriteModalOpen(true);
-                    }}
-                    className="p-2 bg-white/90 hover:bg-white text-red-500 rounded-full shadow-lg"
-                    title="收藏"
-                  >
-                    <Heart className="w-4 h-4" />
-                  </button>
-                  {/* Delete Button */}
-                  <button
-                    onClick={() => handleDeleteTask(task.task_id)}
-                    className="p-2 bg-red-500/90 hover:bg-red-600 text-white rounded-full shadow-lg"
-                    title="删除记录"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Preview */}
-                <div className={(() => {
-                  const parsedUrls = parseImageUrls(task.output_image_url);
-                  // PhotoBooth, Snapshot, Mimic, and Pose Control tasks: use auto height to accommodate all images
-                  const isMultiImage = 
-                    (parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses) && parsedUrls.urls.poses.length > 1) ||
-                    (parsedUrls?.type === 'snapshot' && Array.isArray(parsedUrls.urls.snapshots) && parsedUrls.urls.snapshots.length > 1) ||
-                    (parsedUrls?.type === 'mimic' && Array.isArray(parsedUrls.urls.final) && parsedUrls.urls.final.length > 1) ||
-                    (parsedUrls?.type === 'pose_control' && Array.isArray(parsedUrls.urls) && parsedUrls.urls.length > 1);
-                  if (isMultiImage) {
-                    return "bg-gray-100 relative";
+            {/* 显示已完成的任务 - 简化为单图显示 */}
+            {tasks.map((task) => {
+              // 获取单张图片 URL
+              let imageUrl: string | null = null;
+              
+              // 尝试直接使用 output_image_url（新数据格式）
+              if (task.output_image_url && task.output_image_url.startsWith('http')) {
+                imageUrl = task.output_image_url;
+              } else {
+                // 旧数据可能是 JSON 格式，解析并取第一张
+                const parsedUrls = parseImageUrls(task.output_image_url);
+                if (parsedUrls) {
+                  if (parsedUrls.type === 'single') {
+                    imageUrl = parsedUrls.urls;
+                  } else if (parsedUrls.type === 'mimic') {
+                    imageUrl = parsedUrls.urls.final?.[0] || parsedUrls.urls.background || null;
+                  } else if (parsedUrls.type === 'photobooth') {
+                    imageUrl = parsedUrls.urls.poses?.[0] || null;
+                  } else if (parsedUrls.type === 'snapshot') {
+                    imageUrl = parsedUrls.urls.snapshots?.[0] || null;
+                  } else if (parsedUrls.type === 'pose_control') {
+                    imageUrl = parsedUrls.urls[0] || null;
                   }
-                  // Other tasks: keep aspect-square
-                  return "aspect-square bg-gray-100 relative";
-                })()}>
-                  {(() => {
-                    const parsedUrls = parseImageUrls(task.output_image_url);
-                    
-                    // Handle Pose Control with multiple images - show all images
-                    if (parsedUrls?.type === 'pose_control' && Array.isArray(parsedUrls.urls) && parsedUrls.urls.length > 0) {
-                      if (parsedUrls.urls.length === 1) {
-                        // Single image: use square aspect
-                        return (
-                          <div className="w-full h-full aspect-square relative group">
-                            <img
-                              src={parsedUrls.urls[0]}
-                              alt="Generated"
-                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                              onClick={() => setPreviewImage(parsedUrls.urls[0])}
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                const parent = target.parentElement;
-                                if (parent) {
-                                  parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><div class="text-center"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-xs">图片加载失败</p></div></div>';
-                                }
-                              }}
-                            />
-                            {/* 收藏按钮 */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTaskId(task.task_id);
-                                setSelectedImageUrl(parsedUrls.urls[0]);
-                                setFavoriteModalOpen(true);
-                              }}
-                              className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-500 p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="收藏"
-                            >
-                              <Heart className="w-4 h-4" />
-                            </button>
-                          </div>
-                        );
-                      }
-                      // Multiple images: show grid (2 cols for 2-3 images, 3 cols for 4-9 images)
-                      const imageCount = parsedUrls.urls.length;
-                      const gridColsClass = imageCount <= 3 ? 'grid-cols-2' : 'grid-cols-3';
-                      return (
-                        <div className={`grid ${gridColsClass} gap-1 p-1`}>
-                          {parsedUrls.urls.map((url: string, index: number) => (
-                            <div key={index} className="aspect-square relative bg-gray-200 rounded overflow-hidden group">
-                              <img
-                                src={url}
-                                alt={`Pose Control ${index + 1}`}
-                                className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => setPreviewImage(url)}
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                  const parent = target.parentElement;
-                                  if (parent) {
-                                    parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
-                                  }
-                                }}
-                              />
-                              <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded">
-                                {index + 1}
-                              </div>
-                              {/* 操作按钮 */}
-                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {/* 收藏按钮 */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedTaskId(task.task_id);
-                                    setSelectedImageUrl(url);
-                                    setFavoriteModalOpen(true);
-                                  }}
-                                  className="bg-white/90 hover:bg-white text-red-500 p-1 rounded shadow-lg"
-                                  title={`收藏图片 ${index + 1}`}
-                                >
-                                  <Heart className="w-3 h-3" />
-                                </button>
-                                {/* 下载按钮 */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    downloadImage(url, `pose-control-${index + 1}-${task.task_id}.png`);
-                                  }}
-                                  className="bg-black/70 hover:bg-black/90 text-white p-1 rounded"
-                                  title={`下载图片 ${index + 1}`}
-                                >
-                                  <Download className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    }
-                    
-                    // Handle PhotoBooth with multiple images - show all images
-                    if (parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses) && parsedUrls.urls.poses.length > 0) {
-                      if (parsedUrls.urls.poses.length === 1) {
-                        // Single image: use square aspect
-                        return (
-                          <div className="w-full h-full aspect-square relative group">
-                    <img
-                              src={parsedUrls.urls.poses[0]}
-                              alt="Generated"
-                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                              onClick={() => setPreviewImage(parsedUrls.urls.poses[0])}
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                const parent = target.parentElement;
-                                if (parent) {
-                                  parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><div class="text-center"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-xs">图片加载失败</p></div></div>';
-                                }
-                              }}
-                            />
-                            {/* 收藏按钮 */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTaskId(task.task_id);
-                                setSelectedImageUrl(parsedUrls.urls.poses[0]);
-                                setFavoriteModalOpen(true);
-                              }}
-                              className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-500 p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="收藏"
-                            >
-                              <Heart className="w-4 h-4" />
-                            </button>
-                          </div>
-                        );
-                      }
-                      // Multiple images: show grid (2 cols for 2-3 images, 3 cols for 4-9 images)
-                      const imageCount = parsedUrls.urls.poses.length;
-                      const gridColsClass = imageCount <= 3 ? 'grid-cols-2' : 'grid-cols-3';
-                      return (
-                        <div className={`grid ${gridColsClass} gap-1 p-1`}>
-                          {parsedUrls.urls.poses.map((url: string, index: number) => (
-                            <div key={index} className="aspect-square relative bg-gray-200 rounded overflow-hidden group">
-                              <img
-                                src={url}
-                                alt={`Pose ${index + 1}`}
-                                className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => setPreviewImage(url)}
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                  const parent = target.parentElement;
-                                  if (parent) {
-                                    parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
-                                  }
-                                }}
-                              />
-                              <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded">
-                                {index + 1}
-                              </div>
-                              {/* 操作按钮 */}
-                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {/* 收藏按钮 */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedTaskId(task.task_id);
-                                    setSelectedImageUrl(url);
-                                    setFavoriteModalOpen(true);
-                                  }}
-                                  className="bg-white/90 hover:bg-white text-red-500 p-1 rounded shadow-lg"
-                                  title={`收藏图片 ${index + 1}`}
-                                >
-                                  <Heart className="w-3 h-3" />
-                                </button>
-                                {/* 下载按钮 */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    downloadImage(url, `photobooth-pose-${index + 1}-${task.task_id}.png`);
-                                  }}
-                                  className="bg-black/70 hover:bg-black/90 text-white p-1 rounded"
-                                  title={`下载图片 ${index + 1}`}
-                                >
-                                  <Download className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    }
-                    
-                    // Handle Snapshot with multiple images - show all images
-                    if (parsedUrls?.type === 'snapshot' && Array.isArray(parsedUrls.urls.snapshots) && parsedUrls.urls.snapshots.length > 0) {
-                      if (parsedUrls.urls.snapshots.length === 1) {
-                        // Single image: use square aspect
-                        return (
-                          <div className="w-full h-full aspect-square relative group">
-                            <img
-                              src={parsedUrls.urls.snapshots[0]}
-                              alt="Generated"
-                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                              onClick={() => setPreviewImage(parsedUrls.urls.snapshots[0])}
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                const parent = target.parentElement;
-                                if (parent) {
-                                  parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><div class="text-center"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-xs">图片加载失败</p></div></div>';
-                                }
-                              }}
-                            />
-                            {/* 收藏按钮 */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTaskId(task.task_id);
-                                setSelectedImageUrl(parsedUrls.urls.snapshots[0]);
-                                setFavoriteModalOpen(true);
-                              }}
-                              className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-500 p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="收藏"
-                            >
-                              <Heart className="w-4 h-4" />
-                            </button>
-                          </div>
-                        );
-                      }
-                      // Multiple images: show grid (2 cols for 2-3 images, 3 cols for 4-9 images)
-                      const imageCount = parsedUrls.urls.snapshots.length;
-                      const gridColsClass = imageCount <= 3 ? 'grid-cols-2' : 'grid-cols-3';
-                      return (
-                        <div className={`grid ${gridColsClass} gap-1 p-1`}>
-                          {parsedUrls.urls.snapshots.map((url: string, index: number) => (
-                            <div key={index} className="aspect-square relative bg-gray-200 rounded overflow-hidden group">
-                              <img
-                                src={url}
-                                alt={`Snapshot ${index + 1}`}
-                                className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => setPreviewImage(url)}
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                  const parent = target.parentElement;
-                                  if (parent) {
-                                    parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
-                                  }
-                                }}
-                              />
-                              <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded">
-                                {index + 1}
-                              </div>
-                              {/* 操作按钮 */}
-                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {/* 收藏按钮 */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedTaskId(task.task_id);
-                                    setSelectedImageUrl(url);
-                                    setFavoriteModalOpen(true);
-                                  }}
-                                  className="bg-white/90 hover:bg-white text-red-500 p-1 rounded shadow-lg"
-                                  title={`收藏图片 ${index + 1}`}
-                                >
-                                  <Heart className="w-3 h-3" />
-                                </button>
-                                {/* 下载按钮 */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    downloadImage(url, `snapshot-${index + 1}-${task.task_id}.png`);
-                                  }}
-                                  className="bg-black/70 hover:bg-black/90 text-white p-1 rounded"
-                                  title={`下载图片 ${index + 1}`}
-                                >
-                                  <Download className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    }
-                    
-                    // Handle Mimic with multiple images - show all images
-                    if (parsedUrls?.type === 'mimic' && Array.isArray(parsedUrls.urls.final) && parsedUrls.urls.final.length > 0) {
-                      if (parsedUrls.urls.final.length === 1) {
-                        // Single image: use square aspect
-                        return (
-                          <div className="w-full h-full aspect-square relative">
-                            <img
-                              src={parsedUrls.urls.final[0]}
-                              alt="Generated"
-                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                              onClick={() => setPreviewImage(parsedUrls.urls.final[0])}
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                const parent = target.parentElement;
-                                if (parent) {
-                                  parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><div class="text-center"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-xs">图片加载失败</p></div></div>';
-                                }
-                              }}
-                            />
-                          </div>
-                        );
-                      }
-                      // Multiple images: show grid (2 cols for 2-3 images, 3 cols for 4-9 images)
-                      const imageCount = parsedUrls.urls.final.length;
-                      const gridColsClass = imageCount <= 3 ? 'grid-cols-2' : 'grid-cols-3';
-                      return (
-                        <div className={`grid ${gridColsClass} gap-1 p-1`}>
-                          {parsedUrls.urls.final.map((url: string, index: number) => (
-                            <div key={index} className="aspect-square relative bg-gray-200 rounded overflow-hidden group">
-                              <img
-                                src={url}
-                                alt={`Mimic ${index + 1}`}
-                                className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => setPreviewImage(url)}
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                  const parent = target.parentElement;
-                                  if (parent) {
-                                    parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
-                                  }
-                                }}
-                              />
-                              <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 py-0.5 rounded">
-                                {index + 1}
-                              </div>
-                              {/* 操作按钮 */}
-                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {/* 收藏按钮 */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedTaskId(task.task_id);
-                                    setSelectedImageUrl(url);
-                                    setFavoriteModalOpen(true);
-                                  }}
-                                  className="bg-white/90 hover:bg-white text-red-500 p-1 rounded shadow-lg"
-                                  title={`收藏图片 ${index + 1}`}
-                                >
-                                  <Heart className="w-3 h-3" />
-                                </button>
-                                {/* 下载按钮 */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    downloadImage(url, `mimic-${index + 1}-${task.task_id}.png`);
-                                  }}
-                                  className="bg-black/70 hover:bg-black/90 text-white p-1 rounded"
-                                  title={`下载图片 ${index + 1}`}
-                                >
-                                  <Download className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    }
-                    
-                    // Handle Mimic with single image (fallback for old format)
-                    if (parsedUrls?.type === 'mimic') {
-                      const firstImage = parsedUrls.urls.final?.[0] || parsedUrls.urls.background;
-                      if (firstImage) {
-                        return (
-                          <div className="w-full h-full aspect-square relative group">
-                            <img
-                              src={firstImage}
-                              alt="Generated"
-                              className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                              onClick={() => setPreviewImage(firstImage)}
-                            />
-                            {/* 收藏按钮 */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTaskId(task.task_id);
-                                setSelectedImageUrl(firstImage);
-                                setFavoriteModalOpen(true);
-                              }}
-                              className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-500 p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="收藏"
-                            >
-                              <Heart className="w-4 h-4" />
-                            </button>
-                          </div>
-                        );
-                      }
-                    }
-                    
-                    // Handle single image
-                    if (parsedUrls?.type === 'single' && parsedUrls.urls) {
-                      return (
-                        <div className="w-full h-full relative group">
-                          <img
-                            src={parsedUrls.urls}
-                            alt="Generated"
-                            className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                            onClick={() => setPreviewImage(parsedUrls.urls)}
-                          />
-                          {/* 收藏按钮 */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedTaskId(task.task_id);
-                              setSelectedImageUrl(parsedUrls.urls);
-                              setFavoriteModalOpen(true);
-                            }}
-                            className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-500 p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="收藏"
-                          >
-                            <Heart className="w-4 h-4" />
-                          </button>
-                        </div>
-                      );
-                    }
-                    
-                    // Handle video
-                    if (task.output_video_url && !task.output_image_url) {
-                      return (
-                    <video
-                      src={task.output_video_url}
-                      className="w-full h-full object-cover"
-                      controls
-                    />
-                      );
-                    }
-                    
-                    // Empty state
-                    return (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <div className="text-gray-400">
-                        {task.task_type.includes("video") ? (
-                          <Video className="w-12 h-12" />
-                        ) : (
-                          <ImageIcon className="w-12 h-12" />
-                        )}
-                      </div>
-                    </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Info */}
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-primary-600 bg-primary-50 px-2 py-1 rounded">
-                      {TASK_TYPE_LABELS[task.task_type] || task.task_type}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {formatDate(task.task_time)}
-                    </span>
+                }
+              }
+              
+              // 如果没有有效图片 URL，跳过此任务
+              if (!imageUrl) {
+                return null;
+              }
+              
+              return (
+                <div
+                  key={task.id}
+                  className="relative bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group"
+                >
+                  {/* Action Buttons (Top Right) */}
+                  <div className="absolute top-2 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Favorite Button */}
+                    <button
+                      onClick={() => {
+                        setSelectedTaskId(task.task_id);
+                        setSelectedImageUrl(imageUrl);
+                        setFavoriteModalOpen(true);
+                      }}
+                      className="p-2 bg-white/90 hover:bg-white text-red-500 rounded-full shadow-lg"
+                      title="收藏"
+                    >
+                      <Heart className="w-4 h-4" />
+                    </button>
+                    {/* Delete Button */}
+                    <button
+                      onClick={() => handleDeleteTask(task.task_id)}
+                      className="p-2 bg-red-500/90 hover:bg-red-600 text-white rounded-full shadow-lg"
+                      title="删除记录"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
 
-                  {task.prompt && (
-                    <div className="mb-3">
-                      <div className="flex items-start gap-2">
-                        <p className="flex-1 text-sm text-gray-700 line-clamp-2">
-                          {(() => {
-                            // Try to parse PhotoBooth prompt (JSON format)
-                            if (task.task_type === 'photobooth') {
-                              try {
-                                const poseDescriptions = JSON.parse(task.prompt);
-                                if (Array.isArray(poseDescriptions) && poseDescriptions.length > 0) {
-                                  // Display first pose description as preview
-                                  const firstPose = poseDescriptions[0];
-                                  const preview = `Pose 1: ${firstPose.pose || ''} | Camera: ${firstPose.cameraPosition || ''} | Composition: ${firstPose.composition || ''}`;
-                                  return preview.length > 150 ? preview.substring(0, 150) + '...' : preview;
-                                }
-                              } catch {
-                                // If parsing fails, display as is
-                              }
-                            }
-                            // Try to parse Snapshot prompt (JSON format)
-                            if (task.task_type === 'snapshot') {
-                              try {
-                                const snapshotPrompts = JSON.parse(task.prompt);
-                                if (Array.isArray(snapshotPrompts) && snapshotPrompts.length > 0) {
-                                  // Display first snapshot prompt as preview
-                                  const firstSnapshot = snapshotPrompts[0];
-                                  const preview = firstSnapshot.snapshotPrompt || '';
-                                  return preview.length > 150 ? preview.substring(0, 150) + '...' : preview;
-                                }
-                              } catch {
-                                // If parsing fails, display as is
-                              }
-                            }
-                            // For other task types or if parsing fails, display prompt directly
-                            return task.prompt.length > 150 ? task.prompt.substring(0, 150) + '...' : task.prompt;
-                          })()}
+                  {/* Preview - 统一单图显示 */}
+                  <div className="aspect-square bg-gray-100 relative">
+                    <img
+                      src={imageUrl}
+                      alt="Generated"
+                      className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => setPreviewImage(imageUrl)}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400"><div class="text-center"><svg class="w-12 h-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-xs">图片加载失败</p></div></div>';
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {/* Info (Bottom) */}
+                  <div className="p-4 bg-gray-50">
+                    {task.prompt && (
+                      <div className="mb-3">
+                        <p className="text-sm text-gray-600 line-clamp-2 mb-2">
+                          {task.prompt}
                         </p>
                         <button
-                          onClick={() => handleCopyPrompt(task.id, task.prompt!)}
-                          className="flex-shrink-0 p-1.5 hover:bg-gray-100 rounded transition-colors"
-                          title="复制完整 prompt"
+                          onClick={() => handleCopyPrompt(task.prompt)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
                         >
-                          {copiedPromptId === task.id ? (
-                            <Check className="w-4 h-4 text-green-600" />
+                          {copiedPrompt === task.prompt ? (
+                            <Check className="w-3 h-3 text-green-600" />
                           ) : (
-                            <Copy className="w-4 h-4 text-gray-500" />
+                            <Copy className="w-3 h-3" />
                           )}
+                          {copiedPrompt === task.prompt ? '已复制' : '复制提示词'}
                         </button>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Download buttons */}
-                  <div className="flex gap-2">
-                    {(() => {
-                      const parsedUrls = parseImageUrls(task.output_image_url);
-                      const imageUrls: string[] = [];
-                      
-                      // Collect all image URLs
-                      if (parsedUrls?.type === 'pose_control' && Array.isArray(parsedUrls.urls)) {
-                        imageUrls.push(...parsedUrls.urls);
-                      } else if (parsedUrls?.type === 'photobooth' && Array.isArray(parsedUrls.urls.poses)) {
-                        imageUrls.push(...parsedUrls.urls.poses);
-                      } else if (parsedUrls?.type === 'snapshot' && Array.isArray(parsedUrls.urls.snapshots)) {
-                        imageUrls.push(...parsedUrls.urls.snapshots);
-                      } else if (parsedUrls?.type === 'mimic') {
-                        // For Mimic, only collect final images (not background)
-                        if (Array.isArray(parsedUrls.urls.final)) {
-                          imageUrls.push(...parsedUrls.urls.final);
-                        } else if (parsedUrls.urls.final) {
-                          // Handle single final image (non-array)
-                          imageUrls.push(parsedUrls.urls.final);
-                        }
-                      } else if (parsedUrls?.type === 'single' && parsedUrls.urls) {
-                        imageUrls.push(parsedUrls.urls);
-                      }
-                      
-                      if (imageUrls.length > 0) {
-                        // For Mimic, PhotoBooth, Snapshot, and Pose Control with multiple images, show download all button
-                        // But users can also download individual images via hover buttons
-                        if (imageUrls.length > 1 && (parsedUrls?.type === 'mimic' || parsedUrls?.type === 'photobooth' || parsedUrls?.type === 'snapshot' || parsedUrls?.type === 'pose_control')) {
-                          // Multiple images - show download all button
-                          return (
-                            <button
-                              onClick={() => handleDownloadAllImages(imageUrls, task.task_id, task.task_type)}
-                              className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
-                            >
-                              <Download className="w-4 h-4" />
-                              下载全部 ({imageUrls.length}张)
-                            </button>
-                          );
-                        } else if (imageUrls.length === 1) {
-                          // Single image
-                          return (
-                            <button
-                              onClick={() => handleDownloadImage(imageUrls[0], task.task_id)}
-                              className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
-                            >
-                              <Download className="w-4 h-4" />
-                              图片
-                            </button>
-                          );
-                        } else {
-                          // Multiple images (other types) - show download all
-                          return (
-                            <button
-                              onClick={() => handleDownloadAllImages(imageUrls, task.task_id, task.task_type)}
-                              className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
-                            >
-                              <Download className="w-4 h-4" />
-                              下载全部 ({imageUrls.length}张)
-                            </button>
-                          );
-                        }
-                      }
-                      return null;
-                    })()}
-                    {task.output_video_url && (
-                      <button
-                        onClick={() => handleDownloadVideo(task.output_video_url!, task.task_id)}
-                        className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        视频
-                      </button>
                     )}
+
+                    {/* Task info */}
+                    <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+                      <span>{TASK_TYPE_LABELS[task.task_type] || task.task_type}</span>
+                      <span>{new Date(task.task_time).toLocaleString("zh-CN")}</span>
+                    </div>
+
+                    {/* Download button */}
+                    <button
+                      onClick={() => handleDownloadImage(imageUrl, task.task_id)}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded-lg transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      下载图片
+                    </button>
                   </div>
                 </div>
-              </div>
+              );
+            })}
+
             ))}
           </div>
 
