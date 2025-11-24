@@ -3,6 +3,11 @@
 import { Upload, X, History, Image as ImageIcon, User } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { 
+  downloadAndCacheImage, 
+  cleanExpiredCache,
+  getCacheStats 
+} from "@/lib/imageCache";
 
 interface ImageUploadProps {
   maxImages?: number;
@@ -81,6 +86,24 @@ export default function ImageUpload({
   
   // Cache duration: 5 minutes
   const CACHE_DURATION = 5 * 60 * 1000;
+
+  // 启动时清理过期的 IndexedDB 缓存
+  useEffect(() => {
+    cleanExpiredCache().then(deletedCount => {
+      if (deletedCount > 0) {
+        console.log(`[ImageCache] Cleaned ${deletedCount} expired images`);
+      }
+    });
+    
+    // 输出缓存统计信息
+    getCacheStats().then(stats => {
+      console.log('[ImageCache] Stats:', {
+        count: stats.count,
+        size: `${(stats.totalSize / 1024 / 1024).toFixed(2)} MB`,
+        oldest: new Date(stats.oldestTimestamp).toLocaleString(),
+      });
+    });
+  }, []);
 
   // Fetch history when modal opens
   const fetchHistory = async (page: number = 1, append: boolean = false) => {
@@ -305,28 +328,26 @@ export default function ImageUpload({
   // Preload images when history records are loaded (for faster selection)
   useEffect(() => {
     if (historyRecords.length > 0) {
-      // Preload first 10 images in background
+      // Preload first 10 images in background (使用 IndexedDB 缓存)
       const preloadImages = historyRecords.slice(0, 10);
-      console.log(`Preloading ${preloadImages.length} images...`);
+      console.log(`[ImageCache] Preloading ${preloadImages.length} images...`);
       
       preloadImages.forEach(async (record) => {
         const imageUrl = record.output_image_url;
         if (imageUrl && !imageBlobCache.has(imageUrl)) {
           try {
-            const proxyUrl = `/api/download?url=${encodeURIComponent(imageUrl)}`;
-            const response = await fetch(proxyUrl);
-            if (response.ok) {
-              const blob = await response.blob();
-              setImageBlobCache(prev => {
-                const newCache = new Map(prev);
-                newCache.set(imageUrl, blob);
-                return newCache;
-              });
-              console.log(`Preloaded image: ${imageUrl.substring(0, 50)}...`);
-            }
+            // 使用 IndexedDB 缓存的下载函数
+            const blob = await downloadAndCacheImage(imageUrl);
+            
+            // 同时保存到内存缓存（快速访问）
+            setImageBlobCache(prev => {
+              const newCache = new Map(prev);
+              newCache.set(imageUrl, blob);
+              return newCache;
+            });
           } catch (error) {
             // Silently fail preload, not critical
-            console.log(`Failed to preload image: ${imageUrl.substring(0, 50)}...`);
+            console.error('[ImageCache] Preload failed:', error);
           }
         }
       });
@@ -522,34 +543,24 @@ export default function ImageUpload({
       
       let blob: Blob;
       
-      // Check blob cache first
+      // Check memory cache first (fastest)
       if (imageBlobCache.has(imageUrl)) {
-        console.log("Using cached blob for image");
+        console.log("[ImageCache] Using memory cache");
         blob = imageBlobCache.get(imageUrl)!;
       } else {
-        console.log("Downloading image...");
+        console.log("[ImageCache] Fetching from IndexedDB or network...");
         setDownloadingImage(true);
         
         try {
-          // Use proxy to avoid CORS issues
-          const proxyUrl = `/api/download?url=${encodeURIComponent(imageUrl)}`;
+          // 使用统一的缓存函数（自动处理 IndexedDB + 网络）
+          blob = await downloadAndCacheImage(imageUrl);
           
-          const response = await fetch(proxyUrl);
-          
-          if (!response.ok) {
-            throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
-          }
-          
-          blob = await response.blob();
-          console.log("Downloaded blob size:", blob.size, "type:", blob.type);
-          
-          // Cache the blob
+          // 同时保存到内存缓存
           setImageBlobCache(prev => {
             const newCache = new Map(prev);
             newCache.set(imageUrl, blob);
             return newCache;
           });
-          console.log("Cached blob for future use");
         } finally {
           setDownloadingImage(false);
         }
@@ -928,19 +939,14 @@ export default function ImageUpload({
                               let blob: Blob;
                               
                               if (imageBlobCache.has(asset.output_image_url)) {
+                                console.log("[ImageCache] Using memory cache for character image");
                                 blob = imageBlobCache.get(asset.output_image_url)!;
                               } else {
-                                // Use proxy to avoid CORS issues
-                                const proxyUrl = `/api/download?url=${encodeURIComponent(asset.output_image_url)}`;
-                                const response = await fetch(proxyUrl);
+                                console.log("[ImageCache] Fetching character image from IndexedDB or network");
+                                // 使用统一的缓存函数（自动处理 IndexedDB + 网络）
+                                blob = await downloadAndCacheImage(asset.output_image_url);
                                 
-                                if (!response.ok) {
-                                  throw new Error('Failed to download image');
-                                }
-                                
-                                blob = await response.blob();
-                                
-                                // Cache the blob
+                                // 同时保存到内存缓存
                                 setImageBlobCache(prev => {
                                   const newCache = new Map(prev);
                                   newCache.set(asset.output_image_url, blob);
@@ -1015,8 +1021,8 @@ export default function ImageUpload({
         <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 bg-white rounded-lg shadow-2xl px-6 py-4 flex items-center gap-4 border border-gray-200">
           <div className="animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-primary-600"></div>
           <div>
-            <div className="text-gray-900 font-medium">下载图片中...</div>
-            <div className="text-gray-500 text-sm">首次下载需要几秒钟，之后会更快</div>
+            <div className="text-gray-900 font-medium">加载图片中...</div>
+            <div className="text-gray-500 text-sm">首次会从网络下载，之后直接从本地缓存加载</div>
           </div>
         </div>
       )}
