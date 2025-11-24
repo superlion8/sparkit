@@ -73,9 +73,9 @@ export default function MimicPage() {
 
       setCurrentStep("正在去掉参考图中的人物...");
 
-      // 设置 180 秒超时（3 分钟）
+      // 设置 300 秒超时（5 分钟），与后端 maxDuration 保持一致
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 180000); // 180 秒
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 300 秒
 
       let response: Response;
       try {
@@ -91,7 +91,7 @@ export default function MimicPage() {
       } catch (error: any) {
         clearTimeout(timeoutId);
         if (error.name === 'AbortError') {
-          throw new Error('生成超时（3分钟），请重试或减少生成数量');
+          throw new Error('生成超时（5分钟），请重试或减少生成数量');
         }
         throw error;
       }
@@ -252,9 +252,9 @@ export default function MimicPage() {
         }
       }
 
-      // 设置 180 秒超时（3 分钟）
+      // 设置 300 秒超时（5 分钟），与后端 maxDuration 保持一致
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 180000); // 180 秒
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 300 秒
 
       let response: Response;
       try {
@@ -270,7 +270,7 @@ export default function MimicPage() {
       } catch (error: any) {
         clearTimeout(timeoutId);
         if (error.name === 'AbortError') {
-          setError('生成超时（3分钟），请重试或减少生成数量');
+          setError('生成超时（5分钟），请重试或减少生成数量');
           setLoading(false);
           return;
         }
