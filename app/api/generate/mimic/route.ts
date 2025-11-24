@@ -4,6 +4,9 @@ import { supabaseAdminClient } from "@/lib/supabaseAdmin";
 
 const AIMOVELY_API_URL = "https://dev.aimovely.com";
 
+// 设置 API 路由的最大执行时间为 60 秒（Vercel Pro 最大值）
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   const { errorResponse, user } = await validateRequestAuth(request);
   if (errorResponse) {
@@ -450,8 +453,8 @@ export async function POST(request: NextRequest) {
               // 检查是否有对应的上传成功的图片
               if (uploadedFinalImageUrls[i]) {
                 // 上传成功，更新为 completed
-                await supabaseAdminClient
-                  .from("generation_tasks")
+          await supabaseAdminClient
+            .from("generation_tasks")
                   .update({
                     output_image_url: uploadedFinalImageUrls[i],
                     input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
@@ -493,18 +496,18 @@ export async function POST(request: NextRequest) {
               if (uploadedFinalImageUrls[i]) {
                 tasksToInsert.push({
                   task_id: `${baseTaskId}-${i}-${Math.random().toString(36).substr(2, 9)}`,
-                  task_type: "mimic",
-                  email: user.email,
-                  username: user.user_metadata?.full_name || user.email,
-                  prompt: captionPrompt,
-                  input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
+              task_type: "mimic",
+              email: user.email,
+              username: user.user_metadata?.full_name || user.email,
+              prompt: captionPrompt,
+              input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
                   output_image_url: uploadedFinalImageUrls[i],
-                  character_id: characterId,
+              character_id: characterId,
                   status: "completed",
                   started_at: new Date().toISOString(),
                   completed_at: new Date().toISOString(),
-                  task_time: new Date().toISOString(),
-                });
+              task_time: new Date().toISOString(),
+            });
               }
             }
             
@@ -512,7 +515,7 @@ export async function POST(request: NextRequest) {
               await supabaseAdminClient
                 .from("generation_tasks")
                 .insert(tasksToInsert);
-              
+
               console.log(`[Mimic API] Saved ${tasksToInsert.length} tasks to character ${characterId}`);
             }
           }
@@ -589,7 +592,7 @@ export async function POST(request: NextRequest) {
       uploadedFinalImageUrls.forEach((url, index) => {
         if (!url) {
           uploadErrors.push(`图片 ${index + 1} 上传失败`);
-        }
+      }
       });
       
       // 如果所有图片都上传失败，返回错误
