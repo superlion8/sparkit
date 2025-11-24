@@ -554,35 +554,39 @@ export async function POST(request: NextRequest) {
       errors: finalImageErrors.length > 0 ? finalImageErrors : undefined,
     };
 
-    // 优化响应大小：只在Aimovely上传失败时才返回base64作为fallback
-    if (!uploadedBackgroundImageUrl && backgroundImage) {
-      // 背景图上传失败，返回base64
-      responseData.backgroundImageBase64 = backgroundImage;
-    }
+    // 不返回 base64，避免响应体过大
+    // 如果上传失败，直接在错误数组中报告
+    responseData.finalImageUrls = uploadedFinalImageUrls;
+    responseData.backgroundImageUrl = uploadedBackgroundImageUrl;
     
-    // 对于最终图片：构建混合数组，成功上传的用URL，失败的用null占位
-    // 失败的图片单独放在finalImagesBase64数组中
-    const finalImageUrls: (string | null)[] = [];
-    const finalImagesBase64: string[] = [];
+    // 检查是否有上传失败的情况
+    const hasUploadFailures = uploadedFinalImageUrls.some(url => !url) || 
+                              (keepBackground && !uploadedBackgroundImageUrl);
     
-    for (let i = 0; i < finalImages.length; i++) {
-      if (uploadedFinalImageUrls[i]) {
-        // 上传成功，使用URL
-        finalImageUrls.push(uploadedFinalImageUrls[i]);
-      } else {
-        // 上传失败，URL数组用null占位，base64单独存储
-        finalImageUrls.push(null);
-        finalImagesBase64.push(finalImages[i]);
+    if (hasUploadFailures) {
+      // 有上传失败，添加到错误信息中
+      const uploadErrors: string[] = [];
+      
+      if (keepBackground && !uploadedBackgroundImageUrl) {
+        uploadErrors.push("背景图上传失败");
       }
-    }
-    
-    // 更新finalImageUrls（成功的是URL，失败的是null）
-    responseData.finalImageUrls = finalImageUrls;
-    
-    // 只有在有base64图片时才添加到响应中
-    // 注意：finalImagesBase64的索引与finalImageUrls中null的位置对应
-    if (finalImagesBase64.length > 0) {
-      responseData.finalImagesBase64 = finalImagesBase64;
+      
+      uploadedFinalImageUrls.forEach((url, index) => {
+        if (!url) {
+          uploadErrors.push(`图片 ${index + 1} 上传失败`);
+        }
+      });
+      
+      // 如果所有图片都上传失败，返回错误
+      if (uploadedFinalImageUrls.every(url => !url)) {
+        return NextResponse.json({
+          error: "图片上传失败，请重试",
+          details: uploadErrors.join("; "),
+        }, { status: 500 });
+      }
+      
+      // 部分上传失败，在响应中标记
+      responseData.uploadWarnings = uploadErrors;
     }
 
     return NextResponse.json(responseData, {
