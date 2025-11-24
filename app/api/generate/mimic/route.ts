@@ -309,12 +309,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 3: 生成最终图片（并行生成以节省时间）
-    console.log(`Step 3: 并行生成 ${numImages} 张最终图片 (${hotMode ? 'Qwen' : 'Gemini'})...`);
+    // Step 3: 并行生成最终图片（节省时间，避免超时）
+    console.log(`Step 3: 并行生成 ${numImages} 张图片 (${hotMode ? 'Qwen' : 'Gemini'})...`);
     const finalImages: string[] = [];
     const finalImageErrors: string[] = [];
 
-    // 并行生成多张图片，大幅减少总耗时
+    // 并行生成，大幅减少总耗时
     const generatePromises = Array.from({ length: numImages }, (_, i) => {
       return (async () => {
         try {
@@ -394,7 +394,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // 并行上传所有最终图片以节省时间
+        // 并行上传所有最终图片（节省时间）
         console.log(`并行上传 ${finalImages.length} 张最终图片...`);
         const uploadPromises = finalImages.map((image, i) => {
           return (async () => {
