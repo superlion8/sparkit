@@ -318,8 +318,12 @@ export async function POST(request: NextRequest) {
     const finalImageErrors: string[] = [];
 
     // 并行生成，大幅减少总耗时
+    type GenerateResult = 
+      | { success: true; image: string; index: number }
+      | { success: false; error: string; index: number };
+
     const generatePromises = Array.from({ length: numImages }, (_, i) => {
-      return (async () => {
+      return (async (): Promise<GenerateResult> => {
         try {
           console.log(`开始生成第 ${i + 1}/${numImages} 张图片...`);
           
