@@ -73,13 +73,28 @@ export default function MimicPage() {
 
       setCurrentStep("正在去掉参考图中的人物...");
 
-      const response = await fetch("/api/generate/mimic", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: formData,
-      });
+      // 设置 180 秒超时（3 分钟）
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 180 秒
+
+      let response: Response;
+      try {
+        response = await fetch("/api/generate/mimic", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          throw new Error('生成超时（3分钟），请重试或减少生成数量');
+        }
+        throw error;
+      }
 
       if (!response.ok) {
         let errorData: any;
@@ -237,13 +252,30 @@ export default function MimicPage() {
         }
       }
 
-      const response = await fetch("/api/generate/mimic", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: formData,
-      });
+      // 设置 180 秒超时（3 分钟）
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 180 秒
+
+      let response: Response;
+      try {
+        response = await fetch("/api/generate/mimic", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          setError('生成超时（3分钟），请重试或减少生成数量');
+          setLoading(false);
+          return;
+        }
+        throw error;
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
