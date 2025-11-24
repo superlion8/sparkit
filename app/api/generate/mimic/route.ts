@@ -4,8 +4,8 @@ import { supabaseAdminClient } from "@/lib/supabaseAdmin";
 
 const AIMOVELY_API_URL = "https://dev.aimovely.com";
 
-// 设置 API 路由的最大执行时间为 60 秒（Vercel Pro 最大值）
-export const maxDuration = 60;
+// 设置 API 路由的最大执行时间为 5 分钟（与 PhotoBooth 等功能保持一致）
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   const { errorResponse, user } = await validateRequestAuth(request);
@@ -685,27 +685,21 @@ async function reverseCaptionPrompt(
 
   // 增加 maxOutputTokens 以避免 MAX_TOKENS 错误
   // 同时使用较低的 temperature 以获得更简洁、一致的输出
-  // 添加 50 秒超时，避免等待 Vercel 的 60 秒硬超时
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 50000); // 50 秒超时
-
-  let response: Response;
-  try {
-    response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents,
+        generationConfig: {
+          temperature: 0.5, // 降低 temperature 以获得更简洁的输出
+          topP: 0.8,
+          topK: 40,
+          maxOutputTokens: 2048, // 增加到 2048 以避免 MAX_TOKENS 错误
         },
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            temperature: 0.5, // 降低 temperature 以获得更简洁的输出
-            topP: 0.8,
-            topK: 40,
-            maxOutputTokens: 2048, // 增加到 2048 以避免 MAX_TOKENS 错误
-          },
         safetySettings: [
           {
             category: "HARM_CATEGORY_HATE_SPEECH",
@@ -725,18 +719,8 @@ async function reverseCaptionPrompt(
           }
         ],
       }),
-        signal: controller.signal, // 绑定超时控制器
     }
-    );
-    clearTimeout(timeoutId); // 成功，清除超时
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      console.error("Gemini API timeout (reverse caption): 50 seconds exceeded");
-      throw new Error("反推提示词超时（50秒），请重试或使用 Hot Mode");
-    }
-    throw error;
-  }
+  );
 
   if (!response.ok) {
     const error = await response.text();
@@ -906,35 +890,19 @@ async function removeCharacter(
     };
   }
 
-  // 添加 50 秒超时，避免等待 Vercel 的 60 秒硬超时
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 50000); // 50 秒超时
-
-  let response: Response;
-  try {
-    response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents,
-          generationConfig,
-        }),
-        signal: controller.signal, // 绑定超时控制器
-      }
-    );
-    clearTimeout(timeoutId); // 成功，清除超时
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      console.error("Gemini API timeout (remove character): 50 seconds exceeded");
-      throw new Error("去背景超时（50秒），请重试或使用 Hot Mode");
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents,
+        generationConfig,
+      }),
     }
-    throw error;
-  }
+  );
 
   if (!response.ok) {
     const error = await response.text();
@@ -1093,35 +1061,19 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
     };
   }
 
-  // 添加 50 秒超时，避免等待 Vercel 的 60 秒硬超时
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 50000); // 50 秒超时
-
-  let response: Response;
-  try {
-    response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents,
-          generationConfig,
-        }),
-        signal: controller.signal, // 绑定超时控制器
-      }
-    );
-    clearTimeout(timeoutId); // 成功，清除超时
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      console.error("Gemini API timeout (generate final): 50 seconds exceeded");
-      throw new Error("生成图片超时（50秒），请重试或使用 Hot Mode");
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents,
+        generationConfig,
+      }),
     }
-    throw error;
-  }
+  );
 
   if (!response.ok) {
     const error = await response.text();
