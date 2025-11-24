@@ -382,7 +382,7 @@ export async function POST(request: NextRequest) {
     console.log("=== Mimic Generation Completed ===");
 
     // Upload generated images to Aimovely
-    const uploadedFinalImageUrls: string[] = [];
+    const uploadedFinalImageUrls: (string | null)[] = [];
 
     if (aimovelyToken) {
       try {
@@ -460,7 +460,7 @@ export async function POST(request: NextRequest) {
           await supabaseAdminClient
             .from("generation_tasks")
                   .update({
-                    output_image_url: uploadedFinalImageUrls[i],
+                    output_image_url: uploadedFinalImageUrls[i]!,
                     input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
                     prompt: captionPrompt,
                     status: "completed",
@@ -505,7 +505,7 @@ export async function POST(request: NextRequest) {
               username: user.user_metadata?.full_name || user.email,
               prompt: captionPrompt,
               input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
-                  output_image_url: uploadedFinalImageUrls[i],
+                  output_image_url: uploadedFinalImageUrls[i]!,
               character_id: characterId,
                   status: "completed",
                   started_at: new Date().toISOString(),
