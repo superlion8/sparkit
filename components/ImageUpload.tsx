@@ -204,7 +204,7 @@ export default function ImageUpload({
     }
   };
 
-  // Fetch character assets (char_avatar, char_image, and all generation records)
+  // Fetch character assets (char_avatar, char_image, generation records, and favorites)
   const fetchCharacterAssets = async (characterId: string) => {
     if (!isAuthenticated || !accessToken) {
       return;
@@ -219,16 +219,24 @@ export default function ImageUpload({
         },
       });
 
-      // Fetch character generation records
+      // Fetch character generation records (资源页)
       const assetsResponse = await fetch(`/api/characters/${characterId}/assets`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       });
 
-      if (charResponse.ok && assetsResponse.ok) {
+      // Fetch character favorites (收藏页)
+      const favoritesResponse = await fetch(`/api/characters/${characterId}/favorites`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (charResponse.ok && assetsResponse.ok && favoritesResponse.ok) {
         const charData = await charResponse.json();
         const assetsData = await assetsResponse.json();
+        const favoritesData = await favoritesResponse.json();
         
         const allAssets: CharacterAsset[] = [];
         
@@ -255,9 +263,20 @@ export default function ImageUpload({
           });
         }
         
-        // Add generation records
+        // Add generation records (资源页)
         if (assetsData.assets && Array.isArray(assetsData.assets)) {
           allAssets.push(...assetsData.assets);
+        }
+        
+        // Add favorite records (收藏页)
+        if (favoritesData.favorites && Array.isArray(favoritesData.favorites)) {
+          // Mark favorites with a special type to avoid duplicates
+          const favoriteAssets = favoritesData.favorites.map((fav: any) => ({
+            ...fav,
+            id: `fav-${fav.task_id || fav.id}`,
+            task_type: `favorite-${fav.task_type || 'unknown'}`,
+          }));
+          allAssets.push(...favoriteAssets);
         }
         
         setCharacterAssets(allAssets);
@@ -911,7 +930,14 @@ export default function ImageUpload({
                               if (imageBlobCache.has(asset.output_image_url)) {
                                 blob = imageBlobCache.get(asset.output_image_url)!;
                               } else {
-                                const response = await fetch(asset.output_image_url);
+                                // Use proxy to avoid CORS issues
+                                const proxyUrl = `/api/download?url=${encodeURIComponent(asset.output_image_url)}`;
+                                const response = await fetch(proxyUrl);
+                                
+                                if (!response.ok) {
+                                  throw new Error('Failed to download image');
+                                }
+                                
                                 blob = await response.blob();
                                 
                                 // Cache the blob
@@ -948,10 +974,15 @@ export default function ImageUpload({
                           className="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all"
                         >
                           <img
-                            src={asset.output_image_url}
+                            src={`/api/download?url=${encodeURIComponent(asset.output_image_url)}`}
                             alt={asset.prompt || '角色图片'}
                             className="w-full h-full object-cover"
                             loading="lazy"
+                            onError={(e) => {
+                              // 如果代理失败，显示占位图
+                              const target = e.target as HTMLImageElement;
+                              target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="14"%3E图片加载失败%3C/text%3E%3C/svg%3E';
+                            }}
                           />
                           <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
                             <div className="opacity-0 group-hover:opacity-100 bg-white rounded-full p-2">
