@@ -1,6 +1,6 @@
 "use client";
 
-import { Upload, X, History, Image as ImageIcon } from "lucide-react";
+import { Upload, X, History, Image as ImageIcon, User } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -16,6 +16,24 @@ interface HistoryRecord {
   output_image_url: string | null;
   task_type: string;
   task_time: string;
+}
+
+interface Character {
+  id: string;
+  char_name: string;
+  char_description: string | null;
+  char_avatar: string | null;
+  char_image: string | null;
+  created_at: string;
+}
+
+interface CharacterAsset {
+  id: string;
+  task_id: string;
+  output_image_url: string;
+  prompt: string | null;
+  task_type: string;
+  created_at: string;
 }
 
 export default function ImageUpload({ 
@@ -40,6 +58,14 @@ export default function ImageUpload({
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [downloadingImage, setDownloadingImage] = useState(false);
+  
+  // Character selection modal
+  const [showCharacterModal, setShowCharacterModal] = useState(false);
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
+  const [characterAssets, setCharacterAssets] = useState<CharacterAsset[]>([]);
+  const [loadingCharacters, setLoadingCharacters] = useState(false);
+  const [loadingAssets, setLoadingAssets] = useState(false);
   
   const { accessToken, isAuthenticated } = useAuth();
 
@@ -114,6 +140,114 @@ export default function ImageUpload({
       fetchHistory();
     }
   }, [showHistoryModal]);
+
+  // Fetch characters list
+  const fetchCharacters = async () => {
+    if (!isAuthenticated || !accessToken) {
+      return;
+    }
+
+    setLoadingCharacters(true);
+    try {
+      const response = await fetch("/api/characters", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCharacters(data.characters || []);
+        // Select first character by default
+        if (data.characters && data.characters.length > 0) {
+          setSelectedCharacterId(data.characters[0].id);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch characters:", error);
+    } finally {
+      setLoadingCharacters(false);
+    }
+  };
+
+  // Fetch character assets (char_avatar, char_image, and all generation records)
+  const fetchCharacterAssets = async (characterId: string) => {
+    if (!isAuthenticated || !accessToken) {
+      return;
+    }
+
+    setLoadingAssets(true);
+    try {
+      // Fetch character details
+      const charResponse = await fetch(`/api/characters/${characterId}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      // Fetch character generation records
+      const assetsResponse = await fetch(`/api/characters/${characterId}/assets`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (charResponse.ok && assetsResponse.ok) {
+        const charData = await charResponse.json();
+        const assetsData = await assetsResponse.json();
+        
+        const allAssets: CharacterAsset[] = [];
+        
+        // Add char_avatar and char_image if they exist
+        if (charData.char_avatar) {
+          allAssets.push({
+            id: `avatar-${characterId}`,
+            task_id: 'avatar',
+            output_image_url: charData.char_avatar,
+            prompt: '角色头像',
+            task_type: 'avatar',
+            created_at: charData.created_at,
+          });
+        }
+        
+        if (charData.char_image) {
+          allAssets.push({
+            id: `image-${characterId}`,
+            task_id: 'char_image',
+            output_image_url: charData.char_image,
+            prompt: '角色图片',
+            task_type: 'char_image',
+            created_at: charData.created_at,
+          });
+        }
+        
+        // Add generation records
+        if (assetsData.assets && Array.isArray(assetsData.assets)) {
+          allAssets.push(...assetsData.assets);
+        }
+        
+        setCharacterAssets(allAssets);
+      }
+    } catch (error) {
+      console.error("Failed to fetch character assets:", error);
+    } finally {
+      setLoadingAssets(false);
+    }
+  };
+
+  // Fetch characters when modal opens
+  useEffect(() => {
+    if (showCharacterModal) {
+      fetchCharacters();
+    }
+  }, [showCharacterModal]);
+
+  // Fetch assets when selected character changes
+  useEffect(() => {
+    if (selectedCharacterId) {
+      fetchCharacterAssets(selectedCharacterId);
+    }
+  }, [selectedCharacterId]);
 
   // Preload images when history records are loaded (for faster selection)
   useEffect(() => {
@@ -530,6 +664,23 @@ export default function ImageUpload({
                   <div className="text-sm text-gray-500">使用之前生成的图片</div>
                 </div>
               </button>
+
+              <button
+                onClick={() => {
+                  setShowUploadMethodModal(false);
+                  setShowCharacterModal(true);
+                  fetchCharacters();
+                }}
+                className="w-full flex items-center gap-4 p-4 bg-purple-50 hover:bg-purple-100 border-2 border-purple-200 hover:border-purple-300 rounded-lg transition-all group"
+              >
+                <div className="p-3 bg-purple-100 group-hover:bg-purple-200 rounded-lg transition-colors">
+                  <User className="w-6 h-6 text-purple-600" />
+                </div>
+                <div className="text-left flex-1">
+                  <div className="text-base font-medium text-gray-900">从角色</div>
+                  <div className="text-sm text-gray-500">使用角色的照片和生成图</div>
+                </div>
+              </button>
             </div>
           </div>
         </div>
@@ -586,6 +737,182 @@ export default function ImageUpload({
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Character Modal */}
+      {showCharacterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[85vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">从角色选择图片</h3>
+              <button
+                onClick={() => {
+                  setShowCharacterModal(false);
+                  setSelectedCharacterId(null);
+                  setCharacterAssets([]);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-hidden flex">
+              {/* Left Sidebar - Character List */}
+              <div className="w-64 border-r border-gray-200 overflow-y-auto bg-gray-50">
+                {loadingCharacters ? (
+                  <div className="flex items-center justify-center h-32">
+                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-purple-600"></div>
+                  </div>
+                ) : characters.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-32 text-gray-400 px-4">
+                    <User className="w-12 h-12 mb-2 opacity-50" />
+                    <p className="text-sm text-center">暂无角色</p>
+                  </div>
+                ) : (
+                  <div className="p-3 space-y-2">
+                    {characters.map((character) => (
+                      <button
+                        key={character.id}
+                        onClick={() => setSelectedCharacterId(character.id)}
+                        className={`w-full text-left p-3 rounded-lg transition-all ${
+                          selectedCharacterId === character.id
+                            ? 'bg-purple-100 border-2 border-purple-300'
+                            : 'bg-white border-2 border-transparent hover:border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {character.char_avatar ? (
+                            <img
+                              src={character.char_avatar}
+                              alt={character.char_name}
+                              className="w-12 h-12 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center">
+                              <User className="w-6 h-6 text-white" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-900 truncate">
+                              {character.char_name}
+                            </div>
+                            {character.char_description && (
+                              <div className="text-xs text-gray-500 truncate">
+                                {character.char_description}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Right - Character Assets */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {!selectedCharacterId ? (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                    <User className="w-16 h-16 mb-4 opacity-50" />
+                    <p>请选择一个角色</p>
+                  </div>
+                ) : loadingAssets ? (
+                  <div className="flex flex-col items-center justify-center h-full">
+                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-purple-600 mb-4"></div>
+                    <div className="text-gray-600 font-medium">加载角色图片中...</div>
+                  </div>
+                ) : characterAssets.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                    <ImageIcon className="w-16 h-16 mb-4 opacity-50" />
+                    <p>该角色暂无图片</p>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="mb-4 text-sm text-gray-600">
+                      共 {characterAssets.length} 张图片
+                    </div>
+                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                      {characterAssets.map((asset) => (
+                        <button
+                          key={asset.id}
+                          onClick={async () => {
+                            setDownloadingImage(true);
+                            try {
+                              // Convert URL to blob to file
+                              let blob: Blob;
+                              
+                              if (imageBlobCache.has(asset.output_image_url)) {
+                                blob = imageBlobCache.get(asset.output_image_url)!;
+                              } else {
+                                const response = await fetch(asset.output_image_url);
+                                blob = await response.blob();
+                                
+                                // Cache the blob
+                                setImageBlobCache(prev => {
+                                  const newCache = new Map(prev);
+                                  newCache.set(asset.output_image_url, blob);
+                                  return newCache;
+                                });
+                              }
+
+                              const file = new File(
+                                [blob],
+                                `character-${asset.task_type}-${Date.now()}.png`,
+                                { type: "image/png" }
+                              );
+
+                              const newImages = maxImages === 1 ? [file] : [...images, file];
+                              if (maxImages > 1 && newImages.length > maxImages) {
+                                newImages.splice(0, newImages.length - maxImages);
+                              }
+
+                              setImages(newImages);
+                              onImagesChange(newImages);
+                              setShowCharacterModal(false);
+                              setSelectedCharacterId(null);
+                              setCharacterAssets([]);
+                            } catch (error) {
+                              console.error("Failed to load image:", error);
+                              alert("加载图片失败，请重试");
+                            } finally {
+                              setDownloadingImage(false);
+                            }
+                          }}
+                          className="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all"
+                        >
+                          <img
+                            src={asset.output_image_url}
+                            alt={asset.prompt || '角色图片'}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
+                            <div className="opacity-0 group-hover:opacity-100 bg-white rounded-full p-2">
+                              <ImageIcon className="w-5 h-5 text-purple-600" />
+                            </div>
+                          </div>
+                          {asset.task_type === 'avatar' && (
+                            <div className="absolute top-1 left-1 bg-purple-500 text-white text-xs px-2 py-0.5 rounded">
+                              头像
+                            </div>
+                          )}
+                          {asset.task_type === 'char_image' && (
+                            <div className="absolute top-1 left-1 bg-pink-500 text-white text-xs px-2 py-0.5 rounded">
+                              角色图
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
