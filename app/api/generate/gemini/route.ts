@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateRequestAuth } from "@/lib/auth";
+import { getVertexAIConfig } from "@/lib/vertexai";
 
 const AIMOVELY_API_URL = "https://dev.aimovely.com";
 
@@ -29,10 +30,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    // 检查 Vertex AI 配置
+    try {
+      getVertexAIConfig();
+    } catch (error: any) {
       return NextResponse.json(
-        { error: "Gemini API key not configured" },
+        { error: error.message || "Vertex AI 配置错误" },
         { status: 500 }
       );
     }
@@ -91,46 +94,45 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
     console.log("请求体大小:", JSON.stringify({ contents, generationConfig }).length, "字符");
     console.log("Parts 数量:", contents[0].parts.length);
 
-    // Call Gemini API (using image generation model)
-    // 根据官方文档: https://ai.google.dev/gemini-api/docs/image-generation
-    console.log("开始调用 Gemini API...");
+    // Call Vertex AI API (using image generation model)
+    console.log("开始调用 Vertex AI API...");
     const apiStartTime = Date.now();
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
-          contents,
-          generationConfig,
-        }),
-      }
-    );
-    const apiEndTime = Date.now();
-    console.log(`Gemini API 响应时间: ${apiEndTime - apiStartTime}ms`);
-    console.log("响应状态:", response.status, response.statusText);
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.error("Gemini API HTTP 错误:", response.status, response.statusText);
-      console.error("错误响应内容:", error);
+    
+    const modelId = process.env.GEMINI_IMAGE_MODEL_ID || "gemini-3-pro-image-preview";
+    
+    try {
+      const { callVertexAI } = await import("@/lib/vertexai");
+      
+      // 转换 contents 格式：从 AI Studio 格式转换为 Vertex AI 格式
+      const vertexAIContents = contents.map((content: any) => ({
+        role: "user",
+        parts: content.parts,
+      }));
+      
+      const response = await callVertexAI(modelId, vertexAIContents, generationConfig);
+      const apiEndTime = Date.now();
+      console.log(`Vertex AI API 响应时间: ${apiEndTime - apiStartTime}ms`);
+      
+      // 转换为 AI Studio 格式以保持兼容性
+      const data = {
+        candidates: response.response.candidates,
+      };
+      
+      console.log("Vertex AI API 响应状态: OK");
+      console.log("响应数据 keys:", Object.keys(data));
+    } catch (error: any) {
+      console.error("Vertex AI API 调用失败:", error);
       return NextResponse.json(
         { 
           error: "Failed to generate image",
           details: {
-            status: response.status,
-            statusText: response.statusText,
-            error: error
+            message: error.message || "Unknown error"
           }
         },
-        { status: response.status }
+        { status: 500 }
       );
     }
-
-    const data = await response.json();
-    console.log("Gemini API 响应状态: OK");
+    
     console.log("响应数据 keys:", Object.keys(data));
     console.log("Candidates 数量:", data.candidates?.length || 0);
     if (data.candidates && data.candidates.length > 0) {

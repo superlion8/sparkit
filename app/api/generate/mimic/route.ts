@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateRequestAuth } from "@/lib/auth";
 import { supabaseAdminClient } from "@/lib/supabaseAdmin";
+import { generateText, generateImage } from "@/lib/vertexai";
 
 const AIMOVELY_API_URL = "https://dev.aimovely.com";
 
@@ -47,10 +48,11 @@ export async function POST(request: NextRequest) {
 
     console.log(`=== Mimic Generation Started (Hot Mode: ${hotMode}, Keep Background: ${keepBackground}) ===`);
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    // 检查 Vertex AI 配置
+    const projectId = process.env.VERTEX_AI_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT_ID;
+    if (!projectId) {
       return NextResponse.json(
-        { error: "Gemini API key not configured" },
+        { error: "VERTEX_AI_PROJECT_ID or GOOGLE_CLOUD_PROJECT_ID environment variable is required" },
         { status: 500 }
       );
     }
@@ -265,8 +267,7 @@ export async function POST(request: NextRequest) {
       console.log("Step 1: 反推提示词...");
       captionPrompt = await reverseCaptionPrompt(
         referenceBase64,
-        referenceImage.type,
-        apiKey
+        referenceImage.type
       );
       console.log("反推得到的提示词:", captionPrompt);
 
@@ -342,7 +343,6 @@ export async function POST(request: NextRequest) {
               backgroundImage,
               captionPrompt,
               aspectRatio,
-              apiKey,
               charAvatarBase64,
               charAvatarMimeType
             );
@@ -663,64 +663,31 @@ export async function POST(request: NextRequest) {
 // Step 1: 反推提示词（使用 gemini-3-pro-preview 文本模型）
 async function reverseCaptionPrompt(
   imageBase64: string,
-  mimeType: string,
-  apiKey: string
+  mimeType: string
 ): Promise<string> {
   // 用英文反推提示词，包含环境、氛围、光影、场景信息、色调的描述，镜头和构图的描述，人物姿势、穿着、神态的描述，但不描述身材、长相、发型等和人物外貌相关的信息
   const prompt = "用英文反推下这张图片的提示词，包含环境、氛围、光影、场景信息、色调的描述，镜头和构图的描述，人物姿势、穿着、神态的描述。请不要描述身材、长相、发型等和人物外貌相关的信息。请直接输出英文反推词。";
 
-  const contents = [
-    {
-      parts: [
-        {
-          inlineData: {
-            mimeType: mimeType,
-            data: imageBase64,
-          },
-        },
-        { text: prompt },
-      ],
-    },
-  ];
-
-  // 增加 maxOutputTokens 以避免 MAX_TOKENS 错误
-  // 同时使用较低的 temperature 以获得更简洁、一致的输出
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents,
-        generationConfig: {
-          temperature: 0.5, // 降低 temperature 以获得更简洁的输出
-          topP: 0.8,
-          topK: 40,
-          maxOutputTokens: 2048, // 增加到 2048 以避免 MAX_TOKENS 错误
-        },
-        safetySettings: [
-          {
-            category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_NONE"
-          },
-          {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_NONE"
-          },
-          {
-            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            threshold: "BLOCK_NONE"
-          },
-          {
-            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_NONE"
-          }
-        ],
-      }),
-    }
-  );
+  const modelId = process.env.GEMINI_TEXT_MODEL_ID || "gemini-3-pro-preview";
+  
+  try {
+    const responseText = await generateText(
+      modelId,
+      prompt,
+      imageBase64,
+      mimeType,
+      {
+        temperature: 0.5,
+        topP: 0.8,
+        maxOutputTokens: 2048,
+      }
+    );
+    
+    return responseText;
+  } catch (error: any) {
+    console.error("反推提示词失败:", error);
+    throw new Error(`反推提示词失败: ${error.message || "未知错误"}`);
+  }
 
   if (!response.ok) {
     const error = await response.text();
@@ -861,113 +828,28 @@ async function reverseCaptionPrompt(
 async function removeCharacter(
   imageBase64: string,
   mimeType: string,
-  aspectRatio: string | null,
-  apiKey: string
+  aspectRatio: string | null
 ): Promise<string> {
   const prompt = "去掉这张图片中的人物";
-
-  const contents = [
-    {
-      parts: [
-        {
-          inlineData: {
-            mimeType: mimeType,
-            data: imageBase64,
-          },
-        },
-        { text: prompt },
-      ],
-    },
-  ];
-
-  const generationConfig: any = {
-    responseModalities: ["IMAGE"],
-  };
-
-  if (aspectRatio && aspectRatio !== "default") {
-    generationConfig.imageConfig = {
-      aspectRatio: aspectRatio,
-    };
-  }
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents,
-        generationConfig,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("Gemini API error (remove character):", error);
-    throw new Error("去掉人物失败");
-  }
-
-  const data = await response.json();
-  console.log("Gemini API 响应 (remove character):", JSON.stringify(data, null, 2));
-
-  // Check for API errors
-  if (data.error) {
-    console.error("Gemini API 返回错误:", data.error);
-    throw new Error(`Gemini API 错误: ${data.error.message || '未知错误'}`);
-  }
-
-  // Check promptFeedback FIRST
-  if (data.promptFeedback) {
-    const blockReason = data.promptFeedback.blockReason;
-    console.error("Prompt被阻止 (remove character):", {
-      blockReason,
-      blockReasonMessage: data.promptFeedback.blockReasonMessage
-    });
-    
-    if (blockReason === "IMAGE_SAFETY" || blockReason === "PROHIBITED_CONTENT") {
-      throw new Error(`内容被安全过滤阻止: ${blockReason}`);
-    } else if (blockReason) {
-      throw new Error(`请求被阻止: ${data.promptFeedback.blockReasonMessage || blockReason}`);
-    }
-  }
-
-  // Check for candidates
-  if (!data.candidates || data.candidates.length === 0) {
-    console.error("没有 candidates 或为空");
-    throw new Error("API 未返回候选结果，请稍后重试");
-  }
-
-  // Extract generated image and check finish reason
-  for (const candidate of data.candidates) {
-    // Check finish reason
-    if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
-      console.error("内容被安全过滤阻止:", candidate.finishReason);
-      throw new Error("内容被安全过滤阻止，请尝试其他图片");
-    }
-
-    if (candidate.content && candidate.content.parts) {
-      for (const part of candidate.content.parts) {
-        if (part.inlineData) {
-          const dataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          return dataUrl;
-        }
+  const modelId = process.env.GEMINI_IMAGE_MODEL_ID || "gemini-3-pro-image-preview";
+  
+  try {
+    const imageData = await generateImage(
+      modelId,
+      prompt,
+      {
+        imageBase64: imageBase64,
+        mimeType: mimeType,
+        aspectRatio: aspectRatio || undefined,
       }
-    }
+    );
+    
+    // 返回 data URL 格式
+    return `data:image/png;base64,${imageData}`;
+  } catch (error: any) {
+    console.error("去掉人物失败:", error);
+    throw new Error(`去掉人物失败: ${error.message || "未知错误"}`);
   }
-
-  // No image found
-  let errorMsg = "未找到生成的背景图";
-  const candidate = data.candidates[0];
-  if (candidate.finishReason) {
-    errorMsg += `。原因: ${candidate.finishReason}`;
-  }
-  if (candidate.safetyRatings) {
-    errorMsg += `。安全评级: ${JSON.stringify(candidate.safetyRatings)}`;
-  }
-  throw new Error(errorMsg);
 }
 
 // Step 3: 生成最终图片（使用 gemini-3-pro-image-preview 图像生成模型）
@@ -977,7 +859,6 @@ async function generateFinalImage(
   backgroundImage: string,
   captionPrompt: string,
   aspectRatio: string | null,
-  apiKey: string,
   charAvatarBase64?: string | null,
   charAvatarMimeType?: string | null
 ): Promise<string> {
@@ -990,155 +871,55 @@ scene setup: ${captionPrompt}
 
 negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorted anatomy, fake portrait-mode blur, CGI/illustration look`;
 
-  // Build image parts
-  // 如果提供了 charAvatar，先添加 char_avatar，然后添加 char_image
-  // 否则只添加 characterImage（作为 char_image）
-  const imageParts: any[] = [];
+  const modelId = process.env.GEMINI_IMAGE_MODEL_ID || "gemini-3-pro-image-preview";
   
-  if (charAvatarBase64 && charAvatarMimeType) {
-    // 添加 char_avatar
-    imageParts.push({
-      inlineData: {
-        mimeType: charAvatarMimeType,
-        data: charAvatarBase64,
-      },
-    });
-    console.log("已添加 char_avatar 到生成请求");
-  }
+  // 处理背景图 base64
+  let backgroundBase64: string | undefined;
+  let backgroundMimeType: string | undefined;
   
-  // 添加 char_image（characterImage）
-  imageParts.push({
-    inlineData: {
-      mimeType: characterMimeType,
-      data: characterBase64,
-    },
-  });
-
-  console.log(`Background image provided: ${backgroundImage ? 'Yes' : 'No'}, length: ${backgroundImage?.length || 0}`);
-
-  // Add background image if available
   if (backgroundImage && backgroundImage.length > 0) {
-    let backgroundBase64 = backgroundImage;
-    let backgroundMimeType = "image/png";
-
     if (backgroundImage.startsWith("data:")) {
       const parts = backgroundImage.split(",");
-      const metadata = parts[0];
       backgroundBase64 = parts[1];
+      const metadata = parts[0];
       const mimeMatch = metadata.match(/data:(.*?);base64/);
       if (mimeMatch) {
         backgroundMimeType = mimeMatch[1];
       }
+    } else {
+      backgroundBase64 = backgroundImage;
+      backgroundMimeType = "image/png";
     }
-
-    imageParts.push({
-      inlineData: {
-        mimeType: backgroundMimeType,
-        data: backgroundBase64,
-      },
-    });
     console.log("已添加背景图到生成请求");
   } else {
     console.log("未使用背景图，仅使用 character image 生成");
   }
-
-  // Add prompt
-  imageParts.push({ text: finalPrompt });
-
-  const contents = [
-    {
-      parts: imageParts,
-    },
-  ];
-
-  const generationConfig: any = {
-    responseModalities: ["IMAGE"],
-  };
-
-  if (aspectRatio && aspectRatio !== "default") {
-    generationConfig.imageConfig = {
-      aspectRatio: aspectRatio,
-    };
+  
+  if (charAvatarBase64 && charAvatarMimeType) {
+    console.log("已添加 char_avatar 到生成请求");
   }
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents,
-        generationConfig,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("Gemini API error (generate final):", error);
-    throw new Error("生成最终图片失败");
-  }
-
-  const data = await response.json();
-  console.log("Gemini API 响应 (generate final):", JSON.stringify(data, null, 2));
-
-  // Check for API errors
-  if (data.error) {
-    console.error("Gemini API 返回错误:", data.error);
-    throw new Error(`Gemini API 错误: ${data.error.message || '未知错误'}`);
-  }
-
-  // Check promptFeedback FIRST
-  if (data.promptFeedback) {
-    const blockReason = data.promptFeedback.blockReason;
-    console.error("Prompt被阻止 (remove character):", {
-      blockReason,
-      blockReasonMessage: data.promptFeedback.blockReasonMessage
-    });
-    
-    if (blockReason === "IMAGE_SAFETY" || blockReason === "PROHIBITED_CONTENT") {
-      throw new Error(`内容被安全过滤阻止: ${blockReason}`);
-    } else if (blockReason) {
-      throw new Error(`请求被阻止: ${data.promptFeedback.blockReasonMessage || blockReason}`);
-    }
-  }
-
-  // Check for candidates
-  if (!data.candidates || data.candidates.length === 0) {
-    console.error("没有 candidates 或为空");
-    throw new Error("API 未返回候选结果，请稍后重试");
-  }
-
-  // Extract generated image and check finish reason
-  for (const candidate of data.candidates) {
-    // Check finish reason
-    if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
-      console.error("内容被安全过滤阻止:", candidate.finishReason);
-      throw new Error("内容被安全过滤阻止，请尝试调整提示词或图片");
-    }
-
-    if (candidate.content && candidate.content.parts) {
-      for (const part of candidate.content.parts) {
-        if (part.inlineData) {
-          const dataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          return dataUrl;
-        }
+  
+  try {
+    const imageData = await generateImage(
+      modelId,
+      finalPrompt,
+      {
+        charAvatarBase64: charAvatarBase64 || undefined,
+        charAvatarMimeType: charAvatarMimeType || undefined,
+        characterImageBase64: characterBase64,
+        characterImageType: characterMimeType,
+        imageBase64: backgroundBase64,
+        mimeType: backgroundMimeType,
+        aspectRatio: aspectRatio || undefined,
       }
-    }
+    );
+    
+    // 返回 data URL 格式
+    return `data:image/png;base64,${imageData}`;
+  } catch (error: any) {
+    console.error("生成最终图片失败:", error);
+    throw new Error(`生成最终图片失败: ${error.message || "未知错误"}`);
   }
-
-  // No image found
-  let errorMsg = "未找到生成的最终图片";
-  const candidate = data.candidates[0];
-  if (candidate.finishReason) {
-    errorMsg += `。原因: ${candidate.finishReason}`;
-  }
-  if (candidate.safetyRatings) {
-    errorMsg += `。安全评级: ${JSON.stringify(candidate.safetyRatings)}`;
-  }
-  throw new Error(errorMsg);
 }
 
 // Helper functions for Aimovely integration

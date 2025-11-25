@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateRequestAuth } from "@/lib/auth";
+import { generateText, generateImage } from "@/lib/vertexai";
 
 // Set max duration to 5 minutes for Vercel Serverless Functions
 export const maxDuration = 300;
@@ -34,10 +35,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    // 检查 Vertex AI 配置
+    const projectId = process.env.VERTEX_AI_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT_ID;
+    if (!projectId) {
       return NextResponse.json(
-        { error: "Gemini API key not configured" },
+        { error: "VERTEX_AI_PROJECT_ID or GOOGLE_CLOUD_PROJECT_ID environment variable is required" },
         { status: 500 }
       );
     }
@@ -94,7 +96,6 @@ export async function POST(request: NextRequest) {
     const poseDescriptions = await generatePoseDescriptions(
       imageBase64,
       image.type,
-      apiKey,
       targetPoseCount
     );
     const step1Time = ((Date.now() - step1Start) / 1000).toFixed(2);
@@ -165,7 +166,7 @@ export async function POST(request: NextRequest) {
         const imageStart = Date.now();
         console.log(`启动第 ${index + 1}/${poseDescriptions.length} 张图片的生成任务...`);
         
-        return generatePoseImage(imageBase64, image.type, poseDesc, aspectRatio, apiKey, characterImageBase64, characterImageType)
+        return generatePoseImage(imageBase64, image.type, poseDesc, aspectRatio, characterImageBase64, characterImageType)
           .then((generatedImage) => {
             const imageTime = ((Date.now() - imageStart) / 1000).toFixed(2);
             console.log(`第 ${index + 1} 张图片生成成功，耗时: ${imageTime} 秒`);
@@ -775,7 +776,6 @@ export async function POST(request: NextRequest) {
 async function generatePoseDescriptions(
   imageBase64: string,
   mimeType: string,
-  apiKey: string,
   count: number = 6
 ): Promise<PoseDescription[]> {
   // 动态生成格式示例
@@ -792,158 +792,22 @@ async function generatePoseDescriptions(
 
 ${formatExample}`;
 
-  const contents = [
-    {
-      parts: [
-        {
-          inlineData: {
-            mimeType: mimeType,
-            data: imageBase64,
-          },
-        },
-        { text: prompt },
-      ],
-    },
-  ];
-
-  // Use higher maxOutputTokens for detailed pose descriptions
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents,
-        generationConfig: {
-          temperature: 0.7,
-          topP: 0.8,
-          topK: 40,
-          maxOutputTokens: 10000, // Increased to avoid truncation
-        },
-        safetySettings: [
-          {
-            category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_NONE"
-          },
-          {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_NONE"
-          },
-          {
-            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            threshold: "BLOCK_NONE"
-          },
-          {
-            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_NONE"
-          }
-        ],
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("Gemini API error (generate pose descriptions):", error);
-    throw new Error("生成pose描述失败");
-  }
-
-  const data = await response.json();
-  console.log("=== Gemini API 响应 (generate pose descriptions) ===");
-  console.log("响应 keys:", Object.keys(data));
-  console.log("Candidates 数量:", data.candidates?.length || 0);
-
-  // Check for API errors
-  if (data.error) {
-    console.error("Gemini API 返回错误:", data.error);
-    throw new Error(`Gemini API 错误: ${data.error.message || '未知错误'}`);
-  }
-
-  // Check for promptFeedback before checking candidates
-  if (data.promptFeedback) {
-    console.log("promptFeedback:", JSON.stringify(data.promptFeedback, null, 2));
-    if (data.promptFeedback.blockReason) {
-      console.error(`请求被阻止: ${data.promptFeedback.blockReason}`);
-      // Log safety ratings if available
-      if (data.promptFeedback.safetyRatings) {
-        console.error("Safety Ratings:", JSON.stringify(data.promptFeedback.safetyRatings, null, 2));
-      }
-      throw new Error(`Gemini API 阻止了请求 (原因: ${data.promptFeedback.blockReason})。请尝试使用其他图片或调整内容。`);
-    }
-  }
-
-  // Check for candidates
-  if (!data.candidates || data.candidates.length === 0) {
-    console.error("没有 candidates 或为空");
-    console.error("完整 API 响应:", JSON.stringify(data, null, 2));
-    const error: any = new Error("API 未返回候选结果，请稍后重试");
-    error.details = { response: data };
-    throw error;
-  }
-
-  const candidate = data.candidates[0];
-  console.log("第一个 candidate 的 keys:", Object.keys(candidate));
-  console.log("Finish reason:", candidate.finishReason);
-
-  // Check finish reason first (before checking content)
-  if (candidate.finishReason) {
-    if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
-      console.error("内容被安全过滤阻止:", candidate.finishReason);
-      console.error("安全评级:", candidate.safetyRatings);
-      const error: any = new Error("内容被安全过滤阻止，请尝试其他图片");
-      error.details = {
-        finishReason: candidate.finishReason,
-        safetyRatings: candidate.safetyRatings
-      };
-      throw error;
-    }
-    
-    // MAX_TOKENS means we got partial text
-    if (candidate.finishReason === "MAX_TOKENS") {
-      console.warn("检测到 MAX_TOKENS finishReason，将检查是否有部分生成的文本");
-    }
-    
-    console.log("Finish reason:", candidate.finishReason);
-  }
-
-  // Check for content
-  if (!candidate.content || !candidate.content.parts) {
-    console.error("候选结果中没有 content 或 parts");
-    console.error("候选结果详情:", JSON.stringify(candidate, null, 2));
-    let errorMsg = "未找到pose描述";
-    if (candidate.finishReason && candidate.finishReason !== "STOP") {
-      errorMsg += `。原因: ${candidate.finishReason}`;
-    }
-    const error: any = new Error(errorMsg);
-    error.details = {
-      finishReason: candidate.finishReason,
-      safetyRatings: candidate.safetyRatings,
-      candidate: candidate
-    };
-    throw error;
-  }
-
-  // Extract text from parts
-  let text = "";
-  for (const part of candidate.content.parts) {
-    if (part.text) {
-      text += part.text;
-    } else {
-      console.log("部分内容不是文本:", part);
-    }
-  }
-
-  const trimmedText = text.trim();
+  // 使用 Vertex AI generateText 函数
+  const modelId = process.env.GEMINI_TEXT_MODEL_ID || "gemini-3-pro-preview";
   
-  // If we have text, use it (even if finishReason is MAX_TOKENS)
-  if (trimmedText) {
-    if (candidate.finishReason === "MAX_TOKENS") {
-      console.warn("达到最大令牌数限制，但已生成部分文本，将使用已生成的文本");
-      console.log("生成的文本长度:", trimmedText.length);
-      console.log("生成的文本预览:", trimmedText.substring(0, 500));
-    }
+  try {
+    const trimmedText = await generateText(
+      modelId,
+      prompt,
+      imageBase64,
+      mimeType,
+      {
+        temperature: 0.7,
+        topP: 0.8,
+        maxOutputTokens: 10000, // Increased to avoid truncation
+      }
+    );
+    
     console.log("成功提取pose描述，长度:", trimmedText.length);
     
     // Parse the pose descriptions
@@ -956,45 +820,10 @@ ${formatExample}`;
       console.error("文本预览 (前1000字符):", trimmedText.substring(0, 1000));
       throw new Error("未能解析pose描述，文本格式可能不正确");
     }
+  } catch (error: any) {
+    console.error("生成pose描述失败:", error);
+    throw new Error(`生成pose描述失败: ${error.message || '未知错误'}`);
   }
-  
-  // Only throw error if we have no text at all
-  console.error("提取的文本为空");
-  console.error("所有 parts:", JSON.stringify(candidate.content.parts, null, 2));
-  console.error("Finish reason:", candidate.finishReason);
-  console.error("Safety ratings:", candidate.safetyRatings);
-  
-  let errorMsg = "未找到pose描述";
-  
-  // Check finish reason
-  if (candidate.finishReason) {
-    if (candidate.finishReason === "STOP") {
-      errorMsg += "。API 返回成功但未生成文本内容";
-    } else if (candidate.finishReason === "MAX_TOKENS") {
-      errorMsg += "。达到最大令牌数限制";
-    } else {
-      errorMsg += `。原因: ${candidate.finishReason}`;
-    }
-  }
-  
-  // Check safety ratings
-  if (candidate.safetyRatings && Array.isArray(candidate.safetyRatings)) {
-    const blockedCategories = candidate.safetyRatings
-      .filter((rating: any) => rating.probability === "HIGH" || rating.probability === "MEDIUM")
-      .map((rating: any) => rating.category);
-    if (blockedCategories.length > 0) {
-      errorMsg += `。可能触发了安全过滤: ${blockedCategories.join(", ")}`;
-    }
-  }
-  
-  const error: any = new Error(errorMsg);
-  error.details = {
-    finishReason: candidate.finishReason,
-    safetyRatings: candidate.safetyRatings,
-    parts: candidate.content.parts,
-    fullCandidate: candidate
-  };
-  throw error;
 }
 
 // Parse pose descriptions from text
@@ -1525,7 +1354,6 @@ async function generatePoseImage(
   mimeType: string,
   poseDescription: PoseDescription,
   aspectRatio: string | null,
-  apiKey: string,
   characterImageBase64?: string | null,
   characterImageType?: string | null
 ): Promise<string> {
@@ -1575,109 +1403,29 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
     },
   ];
 
-  const generationConfig: any = {
-    responseModalities: ["IMAGE"],
-  };
-
-  if (aspectRatio && aspectRatio !== "default") {
-    generationConfig.imageConfig = {
-      aspectRatio: aspectRatio,
-    };
-  }
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents,
-        generationConfig,
-        // No explicit safetySettings for Image model (use Gemini defaults)
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("Gemini API error (generate pose image):", error);
-    throw new Error("生成图片失败");
-  }
-
-  const data = await response.json();
+  // 使用 Vertex AI generateImage 函数
+  const modelId = process.env.GEMINI_IMAGE_MODEL_ID || "gemini-3-pro-image-preview";
   
-  // Log API response summary (DO NOT log full base64 image data)
-  console.log("Gemini API 响应 (generate pose image):", {
-    hasCandidates: !!data.candidates,
-    candidatesCount: data.candidates?.length || 0,
-    hasError: !!data.error,
-    error: data.error || null,
-    hasPromptFeedback: !!data.promptFeedback,
-    blockReason: data.promptFeedback?.blockReason || null,
-    firstCandidateFinishReason: data.candidates?.[0]?.finishReason || null,
-    firstCandidateHasInlineData: !!data.candidates?.[0]?.content?.parts?.[0]?.inlineData,
-    // Log data length instead of full data
-    firstCandidateDataLength: data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data?.length || 0,
-  });
-
-  // Check for API errors
-  if (data.error) {
-    console.error("Gemini API 返回错误:", data.error);
-    throw new Error(`Gemini API 错误: ${data.error.message || '未知错误'}`);
-  }
-
-  // Check for promptFeedback before checking candidates
-  if (data.promptFeedback?.blockReason) {
-    console.error(`请求被阻止: ${data.promptFeedback.blockReason}`);
-    if (data.promptFeedback.safetyRatings) {
-      console.error("Safety Ratings:", JSON.stringify(data.promptFeedback.safetyRatings, null, 2));
-    }
-    throw new Error(`Gemini 阻止了图片生成 (原因: ${data.promptFeedback.blockReason})。请尝试使用其他图片。`);
-  }
-
-  // Check for candidates
-  if (!data.candidates || data.candidates.length === 0) {
-    console.error("没有 candidates 或为空");
-    throw new Error("API 未返回候选结果，请稍后重试");
-  }
-
-  // Extract generated image and check finish reason
-  for (const candidate of data.candidates) {
-    // Check finish reason
-    if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
-      console.error("内容被安全过滤阻止:", candidate.finishReason);
-      throw new Error("内容被安全过滤阻止，请尝试调整图片");
-    }
-
-    if (candidate.content && candidate.content.parts) {
-      for (const part of candidate.content.parts) {
-        if (part.inlineData) {
-          const dataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          return dataUrl;
-        }
+  try {
+    const imageBase64 = await generateImage(
+      modelId,
+      prompt,
+      {
+        imageBase64: imageBase64,
+        mimeType: mimeType,
+        characterImageBase64: characterImageBase64 || undefined,
+        characterImageType: characterImageType || undefined,
+        aspectRatio: aspectRatio || undefined,
       }
-    }
+    );
+    
+    // 转换为 data URL 格式
+    const dataUrl = `data:image/png;base64,${imageBase64}`;
+    return dataUrl;
+  } catch (error: any) {
+    console.error("生成图片失败:", error);
+    throw new Error(`生成图片失败: ${error.message || '未知错误'}`);
   }
-
-  // No image found
-  let errorMsg = "未找到生成的图片";
-  const candidate = data.candidates[0];
-  if (candidate.finishReason) {
-    errorMsg += `。原因: ${candidate.finishReason}`;
-  }
-  // Simplify safetyRatings to avoid complex nested JSON in error message
-  // Just include the category and probability, not the full JSON
-  if (candidate.safetyRatings && Array.isArray(candidate.safetyRatings)) {
-    const ratings = candidate.safetyRatings.map((r: any) => {
-      return r.category ? `${r.category}:${r.probability || r.blocked || 'unknown'}` : '';
-    }).filter((r: string) => r).join(', ');
-    if (ratings) {
-      errorMsg += `。安全评级: ${ratings}`;
-    }
-  }
-  throw new Error(errorMsg);
 }
 
 // Helper functions for Aimovely integration
