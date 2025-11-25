@@ -880,6 +880,7 @@ async function uploadImageToAimovely(
     const formData = new FormData();
     formData.append("file", file);
     formData.append("biz", "external_tool");
+    formData.append("template_id", "1");
 
     // Upload to Aimovely
     let uploadResponse = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {

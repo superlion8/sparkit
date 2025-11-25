@@ -1487,6 +1487,7 @@ async function uploadImageToAimovely(dataUrl: string, token: string, prefix: str
   const formData = new FormData();
   formData.append("file", file);
   formData.append("biz", "external_tool");
+  formData.append("template_id", "1");
 
   const response = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
     method: "POST",
