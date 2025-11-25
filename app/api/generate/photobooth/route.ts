@@ -1405,9 +1405,9 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
 
   // 使用 Vertex AI generateImage 函数
   const modelId = process.env.GEMINI_IMAGE_MODEL_ID || "gemini-3-pro-image-preview";
-  
+
   try {
-    const imageBase64 = await generateImage(
+    const generatedImageBase64 = await generateImage(
       modelId,
       prompt,
       {
@@ -1418,9 +1418,9 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
         aspectRatio: aspectRatio || undefined,
       }
     );
-    
+
     // 转换为 data URL 格式
-    const dataUrl = `data:image/png;base64,${imageBase64}`;
+    const dataUrl = `data:image/png;base64,${generatedImageBase64}`;
     return dataUrl;
   } catch (error: any) {
     console.error("生成图片失败:", error);

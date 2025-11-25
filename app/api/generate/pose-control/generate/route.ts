@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getVertexAIClient } from '@/lib/vertexai';
+import { HarmCategory, HarmBlockThreshold } from '@google-cloud/vertexai';
 
 export const maxDuration = 300;
 
@@ -102,18 +104,37 @@ async function generateImage(
 ): Promise<{ success: boolean; imageBase64?: string; error?: string }> {
   try {
     // Log input parameters for verification
-    console.log('[Pose Control - Generate Image] Input verification:');
+    console.log('[Pose Control - Generate Image] Input verification (Vertex AI SDK):');
     console.log(`  - charImageBase64 length: ${charImageBase64.length}`);
     console.log(`  - poseImageBase64 length: ${poseImageBase64.length}`);
     console.log(`  - finalPrompt length: ${finalPrompt.length}`);
     console.log(`  - finalPrompt: ${finalPrompt.substring(0, 150)}...`);
-    
+
+    // Build content parts
+    const parts: any[] = [
+      {
+        inlineData: {
+          mimeType: 'image/png',
+          data: charImageBase64,  // 角色图
+        },
+      },
+      {
+        inlineData: {
+          mimeType: 'image/png',
+          data: poseImageBase64,  // Pose 图
+        },
+      },
+      {
+        text: finalPrompt,  // 用户改好的 final_prompt
+      },
+    ];
+
+    // Build generation config
     const generationConfig: any = {
       temperature: 1,
       topP: 0.95,
       topK: 40,
       maxOutputTokens: 8192,
-      responseMimeType: 'text/plain',
       responseModalities: ['IMAGE'],
     };
 
@@ -124,91 +145,72 @@ async function generateImage(
       };
     }
 
-    const requestBody = {
-      contents: [
-        {
-          parts: [
-            {
-              inline_data: {
-                mime_type: 'image/png',
-                data: charImageBase64,  // ✅ 角色图
-              },
-            },
-            {
-              inline_data: {
-                mime_type: 'image/png',
-                data: poseImageBase64,  // ✅ Pose 图
-              },
-            },
-            {
-              text: finalPrompt,  // ✅ 用户改好的 final_prompt
-            },
-          ],
-        },
-      ],
-      generationConfig,
-    };
-
-    console.log('[Pose Control - Generate Image] Calling Gemini API with:');
+    console.log('[Pose Control - Generate Image] Calling Vertex AI SDK with:');
     console.log(`  - parts[0]: charImage (${charImageBase64.length} bytes)`);
     console.log(`  - parts[1]: poseImage (${poseImageBase64.length} bytes)`);
     console.log(`  - parts[2]: finalPrompt (${finalPrompt.length} chars)`);
     console.log(`  - aspectRatio: ${aspectRatio}`);
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.error('[Pose Control - Generate] API key not configured');
-      return { success: false, error: 'Gemini API key not configured' };
-    }
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+    // Call Vertex AI SDK using gemini-3-pro-image-preview model
+    const modelId = "gemini-3-pro-image-preview";
+    const client = getVertexAIClient();
+    const model = client.getGenerativeModel({
+      model: modelId,
+      safetySettings: [
+        {
+          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
         },
-        body: JSON.stringify(requestBody),
-      }
-    );
+        {
+          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
+        },
+      ],
+    });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Pose Control - Generate] API error:', errorText);
-      return { success: false, error: `Gemini API错误: ${response.status}` };
-    }
-
-    const data = await response.json();
+    const response = await model.generateContent({
+      contents: [{ role: "user", parts }],
+      generationConfig,
+    });
 
     // Check for prompt feedback
-    if (data.promptFeedback && data.promptFeedback.blockReason) {
-      console.error('[Pose Control - Generate] Prompt was blocked:', data.promptFeedback);
-      return { 
-        success: false, 
-        error: `图片生成被阻止: ${data.promptFeedback.blockReason}` 
+    const promptFeedback = response.response.promptFeedback;
+    if (promptFeedback && (promptFeedback as any).blockReason) {
+      console.error('[Pose Control - Generate] Prompt was blocked:', promptFeedback);
+      return {
+        success: false,
+        error: `图片生成被阻止: ${(promptFeedback as any).blockReason}`
       };
     }
 
-    if (!data.candidates || data.candidates.length === 0) {
+    const candidates = response.response.candidates;
+    if (!candidates || candidates.length === 0) {
       console.error('[Pose Control - Generate] No candidates returned');
-      console.error('[Pose Control - Generate] Full response:', JSON.stringify(data, null, 2));
+      console.error('[Pose Control - Generate] Full response:', JSON.stringify(response.response, null, 2));
       return { success: false, error: 'API未返回图片结果' };
     }
 
-    const candidate = data.candidates[0];
-    console.log('[Pose Control - Generate] Candidate keys:', Object.keys(candidate));
+    const candidate = candidates[0];
     console.log('[Pose Control - Generate] Finish reason:', candidate.finishReason);
     console.log('[Pose Control - Generate] Has content:', !!candidate.content);
     console.log('[Pose Control - Generate] Has parts:', !!candidate.content?.parts);
-    
+
     // Check finish reason first
     if (candidate.finishReason) {
       if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
         console.error('[Pose Control - Generate] Content blocked by safety filter:', candidate.finishReason);
         console.error('[Pose Control - Generate] Safety ratings:', candidate.safetyRatings);
-        return { 
-          success: false, 
-          error: `内容被安全过滤阻止 (${candidate.finishReason})，请尝试其他图片或提示词` 
+        return {
+          success: false,
+          error: `内容被安全过滤阻止 (${candidate.finishReason})，请尝试其他图片或提示词`
         };
       }
     }
@@ -229,8 +231,8 @@ async function generateImage(
     // Extract image from response
     let imageBase64 = '';
     for (const part of candidate.content.parts) {
-      if (part.inlineData && part.inlineData.data) {
-        imageBase64 = part.inlineData.data;
+      if ((part as any).inlineData && (part as any).inlineData.data) {
+        imageBase64 = (part as any).inlineData.data;
         break;
       }
     }

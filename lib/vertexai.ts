@@ -1,73 +1,86 @@
 /**
  * Vertex AI 工具函数
  * 统一管理所有 Gemini 模型的调用
- * 使用 Vertex AI REST API
- * 
- * 认证方式：
- * - VERTEX_AI_API_KEY: OAuth2 access token (Bearer token)
- *   可以通过服务账号获取：gcloud auth print-access-token
- *   或者使用服务账号 JSON 文件通过 Google Auth Library 获取
+ * 使用 @google-cloud/vertexai SDK
+ *
+ * 认证方式（Application Default Credentials）：
+ * - 本地开发: gcloud auth application-default login
+ * - GCP 环境: 自动使用服务账号
+ * - 服务账号文件: GOOGLE_APPLICATION_CREDENTIALS 环境变量
  */
+import { VertexAI, HarmCategory, HarmBlockThreshold } from "@google-cloud/vertexai";
+
+// Vertex AI 客户端缓存
+let vertexAIClient: VertexAI | null = null;
+
 // 获取 Vertex AI 配置
 export function getVertexAIConfig() {
   const projectId = process.env.VERTEX_AI_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT_ID;
   const location = process.env.VERTEX_AI_LOCATION || process.env.GOOGLE_CLOUD_LOCATION || "us-central1";
-  // 注意：这里应该是 OAuth2 access token，不是 API Key
-  // 可以通过 gcloud auth print-access-token 获取
-  const accessToken = process.env.VERTEX_AI_API_KEY || process.env.VERTEX_AI_ACCESS_TOKEN;
-  
+
   if (!projectId) {
     throw new Error("VERTEX_AI_PROJECT_ID or GOOGLE_CLOUD_PROJECT_ID environment variable is required");
   }
-  
-  if (!accessToken) {
-    throw new Error("VERTEX_AI_API_KEY or VERTEX_AI_ACCESS_TOKEN environment variable is required (should be OAuth2 access token)");
-  }
-  
-  return { projectId, location, apiKey: accessToken };
+
+  return { projectId, location };
 }
 
-// 调用 Vertex AI REST API (generateContent)
+// 获取 Vertex AI 客户端（单例）
+export function getVertexAIClient(): VertexAI {
+  if (!vertexAIClient) {
+    const { projectId, location } = getVertexAIConfig();
+    vertexAIClient = new VertexAI({
+      project: projectId,
+      location: location,
+    });
+  }
+  return vertexAIClient;
+}
+
+// 安全设置配置
+const safetySettings = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+];
+
+// 调用 Vertex AI SDK (generateContent)
 export async function callVertexAI(
   modelId: string,
   contents: any[],
   generationConfig: any
 ): Promise<any> {
-  const { projectId, location, apiKey } = getVertexAIConfig();
-  
-  // Vertex AI generateContent REST API 端点
-  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:generateContent`;
-  
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      contents: contents,
-      generationConfig: generationConfig,
-    }),
+  const client = getVertexAIClient();
+
+  const model = client.getGenerativeModel({
+    model: modelId,
+    safetySettings: safetySettings,
   });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Vertex AI API error:", errorText);
-    throw new Error(`Vertex AI API error: ${response.status} ${response.statusText}`);
-  }
-  
-  const data = await response.json();
-  
-  // Vertex AI generateContent 返回格式: { candidates: [...] }
-  if (!data.candidates) {
+
+  const response = await model.generateContent({
+    contents: contents,
+    generationConfig: generationConfig,
+  });
+
+  // SDK 直接返回结构化响应
+  if (!response.response.candidates) {
     throw new Error("Invalid response format from Vertex AI");
   }
-  
-  return {
-    response: {
-      candidates: data.candidates,
-    },
-  };
+
+  return response;
 }
 
 // 调用文本生成模型（如 gemini-3-pro-preview）
@@ -82,8 +95,15 @@ export async function generateText(
     maxOutputTokens?: number;
   }
 ): Promise<string> {
+  const client = getVertexAIClient();
+
+  const model = client.getGenerativeModel({
+    model: modelId,
+    safetySettings: safetySettings,
+  });
+
   const parts: any[] = [];
-  
+
   // 如果有图片，先添加图片
   if (imageBase64 && mimeType) {
     parts.push({
@@ -93,26 +113,33 @@ export async function generateText(
       },
     });
   }
-  
+
   // 添加文本提示
   parts.push({ text: prompt });
-  
-  const contents = [{ role: "user", parts }];
-  
+
   const generationConfig = {
     temperature: options?.temperature ?? 0.5,
     topP: options?.topP ?? 0.8,
     maxOutputTokens: options?.maxOutputTokens ?? 2048,
   };
-  
-  const response = await callVertexAI(modelId, contents, generationConfig);
-  
-  const responseText = response.response.candidates?.[0]?.content?.parts?.[0]?.text;
-  
+
+  const response = await model.generateContent({
+    contents: [{ role: "user", parts }],
+    generationConfig: generationConfig,
+  });
+
+  // 检查安全过滤
+  const candidate = response.response.candidates?.[0];
+  if (candidate?.finishReason === "SAFETY") {
+    throw new Error("内容被安全过滤阻止");
+  }
+
+  const responseText = candidate?.content?.parts?.[0]?.text;
+
   if (!responseText) {
     throw new Error("No text response from model");
   }
-  
+
   return responseText;
 }
 
@@ -131,8 +158,15 @@ export async function generateImage(
     imageSize?: "1K" | "2K";
   }
 ): Promise<string> {
+  const client = getVertexAIClient();
+
+  const model = client.getGenerativeModel({
+    model: modelId,
+    safetySettings: safetySettings,
+  });
+
   const parts: any[] = [];
-  
+
   // 添加 char_avatar（如果有，应该最先添加）
   if (options?.charAvatarBase64 && options?.charAvatarMimeType) {
     parts.push({
@@ -142,7 +176,7 @@ export async function generateImage(
       },
     });
   }
-  
+
   // 添加角色图片（char_image，如果有）
   if (options?.characterImageBase64 && options?.characterImageType) {
     parts.push({
@@ -152,7 +186,7 @@ export async function generateImage(
       },
     });
   }
-  
+
   // 添加背景图片（如果有）
   if (options?.imageBase64 && options?.mimeType) {
     parts.push({
@@ -162,17 +196,15 @@ export async function generateImage(
       },
     });
   }
-  
+
   // 添加文本提示
   parts.push({ text: prompt });
-  
-  const contents = [{ role: "user", parts }];
-  
+
   // 构建生成配置
   const generationConfig: any = {
     responseModalities: ["IMAGE"],
   };
-  
+
   // 图片配置
   const imageConfig: any = {};
   if (options?.imageSize) {
@@ -181,20 +213,37 @@ export async function generateImage(
   if (options?.aspectRatio && options.aspectRatio !== "default") {
     imageConfig.aspectRatio = options.aspectRatio as "1:1" | "16:9" | "9:16";
   }
-  
+
   if (Object.keys(imageConfig).length > 0) {
     generationConfig.imageConfig = imageConfig;
   }
-  
-  const response = await callVertexAI(modelId, contents, generationConfig);
-  
-  // 提取生成的图片
-  const imageData = response.response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-  
+
+  const response = await model.generateContent({
+    contents: [{ role: "user", parts }],
+    generationConfig: generationConfig,
+  });
+
+  // 检查安全过滤
+  const candidate = response.response.candidates?.[0];
+  if (candidate?.finishReason === "SAFETY") {
+    throw new Error("内容被安全过滤阻止，请尝试调整提示词或图片");
+  }
+
+  // 提取生成的图片 - 遍历所有 parts 找到图片
+  let imageData: any = null;
+  if (candidate?.content?.parts) {
+    for (const part of candidate.content.parts) {
+      if ((part as any).inlineData?.data) {
+        imageData = (part as any).inlineData;
+        break;
+      }
+    }
+  }
+
   if (!imageData || !imageData.data) {
     throw new Error("No image generated from model");
   }
-  
+
   return imageData.data;
 }
 

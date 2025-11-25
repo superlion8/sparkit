@@ -248,8 +248,7 @@ export async function POST(request: NextRequest) {
         backgroundImage = await removeCharacter(
           refBase64,
           referenceImage.type,
-          aspectRatio,
-          apiKey
+          aspectRatio
         );
         if (backgroundImage.startsWith("data:")) {
           backgroundImageBase64 = backgroundImage.split(",")[1];
@@ -278,8 +277,7 @@ export async function POST(request: NextRequest) {
         backgroundImage = await removeCharacter(
           referenceBase64,
           referenceImage.type,
-          aspectRatio,
-          apiKey
+          aspectRatio
         );
         console.log("背景图生成完成");
       } else {
@@ -682,146 +680,13 @@ async function reverseCaptionPrompt(
         maxOutputTokens: 2048,
       }
     );
-    
+
+    console.log("成功提取反推的提示词，长度:", responseText.length);
     return responseText;
   } catch (error: any) {
     console.error("反推提示词失败:", error);
     throw new Error(`反推提示词失败: ${error.message || "未知错误"}`);
   }
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("Gemini API error (reverse caption):", error);
-    throw new Error("反推提示词失败");
-  }
-
-  const data = await response.json();
-  console.log("=== Gemini API 响应 (reverse caption) ===");
-  console.log("响应 keys:", Object.keys(data));
-  console.log("Candidates 数量:", data.candidates?.length || 0);
-  
-  // Check for API errors
-  if (data.error) {
-    console.error("Gemini API 返回错误:", data.error);
-    throw new Error(`Gemini API 错误: ${data.error.message || '未知错误'}`);
-  }
-
-  // Check for candidates
-  if (!data.candidates || data.candidates.length === 0) {
-    console.error("没有 candidates 或为空");
-    console.error("完整 API 响应:", JSON.stringify(data, null, 2));
-    const error: any = new Error("API 未返回候选结果，请稍后重试");
-    error.details = { response: data };
-    throw error;
-  }
-
-  const candidate = data.candidates[0];
-  console.log("第一个 candidate 的 keys:", Object.keys(candidate));
-  console.log("Finish reason:", candidate.finishReason);
-  console.log("Has content:", !!candidate.content);
-  console.log("Has parts:", !!candidate.content?.parts);
-  console.log("Parts count:", candidate.content?.parts?.length || 0);
-  
-  // Check finish reason first (before checking content)
-  if (candidate.finishReason) {
-    if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
-      console.error("内容被安全过滤阻止:", candidate.finishReason);
-      console.error("安全评级:", candidate.safetyRatings);
-      const error: any = new Error("内容被安全过滤阻止，请尝试其他图片");
-      error.details = {
-        finishReason: candidate.finishReason,
-        safetyRatings: candidate.safetyRatings
-      };
-      throw error;
-    }
-    
-    // MAX_TOKENS 意味着可能生成了部分文本，我们需要检查是否有文本
-    if (candidate.finishReason === "MAX_TOKENS") {
-      console.warn("检测到 MAX_TOKENS finishReason，将检查是否有部分生成的文本");
-    }
-    
-    // Other finish reasons like "STOP" usually mean success
-    console.log("Finish reason:", candidate.finishReason);
-  }
-
-  // Check for content
-  if (!candidate.content || !candidate.content.parts) {
-    console.error("候选结果中没有 content 或 parts");
-    console.error("候选结果详情:", JSON.stringify(candidate, null, 2));
-    let errorMsg = "未找到反推的提示词";
-    if (candidate.finishReason && candidate.finishReason !== "STOP") {
-      errorMsg += `。原因: ${candidate.finishReason}`;
-    }
-    const error: any = new Error(errorMsg);
-    error.details = {
-      finishReason: candidate.finishReason,
-      safetyRatings: candidate.safetyRatings,
-      candidate: candidate
-    };
-    throw error;
-  }
-
-  // Extract text from parts
-  let text = "";
-  for (const part of candidate.content.parts) {
-    if (part.text) {
-      text += part.text;
-    } else {
-      console.log("部分内容不是文本:", part);
-    }
-  }
-
-  const trimmedText = text.trim();
-  
-  // 如果有文本，即使 finishReason 是 MAX_TOKENS，也使用已生成的文本
-  if (trimmedText) {
-    if (candidate.finishReason === "MAX_TOKENS") {
-      console.warn("达到最大令牌数限制，但已生成部分文本，将使用已生成的文本");
-      console.log("生成的文本长度:", trimmedText.length);
-      console.log("生成的文本预览:", trimmedText.substring(0, 200));
-    }
-    console.log("成功提取反推的提示词，长度:", trimmedText.length);
-    return trimmedText;
-  }
-  
-  // 只有在完全没有文本时才抛出错误
-  console.error("提取的文本为空");
-  console.error("所有 parts:", JSON.stringify(candidate.content.parts, null, 2));
-  console.error("Finish reason:", candidate.finishReason);
-  console.error("Safety ratings:", candidate.safetyRatings);
-  
-  let errorMsg = "未找到反推的提示词";
-  
-  // Check finish reason
-  if (candidate.finishReason) {
-    if (candidate.finishReason === "STOP") {
-      // STOP usually means success, but we got no text
-      errorMsg += "。API 返回成功但未生成文本内容";
-    } else if (candidate.finishReason === "MAX_TOKENS") {
-      errorMsg += "。达到最大令牌数限制，且未生成任何文本";
-    } else {
-      errorMsg += `。原因: ${candidate.finishReason}`;
-    }
-  }
-  
-  // Check safety ratings
-  if (candidate.safetyRatings && Array.isArray(candidate.safetyRatings)) {
-    const blockedCategories = candidate.safetyRatings
-      .filter((rating: any) => rating.probability === "HIGH" || rating.probability === "MEDIUM")
-      .map((rating: any) => rating.category);
-    if (blockedCategories.length > 0) {
-      errorMsg += `。可能触发了安全过滤: ${blockedCategories.join(", ")}`;
-    }
-  }
-  
-  const error: any = new Error(errorMsg);
-  error.details = {
-    finishReason: candidate.finishReason,
-    safetyRatings: candidate.safetyRatings,
-    parts: candidate.content.parts,
-    fullCandidate: candidate
-  };
-  throw error;
 }
 
 // Step 2: 去掉人物（使用 gemini-3-pro-image-preview 图像生成模型）

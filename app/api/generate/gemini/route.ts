@@ -97,42 +97,28 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
     // Call Vertex AI API (using image generation model)
     console.log("开始调用 Vertex AI API...");
     const apiStartTime = Date.now();
-    
+
     const modelId = process.env.GEMINI_IMAGE_MODEL_ID || "gemini-3-pro-image-preview";
-    
-    try {
-      const { callVertexAI } = await import("@/lib/vertexai");
-      
-      // 转换 contents 格式：从 AI Studio 格式转换为 Vertex AI 格式
-      const vertexAIContents = contents.map((content: any) => ({
-        role: "user",
-        parts: content.parts,
-      }));
-      
-      const response = await callVertexAI(modelId, vertexAIContents, generationConfig);
-      const apiEndTime = Date.now();
-      console.log(`Vertex AI API 响应时间: ${apiEndTime - apiStartTime}ms`);
-      
-      // 转换为 AI Studio 格式以保持兼容性
-      const data = {
-        candidates: response.response.candidates,
-      };
-      
-      console.log("Vertex AI API 响应状态: OK");
-      console.log("响应数据 keys:", Object.keys(data));
-    } catch (error: any) {
-      console.error("Vertex AI API 调用失败:", error);
-      return NextResponse.json(
-        { 
-          error: "Failed to generate image",
-          details: {
-            message: error.message || "Unknown error"
-          }
-        },
-        { status: 500 }
-      );
-    }
-    
+
+    const { callVertexAI } = await import("@/lib/vertexai");
+
+    // 转换 contents 格式：从 AI Studio 格式转换为 Vertex AI 格式
+    const vertexAIContents = contents.map((content: any) => ({
+      role: "user",
+      parts: content.parts,
+    }));
+
+    const response = await callVertexAI(modelId, vertexAIContents, generationConfig);
+    const apiEndTime = Date.now();
+    console.log(`Vertex AI API 响应时间: ${apiEndTime - apiStartTime}ms`);
+
+    // 转换为统一格式以保持兼容性
+    const data: any = {
+      candidates: response.response.candidates,
+      promptFeedback: response.response.promptFeedback,
+    };
+
+    console.log("Vertex AI API 响应状态: OK");
     console.log("响应数据 keys:", Object.keys(data));
     console.log("Candidates 数量:", data.candidates?.length || 0);
     if (data.candidates && data.candidates.length > 0) {
