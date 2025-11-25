@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getVertexAIClient } from '@/lib/vertexai';
-import { HarmCategory, HarmBlockThreshold } from '@google-cloud/vertexai';
+import { HarmCategory, HarmBlockThreshold } from '@google/genai';
 
 export const maxDuration = 300;
 
@@ -154,35 +154,35 @@ async function generateImage(
     // Call Vertex AI SDK using gemini-3-pro-image-preview model
     const modelId = "gemini-3-pro-image-preview";
     const client = getVertexAIClient();
-    const model = client.getGenerativeModel({
-      model: modelId,
-      safetySettings: [
-        {
-          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-      ],
-    });
 
-    const response = await model.generateContent({
+    const response = await client.models.generateContent({
+      model: modelId,
       contents: [{ role: "user", parts }],
-      generationConfig,
+      config: {
+        ...generationConfig,
+        safetySettings: [
+          {
+            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+        ],
+      },
     });
 
     // Check for prompt feedback
-    const promptFeedback = response.response.promptFeedback;
+    const promptFeedback = response.promptFeedback;
     if (promptFeedback && (promptFeedback as any).blockReason) {
       console.error('[Pose Control - Generate] Prompt was blocked:', promptFeedback);
       return {
@@ -191,10 +191,10 @@ async function generateImage(
       };
     }
 
-    const candidates = response.response.candidates;
+    const candidates = response.candidates;
     if (!candidates || candidates.length === 0) {
       console.error('[Pose Control - Generate] No candidates returned');
-      console.error('[Pose Control - Generate] Full response:', JSON.stringify(response.response, null, 2));
+      console.error('[Pose Control - Generate] Full response:', JSON.stringify(response, null, 2));
       return { success: false, error: 'API未返回图片结果' };
     }
 

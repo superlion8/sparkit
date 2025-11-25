@@ -1,40 +1,48 @@
 /**
- * Vertex AI 工具函数
+ * Vertex AI Gemini API 工具函数
  * 统一管理所有 Gemini 模型的调用
- * 使用 @google-cloud/vertexai SDK
+ * 使用 @google/genai SDK (API Key + Vertex AI 端点)
  *
- * 认证方式（Application Default Credentials）：
- * - 本地开发: gcloud auth application-default login
- * - GCP 环境: 自动使用服务账号
- * - 服务账号文件: GOOGLE_APPLICATION_CREDENTIALS 环境变量
+ * 环境变量配置：
+ * - GEMINI_API_KEY: Google Cloud API Key (绑定到服务账号)
+ * - GOOGLE_GENAI_USE_VERTEXAI=true: 启用 Vertex AI 端点
+ * - GOOGLE_CLOUD_PROJECT: GCP 项目 ID
+ * - GOOGLE_CLOUD_LOCATION: 区域 (默认 us-central1)
  */
-import { VertexAI, HarmCategory, HarmBlockThreshold } from "@google-cloud/vertexai";
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 
-// Vertex AI 客户端缓存
-let vertexAIClient: VertexAI | null = null;
-
-// 获取 Vertex AI 配置
-export function getVertexAIConfig() {
-  const projectId = process.env.VERTEX_AI_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT_ID;
-  const location = process.env.VERTEX_AI_LOCATION || process.env.GOOGLE_CLOUD_LOCATION || "us-central1";
-
-  if (!projectId) {
-    throw new Error("VERTEX_AI_PROJECT_ID or GOOGLE_CLOUD_PROJECT_ID environment variable is required");
-  }
-
-  return { projectId, location };
+// 确保设置 Vertex AI 模式环境变量
+if (!process.env.GOOGLE_GENAI_USE_VERTEXAI) {
+  process.env.GOOGLE_GENAI_USE_VERTEXAI = "true";
 }
 
-// 获取 Vertex AI 客户端（单例）
-export function getVertexAIClient(): VertexAI {
-  if (!vertexAIClient) {
-    const { projectId, location } = getVertexAIConfig();
-    vertexAIClient = new VertexAI({
-      project: projectId,
-      location: location,
+// GenAI 客户端缓存
+let genAIClient: GoogleGenAI | null = null;
+
+// 获取 API Key
+function getApiKey(): string {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY environment variable is required");
+  }
+  return apiKey;
+}
+
+// 获取 GenAI 客户端（单例）- 使用 Vertex AI 端点
+export function getVertexAIClient(): GoogleGenAI {
+  if (!genAIClient) {
+    const apiKey = getApiKey();
+    genAIClient = new GoogleGenAI({
+      apiKey,
+      // Vertex AI 模式通过环境变量 GOOGLE_GENAI_USE_VERTEXAI=true 自动启用
     });
   }
-  return vertexAIClient;
+  return genAIClient;
+}
+
+// 为了向后兼容，保留这个函数
+export function getVertexAIConfig() {
+  return { apiKey: getApiKey() };
 }
 
 // 安全设置配置
@@ -57,7 +65,7 @@ const safetySettings = [
   },
 ];
 
-// 调用 Vertex AI SDK (generateContent)
+// 调用 Vertex AI Gemini API (generateContent)
 export async function callVertexAI(
   modelId: string,
   contents: any[],
@@ -65,22 +73,22 @@ export async function callVertexAI(
 ): Promise<any> {
   const client = getVertexAIClient();
 
-  const model = client.getGenerativeModel({
+  const response = await client.models.generateContent({
     model: modelId,
-    safetySettings: safetySettings,
-  });
-
-  const response = await model.generateContent({
     contents: contents,
-    generationConfig: generationConfig,
+    config: {
+      ...generationConfig,
+      safetySettings: safetySettings,
+    },
   });
 
-  // SDK 直接返回结构化响应
-  if (!response.response.candidates) {
-    throw new Error("Invalid response format from Vertex AI");
-  }
-
-  return response;
+  // 构造兼容的响应格式
+  return {
+    response: {
+      candidates: response.candidates,
+      promptFeedback: response.promptFeedback,
+    },
+  };
 }
 
 // 调用文本生成模型（如 gemini-3-pro-preview）
@@ -97,11 +105,6 @@ export async function generateText(
 ): Promise<string> {
   const client = getVertexAIClient();
 
-  const model = client.getGenerativeModel({
-    model: modelId,
-    safetySettings: safetySettings,
-  });
-
   const parts: any[] = [];
 
   // 如果有图片，先添加图片
@@ -117,23 +120,24 @@ export async function generateText(
   // 添加文本提示
   parts.push({ text: prompt });
 
-  const generationConfig = {
-    temperature: options?.temperature ?? 0.5,
-    topP: options?.topP ?? 0.8,
-    maxOutputTokens: options?.maxOutputTokens ?? 2048,
-  };
-
-  const response = await model.generateContent({
+  const response = await client.models.generateContent({
+    model: modelId,
     contents: [{ role: "user", parts }],
-    generationConfig: generationConfig,
+    config: {
+      temperature: options?.temperature ?? 0.5,
+      topP: options?.topP ?? 0.8,
+      maxOutputTokens: options?.maxOutputTokens ?? 2048,
+      safetySettings: safetySettings,
+    },
   });
 
   // 检查安全过滤
-  const candidate = response.response.candidates?.[0];
+  const candidate = response.candidates?.[0];
   if (candidate?.finishReason === "SAFETY") {
     throw new Error("内容被安全过滤阻止");
   }
 
+  // 提取文本
   const responseText = candidate?.content?.parts?.[0]?.text;
 
   if (!responseText) {
@@ -159,11 +163,6 @@ export async function generateImage(
   }
 ): Promise<string> {
   const client = getVertexAIClient();
-
-  const model = client.getGenerativeModel({
-    model: modelId,
-    safetySettings: safetySettings,
-  });
 
   const parts: any[] = [];
 
@@ -201,30 +200,27 @@ export async function generateImage(
   parts.push({ text: prompt });
 
   // 构建生成配置
-  const generationConfig: any = {
+  const config: any = {
     responseModalities: ["IMAGE"],
+    safetySettings: safetySettings,
   };
 
   // 图片配置
-  const imageConfig: any = {};
   if (options?.imageSize) {
-    imageConfig.imageSize = options.imageSize;
+    config.imageSize = options.imageSize;
   }
   if (options?.aspectRatio && options.aspectRatio !== "default") {
-    imageConfig.aspectRatio = options.aspectRatio as "1:1" | "16:9" | "9:16";
+    config.aspectRatio = options.aspectRatio;
   }
 
-  if (Object.keys(imageConfig).length > 0) {
-    generationConfig.imageConfig = imageConfig;
-  }
-
-  const response = await model.generateContent({
+  const response = await client.models.generateContent({
+    model: modelId,
     contents: [{ role: "user", parts }],
-    generationConfig: generationConfig,
+    config: config,
   });
 
   // 检查安全过滤
-  const candidate = response.response.candidates?.[0];
+  const candidate = response.candidates?.[0];
   if (candidate?.finishReason === "SAFETY") {
     throw new Error("内容被安全过滤阻止，请尝试调整提示词或图片");
   }
@@ -246,4 +242,3 @@ export async function generateImage(
 
   return imageData.data;
 }
-

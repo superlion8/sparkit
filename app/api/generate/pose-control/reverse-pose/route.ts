@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getVertexAIClient } from '@/lib/vertexai';
-import { HarmCategory, HarmBlockThreshold } from '@google-cloud/vertexai';
+import { HarmCategory, HarmBlockThreshold } from '@google/genai';
 
 export const maxDuration = 60;
 
@@ -38,45 +38,42 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    // Call Vertex AI SDK using gemini-3-pro-preview model
+    // Call Gemini API using gemini-3-pro-preview model
     const modelId = "gemini-3-pro-preview";
-    console.log(`[Pose Control - Reverse] 使用模型: ${modelId} (Vertex AI SDK)`);
+    console.log(`[Pose Control - Reverse] 使用模型: ${modelId} (Google GenAI SDK)`);
 
     const client = getVertexAIClient();
-    const model = client.getGenerativeModel({
+    const response = await client.models.generateContent({
       model: modelId,
-      safetySettings: [
-        {
-          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-      ],
-    });
-
-    const response = await model.generateContent({
       contents: [{ role: "user", parts }],
-      generationConfig: {
+      config: {
         temperature: 0.4,
         topP: 0.95,
         topK: 40,
         maxOutputTokens: 8192,
+        safetySettings: [
+          {
+            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+        ],
       },
     });
 
     // Check for prompt feedback
-    const promptFeedback = response.response.promptFeedback;
+    const promptFeedback = response.promptFeedback;
     if (promptFeedback && (promptFeedback as any).blockReason) {
       console.error('[Pose Control - Reverse] Prompt was blocked:', promptFeedback);
       return NextResponse.json(
@@ -88,13 +85,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const candidates = response.response.candidates;
+    const candidates = response.candidates;
     if (!candidates || candidates.length === 0) {
       console.error('[Pose Control - Reverse] No candidates returned');
       return NextResponse.json(
         {
           error: 'API 未返回候选结果，请稍后重试',
-          details: { response: response.response },
+          details: { response: response },
         },
         { status: 500 }
       );

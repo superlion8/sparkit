@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateRequestAuth } from "@/lib/auth";
 import { getVertexAIClient } from "@/lib/vertexai";
-import { HarmCategory, HarmBlockThreshold } from "@google-cloud/vertexai";
+import { HarmCategory, HarmBlockThreshold } from "@google/genai";
 
 /**
  * Generate transition prompt using Vertex AI SDK
@@ -75,57 +75,47 @@ export async function POST(request: NextRequest) {
       { text: promptText },
     ];
 
-    // Call Vertex AI SDK using gemini-3-pro-preview model
+    // Call Gemini API using gemini-3-pro-preview model
     const modelId = "gemini-3-pro-preview";
-    console.log(`使用模型: ${modelId} (Vertex AI SDK)`);
+    console.log(`使用模型: ${modelId} (Google GenAI SDK)`);
     console.log(`图片类型: startImage=${startImage.type}, endImage=${endImage.type}`);
 
     const client = getVertexAIClient();
-    const model = client.getGenerativeModel({
+    const response = await client.models.generateContent({
       model: modelId,
-      safetySettings: [
-        {
-          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-      ],
-      systemInstruction: {
-        role: "system",
-        parts: [
-          {
-            text: "你是一个专业的视频导演。请直接输出简洁的镜头描述，不要包含任何推理过程或解释。"
-          }
-        ]
-      },
-    });
-
-    const response = await model.generateContent({
       contents: [{ role: "user", parts }],
-      generationConfig: {
+      config: {
         temperature: 0.7,
         topP: 0.8,
         topK: 40,
         maxOutputTokens: 2048,
+        safetySettings: [
+          {
+            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+        ],
+        systemInstruction: "你是一个专业的视频导演。请直接输出简洁的镜头描述，不要包含任何推理过程或解释。",
       },
     });
 
-    console.log(`Vertex AI SDK 响应完成`);
+    console.log(`Gemini API 响应完成`);
 
     // Extract the generated text
     let transitionPrompt = "";
-    const candidates = response.response.candidates;
+    const candidates = response.candidates;
 
     if (candidates && candidates.length > 0) {
       const candidate = candidates[0];
@@ -155,7 +145,7 @@ export async function POST(request: NextRequest) {
       }
     } else {
       console.error("响应中没有候选项");
-      console.error("完整响应:", JSON.stringify(response.response, null, 2));
+      console.error("完整响应:", JSON.stringify(response, null, 2));
     }
 
     if (!transitionPrompt) {
