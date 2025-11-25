@@ -4,10 +4,8 @@
  * 使用 @google/genai SDK (API Key + Vertex AI 端点)
  *
  * 环境变量配置：
- * - GEMINI_API_KEY: Google Cloud API Key (绑定到服务账号)
- * - GOOGLE_GENAI_USE_VERTEXAI=true: 启用 Vertex AI 端点
- * - GOOGLE_CLOUD_PROJECT: GCP 项目 ID
- * - GOOGLE_CLOUD_LOCATION: 区域 (默认 us-central1)
+ * - VERTEX_AI_API_KEY: Google Cloud API Key (绑定到服务账号)
+ * - GOOGLE_GENAI_USE_VERTEXAI=true: 启用 Vertex AI 端点 (自动设置)
  */
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 
@@ -21,9 +19,9 @@ let genAIClient: GoogleGenAI | null = null;
 
 // 获取 API Key
 function getApiKey(): string {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.VERTEX_AI_API_KEY;
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY environment variable is required");
+    throw new Error("VERTEX_AI_API_KEY environment variable is required");
   }
   return apiKey;
 }
