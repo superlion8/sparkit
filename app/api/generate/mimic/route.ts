@@ -460,6 +460,7 @@ export async function POST(request: NextRequest) {
                   .update({
                     output_image_url: uploadedFinalImageUrls[i]!,
                     input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
+                    background_image_url: uploadedBackgroundImageUrl || null,
                     prompt: captionPrompt,
                     status: "completed",
                     completed_at: new Date().toISOString(),
@@ -504,6 +505,7 @@ export async function POST(request: NextRequest) {
               prompt: captionPrompt,
               input_image_url: uploadedReferenceImageUrl || uploadedCharacterImageUrl,
                   output_image_url: uploadedFinalImageUrls[i]!,
+                  background_image_url: uploadedBackgroundImageUrl || null,
               character_id: characterId,
                   status: "completed",
                   started_at: new Date().toISOString(),
