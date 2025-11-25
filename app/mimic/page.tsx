@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
@@ -28,6 +28,29 @@ export default function MimicPage() {
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState<string>("");
+  const [isFromHistory, setIsFromHistory] = useState(false);
+
+  // 检查是否从历史记录页面跳转过来（重新生成）
+  useEffect(() => {
+    const stored = sessionStorage.getItem('mimic_regenerate');
+    if (stored) {
+      try {
+        const data = JSON.parse(stored);
+        if (data.prompt) {
+          setCaptionPrompt(data.prompt);
+          setEditableCaptionPrompt(data.prompt);
+        }
+        if (data.backgroundImageUrl) {
+          setBackgroundImage(data.backgroundImageUrl);
+        }
+        setIsFromHistory(true);
+        // 清除 sessionStorage
+        sessionStorage.removeItem('mimic_regenerate');
+      } catch (e) {
+        console.error('Failed to parse mimic_regenerate data:', e);
+      }
+    }
+  }, []);
 
   const handleGenerate = async () => {
     if (referenceImage.length === 0) {
