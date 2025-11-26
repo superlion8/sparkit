@@ -58,6 +58,24 @@ function pickModelId() {
   return process.env.GEMINI_TEXT_MODEL_ID || "gemini-3-pro-preview";
 }
 
+async function safeGenerateText(
+  modelId: string,
+  prompt: string,
+  imageBase64?: string,
+  mimeType?: string,
+  options?: { maxOutputTokens?: number }
+): Promise<string> {
+  try {
+    const text = await generateText(modelId, prompt, imageBase64, mimeType, options);
+    if (text && text.trim().length > 0) {
+      return text.trim();
+    }
+  } catch (err) {
+    console.warn("safeGenerateText fallback:", err);
+  }
+  return "A cinematic frame with soft lighting and clear subject, suitable for a 5 second clip.";
+}
+
 async function createKlingTask(imageUrl: string, prompt: string) {
   const accessKey = process.env.KLING_ACCESS_KEY;
   const secretKey = process.env.KLING_SECRET_KEY;
@@ -137,7 +155,7 @@ export async function POST(request: NextRequest) {
     const frameDescs: string[] = [];
     for (const frame of frames) {
       const { base64, mimeType } = await fetchImageAsBase64(frame);
-      const desc = await generateText(modelId, CAPTION_PROMPT, base64, mimeType, {
+      const desc = await safeGenerateText(modelId, CAPTION_PROMPT, base64, mimeType, {
         maxOutputTokens: 256,
       });
       frameDescs.push(desc.trim());
@@ -149,7 +167,7 @@ export async function POST(request: NextRequest) {
       .join("\n\n");
     const storyPrompt = `${STORY_PROMPT}\n输入分镜：\n${storyInput}`;
 
-    const storyRaw = await generateText(modelId, storyPrompt, undefined, undefined, {
+    let storyRaw = await safeGenerateText(modelId, storyPrompt, undefined, undefined, {
       maxOutputTokens: 2048,
     });
 
