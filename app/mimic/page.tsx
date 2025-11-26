@@ -190,6 +190,7 @@ export default function MimicPage() {
             prompt: data.captionPrompt,
             inputImageUrl: inputImageUrlJson,
             outputImageUrl: displayFinalImages[i], // 单张图片 URL
+            backgroundImageUrl: data.backgroundImageUrl || null,
           });
           
           taskIds.push(taskId);
@@ -339,6 +340,7 @@ export default function MimicPage() {
             prompt: editableCaptionPrompt, // 使用用户修改后的 prompt
             inputImageUrl: inputImageUrlJson,
             outputImageUrl: displayFinalImages[i], // 单张图片 URL
+            backgroundImageUrl: data.backgroundImageUrl || backgroundImage || null,
           });
           
           taskIds.push(taskId);

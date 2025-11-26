@@ -6,6 +6,7 @@ export interface TaskLogRequest {
   inputVideoUrl?: string | null;
   outputImageUrl?: string | null;
   outputVideoUrl?: string | null;
+  backgroundImageUrl?: string | null;
   taskTime?: string;
 }
 
@@ -33,6 +34,7 @@ export async function logTaskEvent(accessToken: string, payload: TaskLogRequest)
         input_video_url: payload.inputVideoUrl ?? null,
         output_image_url: payload.outputImageUrl ?? null,
         output_video_url: payload.outputVideoUrl ?? null,
+        background_image_url: payload.backgroundImageUrl ?? null,
         task_time: payload.taskTime ?? undefined,
       }),
     });
