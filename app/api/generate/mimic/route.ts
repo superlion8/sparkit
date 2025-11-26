@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
     const keepBackground = formData.get("keepBackground") === "true";
     const customCaptionPrompt = formData.get("customCaptionPrompt") as string | null;
     const existingBackgroundImage = formData.get("existingBackgroundImage") as File | null;
+    const existingBackgroundImageUrl = formData.get("existingBackgroundImageUrl") as string | null;
     const characterId = formData.get("characterId") as string | null; // 角色 ID（用于保存到角色资源）
 
     // 如果提供了自定义 captionPrompt，说明是重新生成，不需要参考图
@@ -229,12 +230,32 @@ export async function POST(request: NextRequest) {
       console.log("自定义 captionPrompt:", customCaptionPrompt);
       console.log("keepBackground:", keepBackground);
       console.log("existingBackgroundImage 是否提供:", existingBackgroundImage ? "Yes" : "No");
+      console.log("existingBackgroundImageUrl:", existingBackgroundImageUrl || "No");
       captionPrompt = customCaptionPrompt;
-      
+
       // Step 2: 处理背景图
-      if (keepBackground && existingBackgroundImage) {
-        // 如果用户选择了保留背景，且提供了背景图，使用它
-        console.log("重新生成模式 Step 2: 使用前端提供的现有背景图");
+      if (keepBackground && existingBackgroundImageUrl) {
+        // 从 URL 下载背景图
+        console.log("重新生成模式 Step 2: 从 URL 下载背景图:", existingBackgroundImageUrl);
+        try {
+          const bgResponse = await fetch(existingBackgroundImageUrl);
+          if (bgResponse.ok) {
+            const bgArrayBuffer = await bgResponse.arrayBuffer();
+            const bgBase64 = Buffer.from(bgArrayBuffer).toString("base64");
+            const contentType = bgResponse.headers.get("content-type") || "image/png";
+            backgroundImage = `data:${contentType};base64,${bgBase64}`;
+            backgroundImageBase64 = bgBase64;
+            uploadedBackgroundImageUrl = existingBackgroundImageUrl; // 直接使用已有的 URL
+            console.log("背景图从 URL 下载成功，长度:", bgBase64.length);
+          } else {
+            console.error("下载背景图失败:", bgResponse.status);
+          }
+        } catch (err) {
+          console.error("下载背景图出错:", err);
+        }
+      } else if (keepBackground && existingBackgroundImage) {
+        // 如果用户选择了保留背景，且提供了背景图文件，使用它
+        console.log("重新生成模式 Step 2: 使用前端提供的现有背景图文件");
         const bgBuffer = await existingBackgroundImage.arrayBuffer();
         const bgBase64 = Buffer.from(bgBuffer).toString("base64");
         backgroundImage = `data:${existingBackgroundImage.type};base64,${bgBase64}`;

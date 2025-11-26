@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
@@ -28,29 +28,6 @@ export default function MimicPage() {
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState<string>("");
-  const [isFromHistory, setIsFromHistory] = useState(false);
-
-  // 检查是否从历史记录页面跳转过来（重新生成）
-  useEffect(() => {
-    const stored = sessionStorage.getItem('mimic_regenerate');
-    if (stored) {
-      try {
-        const data = JSON.parse(stored);
-        if (data.prompt) {
-          setCaptionPrompt(data.prompt);
-          setEditableCaptionPrompt(data.prompt);
-        }
-        if (data.backgroundImageUrl) {
-          setBackgroundImage(data.backgroundImageUrl);
-        }
-        setIsFromHistory(true);
-        // 清除 sessionStorage
-        sessionStorage.removeItem('mimic_regenerate');
-      } catch (e) {
-        console.error('Failed to parse mimic_regenerate data:', e);
-      }
-    }
-  }, []);
 
   const handleGenerate = async () => {
     if (referenceImage.length === 0) {
@@ -261,19 +238,10 @@ export default function MimicPage() {
       formData.append("keepBackground", keepBackground.toString()); // 传递 keepBackground 状态
       // 传入用户修改后的 captionPrompt，告诉后端跳过 Step 1
       formData.append("customCaptionPrompt", editableCaptionPrompt);
-      // 如果用户选择了保留背景且有背景图，将背景图转换为 File 传给后端
+      // 如果用户选择了保留背景且有背景图，传递 URL 给后端
       if (keepBackground && backgroundImage) {
-        try {
-          // 将 base64/URL 背景图转换为 Blob 然后 File
-          const response = await fetch(backgroundImage);
-          const blob = await response.blob();
-          const bgFile = new File([blob], "background.png", { type: "image/png" });
-          formData.append("existingBackgroundImage", bgFile);
-          console.log("已将背景图添加到重新生成请求");
-        } catch (err) {
-          console.error("转换背景图失败:", err);
-          // 如果转换失败，继续执行，让后端重新生成背景图
-        }
+        formData.append("existingBackgroundImageUrl", backgroundImage);
+        console.log("已将背景图 URL 添加到重新生成请求:", backgroundImage);
       }
 
       // 设置 300 秒超时（5 分钟），与后端 maxDuration 保持一致

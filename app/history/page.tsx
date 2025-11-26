@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download, Copy, Check, X, ZoomIn, Trash2, AlertCircle, Heart, RefreshCw } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download, Copy, Check, X, ZoomIn, Trash2, AlertCircle, Heart } from "lucide-react";
 import { downloadImage, downloadVideo } from "@/lib/downloadUtils";
 import FavoriteModal from "@/components/FavoriteModal";
 
@@ -86,7 +85,6 @@ const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photo
 };
 
 export default function HistoryPage() {
-  const router = useRouter();
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [activeTab, setActiveTab] = useState<"history" | "favorites">("history");
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
@@ -613,44 +611,25 @@ export default function HistoryPage() {
                     {task.task_type === 'mimic' && task.background_image_url && (
                       <div className="mb-3">
                         <p className="text-xs text-gray-500 mb-1">背景图：</p>
-                        <div className="relative h-16 bg-gray-100 rounded overflow-hidden">
+                        <div className="relative bg-gray-100 rounded overflow-hidden">
                           <img
                             src={task.background_image_url}
                             alt="Background"
-                            className="w-full h-full object-cover cursor-pointer hover:opacity-80"
+                            className="w-full h-auto max-h-48 object-contain cursor-pointer hover:opacity-80"
                             onClick={() => setPreviewImage(task.background_image_url)}
                           />
                         </div>
                       </div>
                     )}
 
-                    {/* Action buttons */}
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleDownloadImage(imageUrl, task.task_id)}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded-lg transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        下载图片
-                      </button>
-                      {/* Regenerate button for mimic tasks with background */}
-                      {task.task_type === 'mimic' && task.background_image_url && task.prompt && (
-                        <button
-                          onClick={() => {
-                            // 将数据存储到 sessionStorage，然后跳转到 mimic 页面
-                            sessionStorage.setItem('mimic_regenerate', JSON.stringify({
-                              prompt: task.prompt,
-                              backgroundImageUrl: task.background_image_url,
-                            }));
-                            router.push('/mimic');
-                          }}
-                          className="flex items-center justify-center gap-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors"
-                          title="使用此背景图和提示词重新生成"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
+                    {/* Download button */}
+                    <button
+                      onClick={() => handleDownloadImage(imageUrl, task.task_id)}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded-lg transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      下载图片
+                    </button>
                   </div>
                 </div>
               );
