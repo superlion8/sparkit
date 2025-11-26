@@ -619,6 +619,13 @@ export default function HistoryPage() {
                             onClick={() => setPreviewImage(task.background_image_url)}
                           />
                         </div>
+                        <button
+                          onClick={() => handleDownloadImage(task.background_image_url!, `${task.task_id}-bg`)}
+                          className="mt-2 w-full flex items-center justify-center gap-2 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded transition-colors"
+                        >
+                          <Download className="w-3 h-3" />
+                          下载背景图
+                        </button>
                       </div>
                     )}
 
