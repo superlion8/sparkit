@@ -40,6 +40,7 @@ const videoTools = [
   { name: "改图首尾帧", href: "/image-transition", icon: Film },
   { name: "模板视频生成", href: "/video-generation", icon: Video },
   { name: "视频主体替换(animate)", href: "/video-subject-replace", icon: Replace },
+  { name: "Narrative", href: "/video-narrative", icon: Film },
 ];
 
 const otherTools = [
@@ -283,4 +284,3 @@ export default function Sidebar() {
     </>
   );
 }
-
