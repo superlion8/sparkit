@@ -607,36 +607,44 @@ export default function HistoryPage() {
                       <span>{new Date(task.task_time).toLocaleString("zh-CN")}</span>
                     </div>
 
-                    {/* Background image preview for mimic tasks */}
-                    {task.task_type === 'mimic' && task.background_image_url && (
-                      <div className="mb-3">
-                        <p className="text-xs text-gray-500 mb-1">背景图：</p>
-                        <div className="relative bg-gray-100 rounded overflow-hidden">
+                    {/* Download buttons */}
+                    {task.task_type === 'mimic' && task.background_image_url ? (
+                      <div className="flex gap-2 items-stretch">
+                        {/* Background image thumbnail + download */}
+                        <div className="flex items-center gap-2 flex-1 p-2 bg-gray-100 rounded-lg">
                           <img
                             src={task.background_image_url}
-                            alt="Background"
-                            className="w-full h-auto max-h-48 object-contain cursor-pointer hover:opacity-80"
+                            alt="背景图"
+                            className="w-12 h-12 object-cover rounded cursor-pointer hover:opacity-80"
                             onClick={() => setPreviewImage(task.background_image_url)}
                           />
+                          <button
+                            onClick={() => handleDownloadImage(task.background_image_url!, `${task.task_id}-bg`)}
+                            className="flex items-center gap-1 px-2 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded transition-colors"
+                            title="下载背景图"
+                          >
+                            <Download className="w-3 h-3" />
+                            背景图
+                          </button>
                         </div>
+                        {/* Main image download */}
                         <button
-                          onClick={() => handleDownloadImage(task.background_image_url!, `${task.task_id}-bg`)}
-                          className="mt-2 w-full flex items-center justify-center gap-2 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded transition-colors"
+                          onClick={() => handleDownloadImage(imageUrl, task.task_id)}
+                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded-lg transition-colors"
                         >
-                          <Download className="w-3 h-3" />
-                          下载背景图
+                          <Download className="w-4 h-4" />
+                          下载
                         </button>
                       </div>
+                    ) : (
+                      <button
+                        onClick={() => handleDownloadImage(imageUrl, task.task_id)}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded-lg transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                        下载图片
+                      </button>
                     )}
-
-                    {/* Download button */}
-                    <button
-                      onClick={() => handleDownloadImage(imageUrl, task.task_id)}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded-lg transition-colors"
-                    >
-                      <Download className="w-4 h-4" />
-                      下载图片
-                    </button>
                   </div>
                 </div>
               );
