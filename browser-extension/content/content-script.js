@@ -18,6 +18,7 @@ let lastUsedImage = null; // 最后使用的图片（紧急备份，即使按钮
 let selectedCharacter = null; // 当前选择的角色
 let mimicModal = null;
 let isModalOpen = false;
+let isGenerating = false; // 防止重复提交
 let processedImages = new WeakSet(); // 记录已处理的图片
 let processedImagesCount = 0; // 计数器（用于调试）
 let mimicButton = null; // 单个全局按钮
@@ -773,16 +774,25 @@ function selectCharacter(character) {
 
 // 处理生成
 async function handleGenerate() {
+  // 防止重复提交
+  if (isGenerating) {
+    console.log('[Sparkit Mimic] Already generating, ignoring duplicate click');
+    return;
+  }
+
   if (!selectedCharacter) {
     showError('请先选择角色');
     return;
   }
-  
+
   if (!currentHoveredImage) {
     showError('未选择参考图片');
     return;
   }
-  
+
+  // 设置生成状态
+  isGenerating = true;
+
   const characterId = selectedCharacter.id;
   
   // 获取设置
@@ -800,9 +810,14 @@ async function handleGenerate() {
     
     console.log('[Sparkit Mimic] Sending generate request to background...');
     
+    // 生成唯一请求 ID，防止服务工作线程重复处理
+    const requestId = 'req-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    console.log('[Sparkit Mimic] Generated request ID:', requestId);
+
     // 发送生成请求（不等待结果，后台继续生成）
     chrome.runtime.sendMessage({
       action: 'generateMimic',
+      requestId: requestId,
       data: {
         referenceImageBlob: referenceImageBlob,
         characterId: characterId,
@@ -814,14 +829,16 @@ async function handleGenerate() {
     }).catch(error => {
       console.error('[Sparkit Mimic] Background error:', error);
     });
-    
+
     // 上传参考图后，短暂延迟显示提示，然后自动关闭弹窗
     updateProgress(50, '任务已提交，后台生成中...');
-    
+
     setTimeout(() => {
       console.log('[Sparkit Mimic] Auto-closing modal after task submission');
       closeMimicModal();
-      
+      // 重置生成状态
+      isGenerating = false;
+
       // 显示一个简短的通知（可选）
       console.log('[Sparkit Mimic] ✅ 生成任务已提交，请稍后在 Sparkit 查看结果');
     }, 1000); // 1秒后自动关闭
@@ -829,6 +846,8 @@ async function handleGenerate() {
   } catch (error) {
     console.error('[Sparkit Mimic] Generation failed:', error);
     showError(error.message || '生成失败，请重试');
+    // 重置生成状态
+    isGenerating = false;
   }
 }
 

@@ -6,6 +6,26 @@ console.log('[Sparkit Mimic] Background service worker loaded');
 const SPARKIT_API_URL = 'https://sparkiai.com'; // 生产环境
 // const SPARKIT_API_URL = 'http://localhost:3000'; // 本地开发（如需本地调试，注释上一行，取消注释这一行）
 
+// 已处理的请求 ID 集合（防止服务工作线程重启后重复处理）
+// 使用内存缓存 + 持久化存储双重保护
+let processedRequestIds = new Set();
+// 最多保留 100 个请求 ID，超过后清理旧的
+const MAX_PROCESSED_IDS = 100;
+
+// 从存储中恢复已处理的请求 ID
+chrome.storage.local.get(['processedRequestIds'], (result) => {
+  if (result.processedRequestIds && Array.isArray(result.processedRequestIds)) {
+    processedRequestIds = new Set(result.processedRequestIds);
+    console.log('[Sparkit Mimic] Restored', processedRequestIds.size, 'processed request IDs from storage');
+  }
+});
+
+// 保存已处理的请求 ID 到存储
+function saveProcessedRequestIds() {
+  const idsArray = Array.from(processedRequestIds);
+  chrome.storage.local.set({ processedRequestIds: idsArray });
+}
+
 // 监听来自 content script 的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('[Sparkit Mimic] Received message:', request.action);
@@ -20,7 +40,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
       
     case 'generateMimic':
-      handleGenerateMimic(request.data, sendResponse);
+      // 检查是否已处理过该请求（防止服务工作线程重启后重复处理）
+      if (request.requestId && processedRequestIds.has(request.requestId)) {
+        console.log('[Sparkit Mimic] Duplicate request detected, skipping:', request.requestId);
+        sendResponse({ success: false, error: 'Duplicate request', duplicate: true });
+        return true;
+      }
+      // 记录请求 ID
+      if (request.requestId) {
+        processedRequestIds.add(request.requestId);
+        console.log('[Sparkit Mimic] Registered request ID:', request.requestId);
+        // 清理旧的请求 ID
+        if (processedRequestIds.size > MAX_PROCESSED_IDS) {
+          const idsArray = Array.from(processedRequestIds);
+          for (let i = 0; i < idsArray.length - MAX_PROCESSED_IDS; i++) {
+            processedRequestIds.delete(idsArray[i]);
+          }
+        }
+        // 保存到持久化存储
+        saveProcessedRequestIds();
+      }
+      handleGenerateMimic(request.data, request.requestId, sendResponse);
       return true;
       
     default:
@@ -85,11 +125,12 @@ async function handleGetCharacter(characterId, sendResponse) {
 }
 
 // 生成 Mimic
-async function handleGenerateMimic(data, sendResponse) {
+async function handleGenerateMimic(data, requestId, sendResponse) {
   console.log('[Sparkit Mimic BG] ========== GENERATE START ==========');
-  
+
   try {
     console.log('[Sparkit Mimic BG] Starting Mimic generation...');
+    console.log('[Sparkit Mimic BG] Request ID:', requestId);
     console.log('[Sparkit Mimic BG] Data:', {
       characterId: data.characterId,
       keepBackground: data.keepBackground,
@@ -170,6 +211,10 @@ async function handleGenerateMimic(data, sendResponse) {
     formData.append('numImages', data.numImages.toString());
     formData.append('aspectRatio', 'default');
     formData.append('characterId', data.characterId);
+    // 添加请求ID用于去重
+    if (requestId) {
+      formData.append('requestId', requestId);
+    }
     
     console.log('[Sparkit Mimic BG] Calling Mimic API:', `${SPARKIT_API_URL}/api/generate/mimic`);
     

@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 在外层定义，以便 catch 块可以访问
-  let baseTaskId = `mimic-${Date.now()}`;
+  let baseTaskId = ""; // 稍后根据 requestId 设置
   let createdPendingTaskIds: string[] = [];
 
   try {
@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
     const existingBackgroundImage = formData.get("existingBackgroundImage") as File | null;
     const existingBackgroundImageUrl = formData.get("existingBackgroundImageUrl") as string | null;
     const characterId = formData.get("characterId") as string | null; // 角色 ID（用于保存到角色资源）
+    const requestId = formData.get("requestId") as string | null; // 请求 ID（用于去重）
 
     // 如果提供了自定义 captionPrompt，说明是重新生成，不需要参考图
     if (customCaptionPrompt && !characterImage) {
@@ -48,6 +49,31 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`=== Mimic Generation Started (Hot Mode: ${hotMode}, Keep Background: ${keepBackground}) ===`);
+    console.log(`[Mimic API] Request ID: ${requestId || 'none'}`);
+
+    // 🆕 基于 requestId 去重（防止网络重试导致的重复请求）
+    if (requestId) {
+      const { data: existingTask } = await supabaseAdminClient
+        .from("generation_tasks")
+        .select("task_id")
+        .like("task_id", `${requestId}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingTask) {
+        console.log(`[Mimic API] ⚠️ Duplicate request detected! Request ID ${requestId} already exists as task ${existingTask.task_id}`);
+        return NextResponse.json({
+          error: "请求重复",
+          message: "该请求已在处理中",
+          duplicate: true,
+        }, { status: 200 }); // 返回 200 而不是错误，因为请求已被处理
+      }
+      // 使用 requestId 作为 baseTaskId 前缀
+      baseTaskId = requestId;
+    } else {
+      // 没有 requestId 时使用时间戳
+      baseTaskId = `mimic-${Date.now()}`;
+    }
 
     // 检查 Vertex AI 配置
     const projectId = process.env.VERTEX_AI_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT_ID;
