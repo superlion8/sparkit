@@ -70,28 +70,30 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (character) {
-          // 🆕 清理该角色所有旧的 pending/processing/failed 任务（避免界面显示历史遗留任务）
-          // 同时清理 completed 但没有输出图片的任务（这些是失败的任务）
+          // 🆕 清理该角色超过 10 分钟的旧 pending/processing/failed 任务（避免界面显示历史遗留任务）
+          // 不清理最近的任务，避免并发请求互相删除
           try {
-            // 1. 清理 pending/processing/failed 任务
+            const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+
+            // 1. 清理超过 10 分钟的 pending/processing/failed 任务
             const { data: oldPendingTasks } = await supabaseAdminClient
               .from("generation_tasks")
               .select("task_id, status")
               .eq("character_id", characterId)
               .eq("email", user.email)
-              .in("status", ["pending", "processing", "failed"]);
-            
+              .in("status", ["pending", "processing", "failed"])
+              .lt("started_at", tenMinutesAgo);
+
             if (oldPendingTasks && oldPendingTasks.length > 0) {
-              console.log(`[Mimic API] Cleaning up ${oldPendingTasks.length} old pending/processing/failed tasks`);
-              
+              console.log(`[Mimic API] Cleaning up ${oldPendingTasks.length} old (>10min) pending/processing/failed tasks`);
+
+              const oldTaskIds = oldPendingTasks.map(t => t.task_id);
               await supabaseAdminClient
                 .from("generation_tasks")
                 .delete()
-                .eq("character_id", characterId)
-                .eq("email", user.email)
-                .in("status", ["pending", "processing", "failed"]);
+                .in("task_id", oldTaskIds);
             }
-            
+
             // 2. 清理 completed 但没有输出图片的任务（这些是失败但标记为 completed 的任务）
             const { data: emptyCompletedTasks } = await supabaseAdminClient
               .from("generation_tasks")
@@ -101,10 +103,10 @@ export async function POST(request: NextRequest) {
               .eq("status", "completed")
               .eq("task_type", "mimic")
               .is("output_image_url", null);
-            
+
             if (emptyCompletedTasks && emptyCompletedTasks.length > 0) {
               console.log(`[Mimic API] Cleaning up ${emptyCompletedTasks.length} empty completed tasks`);
-              
+
               const taskIdsToDelete = emptyCompletedTasks.map(t => t.task_id);
               await supabaseAdminClient
                 .from("generation_tasks")
