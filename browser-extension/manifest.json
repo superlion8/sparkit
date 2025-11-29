@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Sparkit Mimic",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "一键将社交媒体图片进行角色替换，创作你的专属内容",
   "icons": {
     "16": "icons/icon16.png",
@@ -18,7 +18,7 @@
     "http://*/*"
   ],
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
@@ -26,9 +26,17 @@
     }
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background/background.js"
   },
   "content_scripts": [
+    {
+      "matches": [
+        "https://sparkiai.com/*",
+        "https://www.sparkiai.com/*"
+      ],
+      "js": ["content/sparkit-token-bridge.js"],
+      "run_at": "document_idle"
+    },
     {
       "matches": [
         "https://www.pinterest.com/*",
@@ -40,14 +48,14 @@
         "https://*.twitter.com/*",
         "https://*.x.com/*"
       ],
-      "js": ["content.js"],
-      "css": ["content.css"],
+      "js": ["content/content-script.js"],
+      "css": ["content/content-script.css"],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["icons/*", "popup.html"],
+      "resources": ["icons/*", "popup/*"],
       "matches": ["<all_urls>"]
     }
   ]
