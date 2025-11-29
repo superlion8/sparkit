@@ -69,9 +69,11 @@ async function checkAuthStatus() {
     }
     
     // 尝试获取访问令牌
-    const result = await chrome.storage.local.get(['sparkitAccessToken']);
+    const result = await chrome.storage.local.get(['sparkitAccessToken', 'tokenUpdatedAt']);
     
     if (result.sparkitAccessToken) {
+      console.log('[Sparkit Mimic] Token found, updated at:', result.tokenUpdatedAt ? new Date(result.tokenUpdatedAt).toLocaleString() : 'unknown');
+      
       // 验证 token 是否有效
       const response = await fetch(`${SPARKIT_API_URL}/api/auth/verify`, {
         method: 'GET',
@@ -84,9 +86,26 @@ async function checkAuthStatus() {
         const data = await response.json();
         statusElement.innerHTML = `<span>已登录 (${data.email || '用户'})</span>`;
       } else {
-        throw new Error('Token invalid');
+        // 解析错误详情
+        let errorDetail = '';
+        try {
+          const errorData = await response.json();
+          errorDetail = errorData.error || '';
+          console.error('[Sparkit Mimic] Auth verify error:', response.status, errorData);
+        } catch (e) {
+          errorDetail = `HTTP ${response.status}`;
+        }
+        
+        // 如果是服务端配置问题，显示不同的提示
+        if (response.status === 500) {
+          statusElement.innerHTML = `<span style="color: #f59e0b;">服务暂不可用</span>`;
+          console.error('[Sparkit Mimic] Server config issue, status:', response.status, 'detail:', errorDetail);
+        } else {
+          throw new Error(`Token invalid: ${errorDetail}`);
+        }
       }
     } else {
+      console.log('[Sparkit Mimic] No token in storage');
       throw new Error('No token');
     }
   } catch (error) {
