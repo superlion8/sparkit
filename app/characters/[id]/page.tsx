@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { ArrowLeft, User, Heart, HeartOff, Image as ImageIcon, Video, Download, Trash2, Copy, Check, X, AlertCircle } from "lucide-react";
+import { ArrowLeft, User, Heart, HeartOff, Image as ImageIcon, Video, Download, Trash2, Copy, Check, X, AlertCircle, Shirt, Plus, Upload } from "lucide-react";
 import { downloadImage } from "@/lib/downloadUtils";
 
 interface Character {
@@ -37,6 +37,15 @@ interface Reference {
   created_at: string;
 }
 
+interface Outfit {
+  id: string;
+  outfit_name: string;
+  outfit_image_url: string;
+  outfit_type: string;
+  description: string | null;
+  created_at: string;
+}
+
 export default function CharacterDetailPage() {
   const { accessToken, isAuthenticated } = useAuth();
   const router = useRouter();
@@ -47,9 +56,12 @@ export default function CharacterDetailPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [favorites, setFavorites] = useState<Asset[]>([]);
   const [references, setReferences] = useState<Reference[]>([]);
+  const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [pendingTasks, setPendingTasks] = useState<Asset[]>([]); // 进行中的任务
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"assets" | "favorites" | "references">("assets");
+  const [activeTab, setActiveTab] = useState<"assets" | "favorites" | "references" | "outfits">("assets");
+  const [showOutfitUpload, setShowOutfitUpload] = useState(false);
+  const [uploadingOutfit, setUploadingOutfit] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -60,6 +72,7 @@ export default function CharacterDetailPage() {
       fetchAssets();
       fetchFavorites();
       fetchReferences();
+      fetchOutfits();
       fetchPendingTasks();
     }
   }, [isAuthenticated, accessToken, characterId]);
@@ -164,6 +177,27 @@ export default function CharacterDetailPage() {
       setReferences(data.references || []);
     } catch (err: any) {
       console.error("Failed to fetch references:", err);
+    }
+  };
+
+  const fetchOutfits = async () => {
+    if (!accessToken || !characterId) return;
+
+    try {
+      const response = await fetch(`/api/characters/${characterId}/outfits`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("获取服饰列表失败");
+      }
+
+      const data = await response.json();
+      setOutfits(data.outfits || []);
+    } catch (err: any) {
+      console.error("Failed to fetch outfits:", err);
     }
   };
 
@@ -304,6 +338,80 @@ export default function CharacterDetailPage() {
       setReferences((prev) => prev.filter((r) => r.id !== referenceId));
     } catch (err: any) {
       console.error("Failed to delete reference:", err);
+      alert(err.message || "删除失败");
+    }
+  };
+
+  const handleUploadOutfit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!accessToken || !characterId) return;
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    
+    const outfitName = formData.get("outfit_name") as string;
+    const outfitImage = formData.get("outfit_image") as File;
+    
+    if (!outfitName?.trim()) {
+      alert("请输入服饰名称");
+      return;
+    }
+    
+    if (!outfitImage || outfitImage.size === 0) {
+      alert("请选择服饰图片");
+      return;
+    }
+
+    setUploadingOutfit(true);
+
+    try {
+      const response = await fetch(`/api/characters/${characterId}/outfits`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "上传失败");
+      }
+
+      const data = await response.json();
+      setOutfits((prev) => [data.outfit, ...prev]);
+      setShowOutfitUpload(false);
+      form.reset();
+    } catch (err: any) {
+      console.error("Failed to upload outfit:", err);
+      alert(err.message || "上传失败");
+    } finally {
+      setUploadingOutfit(false);
+    }
+  };
+
+  const handleDeleteOutfit = async (outfitId: string) => {
+    if (!accessToken || !characterId) return;
+    
+    if (!confirm('确定要删除这件服饰吗？')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/characters/${characterId}/outfits/${outfitId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("删除失败");
+      }
+
+      setOutfits((prev) => prev.filter((o) => o.id !== outfitId));
+    } catch (err: any) {
+      console.error("Failed to delete outfit:", err);
       alert(err.message || "删除失败");
     }
   };
@@ -462,11 +570,212 @@ export default function CharacterDetailPage() {
           >
             参考 ({references.length})
           </button>
+          <button
+            onClick={() => setActiveTab("outfits")}
+            className={`px-6 py-3 font-medium transition-colors border-b-2 flex items-center gap-2 ${
+              activeTab === "outfits"
+                ? "border-primary-600 text-primary-600"
+                : "border-transparent text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            <Shirt className="w-4 h-4" />
+            服饰 ({outfits.length})
+          </button>
         </div>
       </div>
 
       {/* Content */}
-      {activeTab === "references" ? (
+      {activeTab === "outfits" ? (
+        <div className="space-y-6">
+          {/* 上传按钮 */}
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowOutfitUpload(!showOutfitUpload)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              {showOutfitUpload ? (
+                <>
+                  <X className="w-5 h-5" />
+                  取消
+                </>
+              ) : (
+                <>
+                  <Plus className="w-5 h-5" />
+                  上传服饰
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* 上传表单 */}
+          {showOutfitUpload && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">上传新服饰</h3>
+              <form onSubmit={handleUploadOutfit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    服饰名称 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="outfit_name"
+                    placeholder="例如：白色连衣裙"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    服饰类型
+                  </label>
+                  <select
+                    name="outfit_type"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="general">通用</option>
+                    <option value="top">上装</option>
+                    <option value="bottom">下装</option>
+                    <option value="dress">连衣裙</option>
+                    <option value="accessory">配饰</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    服饰图片 <span className="text-red-500">*</span>
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-400 transition-colors">
+                    <input
+                      type="file"
+                      name="outfit_image"
+                      accept="image/*"
+                      className="hidden"
+                      id="outfit-image-input"
+                      required
+                    />
+                    <label htmlFor="outfit-image-input" className="cursor-pointer">
+                      <Upload className="w-10 h-10 mx-auto text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-600">点击上传服饰图片</p>
+                      <p className="text-xs text-gray-400 mt-1">支持 JPG、PNG、WebP</p>
+                    </label>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    描述（可选）
+                  </label>
+                  <textarea
+                    name="description"
+                    placeholder="添加服饰描述..."
+                    rows={2}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                  />
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowOutfitUpload(false)}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={uploadingOutfit}
+                    className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 transition-colors flex items-center gap-2"
+                  >
+                    {uploadingOutfit ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        上传中...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        上传
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* 服饰列表 */}
+          {outfits.length === 0 ? (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+              <Shirt className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">还没有服饰</h2>
+              <p className="text-gray-600 mb-4">
+                上传您喜欢的服饰图片，用于 AI 换装功能
+              </p>
+              <button
+                onClick={() => setShowOutfitUpload(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                上传第一件服饰
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {outfits.map((outfit) => (
+                <div
+                  key={outfit.id}
+                  className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+                >
+                  <div className="aspect-square bg-gray-100 relative group">
+                    <img
+                      src={outfit.outfit_image_url}
+                      alt={outfit.outfit_name}
+                      className="w-full h-full object-cover cursor-pointer"
+                      onClick={() => setLightboxImage(outfit.outfit_image_url)}
+                    />
+                    
+                    {/* Delete Button */}
+                    <button
+                      onClick={() => handleDeleteOutfit(outfit.id)}
+                      className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+
+                    {/* Download Button */}
+                    <button
+                      onClick={() => downloadImage(outfit.outfit_image_url)}
+                      className="absolute top-2 left-2 p-2 bg-white/80 text-gray-600 rounded-full hover:bg-white transition-colors shadow-lg opacity-0 group-hover:opacity-100"
+                    >
+                      <Download className="w-5 h-5" />
+                    </button>
+
+                    {/* Type Badge */}
+                    <div className="absolute bottom-2 left-2">
+                      <span className="px-2 py-1 bg-black/50 text-white text-xs rounded-full">
+                        {outfit.outfit_type === 'top' ? '上装' :
+                         outfit.outfit_type === 'bottom' ? '下装' :
+                         outfit.outfit_type === 'dress' ? '连衣裙' :
+                         outfit.outfit_type === 'accessory' ? '配饰' : '通用'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-4">
+                    <h3 className="font-medium text-gray-900 mb-1">{outfit.outfit_name}</h3>
+                    {outfit.description && (
+                      <p className="text-sm text-gray-600 mb-2 line-clamp-2">{outfit.description}</p>
+                    )}
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>服饰</span>
+                      <span>
+                        {new Date(outfit.created_at).toLocaleDateString("zh-CN")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : activeTab === "references" ? (
         references.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
             <ImageIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
