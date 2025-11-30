@@ -16,6 +16,8 @@ let currentHoveredImage = null;
 let buttonTargetImage = null; // 按钮当前关联的图片元素（直接引用，不通过 ID 查找）
 let lastUsedImage = null; // 最后使用的图片（紧急备份，即使按钮隐藏也保留）
 let selectedCharacter = null; // 当前选择的角色
+let selectedOutfit = null; // 当前选择的服饰（可为 null，表示不使用服饰）
+let characterOutfits = []; // 当前角色的服饰列表
 let mimicModal = null;
 let isModalOpen = false;
 let isGenerating = false; // 防止重复提交
@@ -515,6 +517,13 @@ function createMimicModal() {
           </div>
         </div>
         
+        <!-- 服饰选择卡片 -->
+        <div class="sparkit-outfit-card" id="sparkit-outfit-card">
+          <div class="sparkit-outfit-display" id="sparkit-outfit-display">
+            <div class="sparkit-loading-small">Loading outfits...</div>
+          </div>
+        </div>
+        
         <!-- 保留背景开关 -->
         <div class="sparkit-option-row">
           <span class="sparkit-option-label">Keep background</span>
@@ -560,6 +569,11 @@ function createMimicModal() {
   // 角色卡片点击事件（展开角色选择列表）
   mimicModal.querySelector('#sparkit-character-card').addEventListener('click', () => {
     showCharacterPicker();
+  });
+  
+  // 服饰卡片点击事件（展开服饰选择列表）
+  mimicModal.querySelector('#sparkit-outfit-card').addEventListener('click', () => {
+    showOutfitPicker();
   });
 }
 
@@ -633,6 +647,8 @@ async function displayCharacters(characters) {
   // 存储所有角色
   allCharacters = characters;
   
+  let characterToSelect = null;
+  
   // 尝试读取上次选择的角色 ID
   try {
     const result = await chrome.storage.local.get(['lastSelectedCharacterId']);
@@ -643,9 +659,7 @@ async function displayCharacters(characters) {
       const lastCharacter = characters.find(c => c.id === lastCharacterId);
       if (lastCharacter) {
         console.log('[Sparkit Mimic] Restoring last selected character:', lastCharacter.char_name);
-        selectedCharacter = lastCharacter;
-        updateCharacterCard(lastCharacter);
-        return;
+        characterToSelect = lastCharacter;
       }
     }
   } catch (error) {
@@ -653,12 +667,17 @@ async function displayCharacters(characters) {
   }
   
   // 如果没有上次选择的角色，或找不到，默认选择第一个角色
-  const firstCharacter = characters[0];
-  selectedCharacter = firstCharacter;
-  console.log('[Sparkit Mimic] Using first character:', firstCharacter.char_name);
+  if (!characterToSelect) {
+    characterToSelect = characters[0];
+    console.log('[Sparkit Mimic] Using first character:', characterToSelect.char_name);
+  }
   
-  // 更新角色卡片显示
-  updateCharacterCard(firstCharacter);
+  // 设置选中的角色并加载服饰
+  selectedCharacter = characterToSelect;
+  updateCharacterCard(characterToSelect);
+  
+  // 加载角色的服饰
+  await loadOutfits(characterToSelect.id);
 }
 
 // 更新角色卡片显示
@@ -740,7 +759,7 @@ function showCharacterPicker() {
 }
 
 // 选择角色
-function selectCharacter(character) {
+async function selectCharacter(character) {
   selectedCharacter = character;
   console.log('[Sparkit Mimic] Character selected:', character.char_name);
   
@@ -767,6 +786,216 @@ function selectCharacter(character) {
         item.classList.remove('active');
         const svg = item.querySelector('svg');
         if (svg) svg.remove();
+      }
+    });
+  }
+  
+  // 重置服饰选择并加载新角色的服饰
+  selectedOutfit = null;
+  await loadOutfits(character.id);
+}
+
+// 加载角色的服饰列表
+async function loadOutfits(characterId) {
+  const outfitDisplay = mimicModal.querySelector('#sparkit-outfit-display');
+  outfitDisplay.innerHTML = '<div class="sparkit-loading-small">Loading outfits...</div>';
+  
+  try {
+    const response = await chrome.runtime.sendMessage({ 
+      action: 'getCharacterOutfits',
+      characterId: characterId 
+    });
+    
+    if (response.success) {
+      characterOutfits = response.outfits || [];
+      displayOutfits(characterOutfits);
+    } else {
+      console.error('[Sparkit Mimic] Failed to load outfits:', response.error);
+      characterOutfits = [];
+      displayOutfits([]);
+    }
+  } catch (error) {
+    console.error('[Sparkit Mimic] Failed to load outfits:', error);
+    characterOutfits = [];
+    displayOutfits([]);
+  }
+}
+
+// 显示服饰列表
+function displayOutfits(outfits) {
+  const outfitDisplay = mimicModal.querySelector('#sparkit-outfit-display');
+  
+  if (!outfits || outfits.length === 0) {
+    // 没有服饰，显示"不使用服饰"状态
+    selectedOutfit = null;
+    outfitDisplay.innerHTML = `
+      <div class="sparkit-no-outfit">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: rgba(255,255,255,0.5);">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+        </svg>
+        <div class="sparkit-outfit-info">
+          <div class="sparkit-outfit-name">No outfit</div>
+          <div class="sparkit-outfit-desc">No outfits available for this character</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+  
+  // 有服饰可选，默认显示"不使用服饰"
+  updateOutfitCard(null);
+}
+
+// 更新服饰卡片显示
+function updateOutfitCard(outfit) {
+  const outfitDisplay = mimicModal.querySelector('#sparkit-outfit-display');
+  
+  if (!outfit) {
+    // 不使用服饰
+    outfitDisplay.innerHTML = `
+      <div class="sparkit-no-outfit-selected">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: rgba(255,255,255,0.5);">
+          <path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.47a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.47a2 2 0 00-1.34-2.23z"></path>
+        </svg>
+        <div class="sparkit-outfit-info">
+          <div class="sparkit-outfit-name">No outfit selected</div>
+          <div class="sparkit-outfit-desc">${characterOutfits.length > 0 ? 'Tap to select an outfit' : 'No outfits available'}</div>
+        </div>
+        ${characterOutfits.length > 0 ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: rgba(255,255,255,0.4);">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>` : ''}
+      </div>
+    `;
+  } else {
+    // 已选择服饰
+    outfitDisplay.innerHTML = `
+      <img src="${outfit.outfit_image_url}" alt="${outfit.outfit_name}">
+      <div class="sparkit-outfit-info">
+        <div class="sparkit-outfit-name">${outfit.outfit_name}</div>
+        <div class="sparkit-outfit-desc">Tap to change outfit</div>
+      </div>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: rgba(255,255,255,0.4);">
+        <polyline points="9 18 15 12 9 6"></polyline>
+      </svg>
+    `;
+  }
+}
+
+// 显示服饰选择器
+function showOutfitPicker() {
+  // 如果没有服饰，不显示选择器
+  if (characterOutfits.length === 0) {
+    console.log('[Sparkit Mimic] No outfits available for this character');
+    return;
+  }
+  
+  // 检查是否已经有选择器
+  let picker = document.getElementById('sparkit-outfit-picker');
+  
+  if (picker) {
+    // 如果已存在，切换显示/隐藏
+    picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
+    return;
+  }
+  
+  // 创建服饰选择器
+  picker = document.createElement('div');
+  picker.id = 'sparkit-outfit-picker';
+  picker.className = 'sparkit-character-picker'; // 复用角色选择器的样式
+  
+  picker.innerHTML = `
+    <div class="sparkit-picker-header">
+      <span>Select Outfit</span>
+      <button class="sparkit-picker-close">×</button>
+    </div>
+    <div class="sparkit-picker-list">
+      <!-- 不使用服饰选项 -->
+      <div class="sparkit-picker-item ${selectedOutfit === null ? 'active' : ''}" data-outfit-id="none">
+        <div class="sparkit-no-outfit-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: rgba(255,255,255,0.5);">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+          </svg>
+        </div>
+        <div class="sparkit-picker-info">
+          <div class="sparkit-picker-name">No outfit</div>
+          <div class="sparkit-picker-desc">Use character's original clothing</div>
+        </div>
+        ${selectedOutfit === null ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+      </div>
+      ${characterOutfits.map(outfit => `
+        <div class="sparkit-picker-item ${outfit.id === selectedOutfit?.id ? 'active' : ''}" data-outfit-id="${outfit.id}">
+          <img src="${outfit.outfit_image_url}" alt="${outfit.outfit_name}">
+          <div class="sparkit-picker-info">
+            <div class="sparkit-picker-name">${outfit.outfit_name}</div>
+            ${outfit.description ? `<div class="sparkit-picker-desc">${outfit.description}</div>` : ''}
+          </div>
+          ${outfit.id === selectedOutfit?.id ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+  
+  mimicModal.querySelector('.sparkit-modal-inner').appendChild(picker);
+  
+  // 绑定关闭事件
+  picker.querySelector('.sparkit-picker-close').addEventListener('click', (e) => {
+    e.stopPropagation();
+    picker.style.display = 'none';
+  });
+  
+  // 绑定服饰选择事件
+  picker.querySelectorAll('.sparkit-picker-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const outfitId = item.dataset.outfitId;
+      if (outfitId === 'none') {
+        selectOutfit(null);
+      } else {
+        const outfit = characterOutfits.find(o => o.id === outfitId);
+        if (outfit) {
+          selectOutfit(outfit);
+        }
+      }
+      picker.style.display = 'none';
+    });
+  });
+  
+  // 点击外部关闭
+  picker.addEventListener('click', (e) => {
+    if (e.target === picker) {
+      picker.style.display = 'none';
+    }
+  });
+}
+
+// 选择服饰
+function selectOutfit(outfit) {
+  selectedOutfit = outfit;
+  console.log('[Sparkit Mimic] Outfit selected:', outfit ? outfit.outfit_name : 'None');
+  
+  // 更新服饰卡片显示
+  updateOutfitCard(outfit);
+  
+  // 更新选择器中的激活状态
+  const picker = document.getElementById('sparkit-outfit-picker');
+  if (picker) {
+    picker.querySelectorAll('.sparkit-picker-item').forEach(item => {
+      const itemOutfitId = item.dataset.outfitId;
+      const isActive = (outfit === null && itemOutfitId === 'none') || 
+                       (outfit && itemOutfitId === outfit.id);
+      
+      if (isActive) {
+        item.classList.add('active');
+        if (!item.querySelector('svg[viewBox="0 0 24 24"]')) {
+          item.innerHTML += '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        }
+      } else {
+        item.classList.remove('active');
+        const svg = item.querySelector('svg');
+        if (svg && svg.querySelector('polyline[points="20 6 9 17 4 12"]')) {
+          svg.remove();
+        }
       }
     });
   }
@@ -822,7 +1051,9 @@ async function handleGenerate() {
         referenceImageBlob: referenceImageBlob,
         characterId: characterId,
         keepBackground: keepBackground,
-        numImages: 2
+        numImages: 2,
+        outfitId: selectedOutfit?.id || null, // 服饰 ID（可为空）
+        outfitImageUrl: selectedOutfit?.outfit_image_url || null // 服饰图片 URL（可为空）
       }
     }).then(response => {
       console.log('[Sparkit Mimic] Background response:', response);

@@ -32,6 +32,8 @@ export async function POST(request: NextRequest) {
     const existingBackgroundImageUrl = formData.get("existingBackgroundImageUrl") as string | null;
     const characterId = formData.get("characterId") as string | null; // 角色 ID（用于保存到角色资源）
     const requestId = formData.get("requestId") as string | null; // 请求 ID（用于去重）
+    const outfitId = formData.get("outfitId") as string | null; // 服饰 ID（可选）
+    const outfitImage = formData.get("outfitImage") as File | null; // 服饰图片（可选）
 
     // 如果提供了自定义 captionPrompt，说明是重新生成，不需要参考图
     if (customCaptionPrompt && !characterImage) {
@@ -200,6 +202,16 @@ export async function POST(request: NextRequest) {
       charAvatarBase64 = Buffer.from(charAvatarBuffer).toString("base64");
       charAvatarMimeType = charAvatar.type || "image/jpeg";
       console.log("[Mimic API] charAvatar provided:", charAvatar.name);
+    }
+    
+    // 处理服饰图片（如果提供）
+    let outfitImageBase64: string | null = null;
+    let outfitImageMimeType: string | null = null;
+    if (outfitImage) {
+      const outfitBuffer = await outfitImage.arrayBuffer();
+      outfitImageBase64 = Buffer.from(outfitBuffer).toString("base64");
+      outfitImageMimeType = outfitImage.type || "image/jpeg";
+      console.log("[Mimic API] outfitImage provided:", outfitImage.name, "outfitId:", outfitId);
     }
 
     // Upload input images to Aimovely first
@@ -391,7 +403,9 @@ export async function POST(request: NextRequest) {
               captionPrompt,
               aspectRatio,
               charAvatarBase64,
-              charAvatarMimeType
+              charAvatarMimeType,
+              outfitImageBase64,
+              outfitImageMimeType
             );
           }
           
@@ -776,12 +790,21 @@ async function generateFinalImage(
   captionPrompt: string,
   aspectRatio: string | null,
   charAvatarBase64?: string | null,
-  charAvatarMimeType?: string | null
+  charAvatarMimeType?: string | null,
+  outfitImageBase64?: string | null,
+  outfitImageMimeType?: string | null
 ): Promise<string> {
   // Build final prompt according to user requirements
+  // 根据是否有服饰图片来调整 prompt
+  let clothingDescription = "";
+  if (outfitImageBase64 && outfitImageMimeType) {
+    clothingDescription = "the character should wear the clothes shown in {{char_cloth}}, ";
+    console.log("已添加服饰图到生成请求");
+  }
+  
   const finalPrompt = `take autentic photo of the character, use instagram friendly composition. Shot on the character should have identical face, features, skin tone, hairstyle, body proportions, and vibe. 
 
-characters are shown in {{char_avatar}} and {{char_image}}. ${backgroundImage ? 'backgorund is shown in {{background_image}}.' : ''}
+characters are shown in {{char_avatar}} and {{char_image}}. ${clothingDescription}${backgroundImage ? 'backgorund is shown in {{background_image}}.' : ''}
 
 scene setup: ${captionPrompt}
 
@@ -824,6 +847,8 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
         charAvatarMimeType: charAvatarMimeType || undefined,
         characterImageBase64: characterBase64,
         characterImageType: characterMimeType,
+        outfitImageBase64: outfitImageBase64 || undefined,
+        outfitImageMimeType: outfitImageMimeType || undefined,
         imageBase64: backgroundBase64,
         mimeType: backgroundMimeType,
         aspectRatio: aspectRatio || undefined,

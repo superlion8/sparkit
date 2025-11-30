@@ -39,6 +39,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleGetCharacter(request.characterId, sendResponse);
       return true;
       
+    case 'getCharacterOutfits':
+      handleGetCharacterOutfits(request.characterId, sendResponse);
+      return true;
+      
     case 'generateMimic':
       // 检查是否已处理过该请求（防止服务工作线程重启后重复处理）
       if (request.requestId && processedRequestIds.has(request.requestId)) {
@@ -121,6 +125,38 @@ async function handleGetCharacter(characterId, sendResponse) {
   } catch (error) {
     console.error('[Sparkit Mimic] Failed to get character:', error);
     sendResponse({ success: false, error: error.message });
+  }
+}
+
+// 获取角色的服饰列表
+async function handleGetCharacterOutfits(characterId, sendResponse) {
+  try {
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      throw new Error('未登录，请先在 Sparkit 网站登录');
+    }
+    
+    const response = await fetch(`${SPARKIT_API_URL}/api/characters/${characterId}/outfits`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      // 如果获取失败（比如没有服饰功能），返回空数组
+      console.log('[Sparkit Mimic] No outfits available or failed to fetch:', response.status);
+      sendResponse({ success: true, outfits: [] });
+      return;
+    }
+    
+    const data = await response.json();
+    sendResponse({ success: true, outfits: data.outfits || [] });
+  } catch (error) {
+    console.error('[Sparkit Mimic] Failed to get character outfits:', error);
+    // 失败时返回空数组，不阻止流程
+    sendResponse({ success: true, outfits: [] });
   }
 }
 
@@ -214,6 +250,27 @@ async function handleGenerateMimic(data, requestId, sendResponse) {
     // 添加请求ID用于去重
     if (requestId) {
       formData.append('requestId', requestId);
+    }
+    
+    // 添加服饰信息（如果有）
+    if (data.outfitId) {
+      formData.append('outfitId', data.outfitId);
+      console.log('[Sparkit Mimic BG] Adding outfit ID:', data.outfitId);
+    }
+    if (data.outfitImageUrl) {
+      // 下载服饰图片并添加到表单
+      console.log('[Sparkit Mimic BG] Downloading outfit image from:', data.outfitImageUrl);
+      try {
+        const outfitImageBlob = await fetch(data.outfitImageUrl).then(r => r.blob());
+        const outfitImageFile = new File([outfitImageBlob], 'outfit-image.jpg', {
+          type: 'image/jpeg'
+        });
+        formData.append('outfitImage', outfitImageFile);
+        console.log('[Sparkit Mimic BG] Outfit image file created:', outfitImageFile.size);
+      } catch (outfitErr) {
+        console.error('[Sparkit Mimic BG] Failed to download outfit image:', outfitErr);
+        // 继续执行，不因服饰图片下载失败而中断
+      }
     }
     
     console.log('[Sparkit Mimic BG] Calling Mimic API:', `${SPARKIT_API_URL}/api/generate/mimic`);

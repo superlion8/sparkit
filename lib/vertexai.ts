@@ -156,6 +156,8 @@ export async function generateImage(
     characterImageType?: string;
     charAvatarBase64?: string;
     charAvatarMimeType?: string;
+    outfitImageBase64?: string;
+    outfitImageMimeType?: string;
     aspectRatio?: string;
     imageSize?: "1K" | "2K";
   }
@@ -180,6 +182,16 @@ export async function generateImage(
       inlineData: {
         mimeType: options.characterImageType,
         data: options.characterImageBase64,
+      },
+    });
+  }
+
+  // 添加服饰图片（char_cloth，如果有）
+  if (options?.outfitImageBase64 && options?.outfitImageMimeType) {
+    parts.push({
+      inlineData: {
+        mimeType: options.outfitImageMimeType,
+        data: options.outfitImageBase64,
       },
     });
   }
