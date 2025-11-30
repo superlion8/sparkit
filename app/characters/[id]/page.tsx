@@ -62,6 +62,7 @@ export default function CharacterDetailPage() {
   const [activeTab, setActiveTab] = useState<"assets" | "favorites" | "references" | "outfits">("assets");
   const [showOutfitUpload, setShowOutfitUpload] = useState(false);
   const [uploadingOutfit, setUploadingOutfit] = useState(false);
+  const [outfitImagePreview, setOutfitImagePreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -381,6 +382,7 @@ export default function CharacterDetailPage() {
       const data = await response.json();
       setOutfits((prev) => [data.outfit, ...prev]);
       setShowOutfitUpload(false);
+      setOutfitImagePreview(null);
       form.reset();
     } catch (err: any) {
       console.error("Failed to upload outfit:", err);
@@ -413,6 +415,19 @@ export default function CharacterDetailPage() {
     } catch (err: any) {
       console.error("Failed to delete outfit:", err);
       alert(err.message || "删除失败");
+    }
+  };
+
+  const handleOutfitImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setOutfitImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setOutfitImagePreview(null);
     }
   };
 
@@ -590,7 +605,12 @@ export default function CharacterDetailPage() {
           {/* 上传按钮 */}
           <div className="flex justify-end">
             <button
-              onClick={() => setShowOutfitUpload(!showOutfitUpload)}
+              onClick={() => {
+                if (showOutfitUpload) {
+                  setOutfitImagePreview(null);
+                }
+                setShowOutfitUpload(!showOutfitUpload);
+              }}
               className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
             >
               {showOutfitUpload ? (
@@ -643,7 +663,7 @@ export default function CharacterDetailPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     服饰图片 <span className="text-red-500">*</span>
                   </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-400 transition-colors">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-primary-400 transition-colors">
                     <input
                       type="file"
                       name="outfit_image"
@@ -651,11 +671,25 @@ export default function CharacterDetailPage() {
                       className="hidden"
                       id="outfit-image-input"
                       required
+                      onChange={handleOutfitImageChange}
                     />
-                    <label htmlFor="outfit-image-input" className="cursor-pointer">
-                      <Upload className="w-10 h-10 mx-auto text-gray-400 mb-2" />
-                      <p className="text-sm text-gray-600">点击上传服饰图片</p>
-                      <p className="text-xs text-gray-400 mt-1">支持 JPG、PNG、WebP</p>
+                    <label htmlFor="outfit-image-input" className="cursor-pointer block">
+                      {outfitImagePreview ? (
+                        <div className="relative">
+                          <img
+                            src={outfitImagePreview}
+                            alt="预览"
+                            className="max-h-48 mx-auto rounded-lg object-contain"
+                          />
+                          <p className="text-xs text-gray-500 mt-2">点击更换图片</p>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="w-10 h-10 mx-auto text-gray-400 mb-2" />
+                          <p className="text-sm text-gray-600">点击上传服饰图片</p>
+                          <p className="text-xs text-gray-400 mt-1">支持 JPG、PNG、WebP</p>
+                        </>
+                      )}
                     </label>
                   </div>
                 </div>
@@ -673,7 +707,10 @@ export default function CharacterDetailPage() {
                 <div className="flex justify-end gap-3">
                   <button
                     type="button"
-                    onClick={() => setShowOutfitUpload(false)}
+                    onClick={() => {
+                      setShowOutfitUpload(false);
+                      setOutfitImagePreview(null);
+                    }}
                     className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
                   >
                     取消
