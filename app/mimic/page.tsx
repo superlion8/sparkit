@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
 import { useAuth } from "@/hooks/useAuth";
 import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
-import { User, Download } from "lucide-react";
+import { User, Download, History } from "lucide-react";
 import { downloadImage } from "@/lib/downloadUtils";
 
 type AspectRatio = "default" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
@@ -28,6 +28,42 @@ export default function MimicPage() {
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState<string>("");
+  const [fromHistory, setFromHistory] = useState(false);
+  const [historyInputImageUrl, setHistoryInputImageUrl] = useState<string>("");
+
+  // 从 localStorage 读取历史编辑数据
+  useEffect(() => {
+    const editDataStr = localStorage.getItem('sparkitEditData');
+    if (editDataStr) {
+      try {
+        const editData = JSON.parse(editDataStr);
+        // 清除 localStorage，避免重复使用
+        localStorage.removeItem('sparkitEditData');
+        
+        if (editData.fromHistory && editData.taskType === 'mimic') {
+          setFromHistory(true);
+          
+          // 预填充 prompt
+          if (editData.prompt) {
+            setCaptionPrompt(editData.prompt);
+            setEditableCaptionPrompt(editData.prompt);
+          }
+          
+          // 保存输入图片 URL（用于显示提示）
+          if (editData.inputImageUrl) {
+            setHistoryInputImageUrl(editData.inputImageUrl);
+          }
+          
+          // 如果有背景图 URL，设置为 backgroundImage
+          if (editData.backgroundImageUrl) {
+            setBackgroundImage(editData.backgroundImageUrl);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse edit data:', e);
+      }
+    }
+  }, []);
 
   const handleGenerate = async () => {
     if (referenceImage.length === 0) {
@@ -340,6 +376,12 @@ export default function MimicPage() {
         {!authLoading && !isAuthenticated && (
           <div className="mt-4 rounded-lg border border-dashed border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
             登录后才能使用 Mimic 功能，点击"生成"按钮时会弹出登录提示。
+          </div>
+        )}
+        {fromHistory && (
+          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 flex items-center gap-2">
+            <History className="w-4 h-4" />
+            <span>已从历史记录加载参数，请上传角色图后使用"重新生成"功能</span>
           </div>
         )}
       </div>

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
 import { useAuth } from "@/hooks/useAuth";
 import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, History } from "lucide-react";
 
 type Model = "gemini" | "flux" | "qwen";
 type AspectRatio = "default" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
@@ -24,6 +24,37 @@ export default function ImageToImagePage() {
   const [generatedTaskIds, setGeneratedTaskIds] = useState<string[]>([]); // 保存每张图片对应的 taskId
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
+  const [fromHistory, setFromHistory] = useState(false);
+  const [historyInputImageUrl, setHistoryInputImageUrl] = useState<string>("");
+
+  // 从 localStorage 读取历史编辑数据
+  useEffect(() => {
+    const editDataStr = localStorage.getItem('sparkitEditData');
+    if (editDataStr) {
+      try {
+        const editData = JSON.parse(editDataStr);
+        localStorage.removeItem('sparkitEditData');
+        
+        if (editData.fromHistory && (editData.taskType === 'image_to_image_gemini' || editData.taskType === 'image_to_image_flux')) {
+          setFromHistory(true);
+          if (editData.prompt) {
+            setPrompt(editData.prompt);
+          }
+          if (editData.inputImageUrl) {
+            setHistoryInputImageUrl(editData.inputImageUrl);
+          }
+          // 根据任务类型设置模型
+          if (editData.taskType === 'image_to_image_flux') {
+            setModel('flux');
+          } else {
+            setModel('gemini');
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse edit data:', e);
+      }
+    }
+  }, []);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -293,9 +324,15 @@ export default function ImageToImagePage() {
           图生图
         </h1>
         <p className="text-gray-600 mt-2">上传图片并输入描述，AI帮你编辑和变换</p>
+        {fromHistory && (
+          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 flex items-center gap-2">
+            <History className="w-4 h-4" />
+            <span>已从历史记录加载提示词，请上传图片后重新生成</span>
+          </div>
+        )}
         {!authLoading && !isAuthenticated && (
           <div className="mt-4 rounded-lg border border-dashed border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
-            未登录状态下可以浏览界面，点击“生成图像”时会提示登录。
+            未登录状态下可以浏览界面，点击"生成图像"时会提示登录。
           </div>
         )}
       </div>

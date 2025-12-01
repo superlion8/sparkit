@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download, Copy, Check, X, ZoomIn, Trash2, AlertCircle, Heart } from "lucide-react";
+import { History, Image as ImageIcon, Video, ChevronLeft, ChevronRight, Download, Copy, Check, X, ZoomIn, Trash2, AlertCircle, Heart, Pencil } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { downloadImage, downloadVideo } from "@/lib/downloadUtils";
 import FavoriteModal from "@/components/FavoriteModal";
 
@@ -51,6 +52,25 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   photo_to_live: "Photo to Live",
 };
 
+// 任务类型到编辑页面的映射
+const TASK_TYPE_TO_EDIT_PAGE: Record<string, string> = {
+  text_to_image_gemini: "/text-to-image",
+  text_to_image_flux: "/text-to-image",
+  image_to_image_gemini: "/image-to-image",
+  image_to_image_flux: "/image-to-image",
+  outfit_change: "/outfit-change",
+  background_replace: "/background-replace",
+  mimic: "/mimic",
+  photobooth: "/photobooth",
+  snapshot: "/snapshot",
+  pose_control: "/pose-control",
+  video_generation: "/video-generation",
+  video_subject_replace: "/video-subject-replace",
+  image_transition_edit: "/image-transition",
+  image_transition_video: "/image-transition",
+  photo_to_live: "/photo-to-live",
+};
+
 // Parse JSON format image URLs (for Mimic, PhotoBooth, Snapshot, and Pose Control tasks)
 const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photobooth' | 'snapshot' | 'pose_control'; urls: any } | null => {
   if (!url) return null;
@@ -85,6 +105,7 @@ const parseImageUrls = (url: string | null): { type: 'single' | 'mimic' | 'photo
 };
 
 export default function HistoryPage() {
+  const router = useRouter();
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
   const [activeTab, setActiveTab] = useState<"history" | "favorites">("history");
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
@@ -314,6 +335,30 @@ export default function HistoryPage() {
       console.error('删除失败:', err);
       alert(err.message || '删除失败，请重试');
     }
+  };
+
+  // 去编辑：跳转到对应页面并预填充数据
+  const handleGoToEdit = (task: GenerationTask) => {
+    const editPage = TASK_TYPE_TO_EDIT_PAGE[task.task_type];
+    if (!editPage) {
+      alert('该任务类型暂不支持编辑');
+      return;
+    }
+
+    // 准备要传递的数据
+    const editData = {
+      prompt: task.prompt || '',
+      inputImageUrl: task.input_image_url || '',
+      backgroundImageUrl: task.background_image_url || '',
+      taskType: task.task_type,
+      fromHistory: true,
+    };
+
+    // 存储到 localStorage
+    localStorage.setItem('sparkitEditData', JSON.stringify(editData));
+
+    // 跳转到编辑页面
+    router.push(editPage);
   };
 
   if (authLoading) {
@@ -607,27 +652,49 @@ export default function HistoryPage() {
                       <span>{new Date(task.task_time).toLocaleString("zh-CN")}</span>
                     </div>
 
-                    {/* Download buttons */}
-                    {task.task_type === 'mimic' && task.background_image_url ? (
-                      <div className="flex gap-2 items-stretch">
-                        {/* Background image thumbnail + download */}
-                        <div className="flex items-center gap-2 flex-1 p-2 bg-gray-100 rounded-lg">
-                          <img
-                            src={task.background_image_url}
-                            alt="背景图"
-                            className="w-12 h-12 object-cover rounded cursor-pointer hover:opacity-80"
-                            onClick={() => setPreviewImage(task.background_image_url)}
-                          />
+                    {/* Action buttons */}
+                    <div className="flex gap-2">
+                      {/* 去编辑按钮 */}
+                      {TASK_TYPE_TO_EDIT_PAGE[task.task_type] && (
+                        <button
+                          onClick={() => handleGoToEdit(task)}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
+                          title="使用此任务的参数重新编辑"
+                        >
+                          <Pencil className="w-4 h-4" />
+                          编辑
+                        </button>
+                      )}
+                      
+                      {/* Download buttons */}
+                      {task.task_type === 'mimic' && task.background_image_url ? (
+                        <>
+                          {/* Background image thumbnail + download */}
+                          <div className="flex items-center gap-1.5 p-1.5 bg-gray-100 rounded-lg">
+                            <img
+                              src={task.background_image_url}
+                              alt="背景图"
+                              className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80"
+                              onClick={() => setPreviewImage(task.background_image_url)}
+                            />
+                            <button
+                              onClick={() => handleDownloadImage(task.background_image_url!, `${task.task_id}-bg`)}
+                              className="p-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded transition-colors"
+                              title="下载背景图"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          {/* Main image download */}
                           <button
-                            onClick={() => handleDownloadImage(task.background_image_url!, `${task.task_id}-bg`)}
-                            className="flex items-center gap-1 px-2 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded transition-colors"
-                            title="下载背景图"
+                            onClick={() => handleDownloadImage(imageUrl, task.task_id)}
+                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded-lg transition-colors"
                           >
-                            <Download className="w-3 h-3" />
-                            背景图
+                            <Download className="w-4 h-4" />
+                            下载
                           </button>
-                        </div>
-                        {/* Main image download */}
+                        </>
+                      ) : (
                         <button
                           onClick={() => handleDownloadImage(imageUrl, task.task_id)}
                           className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded-lg transition-colors"
@@ -635,16 +702,8 @@ export default function HistoryPage() {
                           <Download className="w-4 h-4" />
                           下载
                         </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => handleDownloadImage(imageUrl, task.task_id)}
-                        className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded-lg transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        下载图片
-                      </button>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               );
