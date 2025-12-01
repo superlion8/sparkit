@@ -347,6 +347,7 @@ export default function ImageToImagePage() {
                 maxImages={hotMode || model === "flux" ? 1 : (model === "gemini" ? 4 : 1)}
                 onImagesChange={setUploadedImages}
                 label="上传图片"
+                initialImageUrl={historyInputImageUrl || undefined}
               />
 
               <div>

@@ -396,6 +396,7 @@ export default function MimicPage() {
                 maxImages={1}
                 onImagesChange={setReferenceImage}
                 label="上传参考图"
+                initialImageUrl={historyInputImageUrl || undefined}
               />
 
               <ImageUpload

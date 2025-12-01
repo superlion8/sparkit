@@ -14,6 +14,7 @@ interface ImageUploadProps {
   onImagesChange: (images: File[]) => void;
   label?: string;
   previewAspect?: string;
+  initialImageUrl?: string; // 从历史记录自动加载的图片 URL
 }
 
 interface HistoryRecord {
@@ -45,7 +46,8 @@ export default function ImageUpload({
   maxImages = 1, 
   onImagesChange,
   label = "上传图片",
-  previewAspect = "aspect-square"
+  previewAspect = "aspect-square",
+  initialImageUrl
 }: ImageUploadProps) {
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -104,6 +106,14 @@ export default function ImageUpload({
       });
     });
   }, []);
+
+  // 自动加载初始图片 URL（从历史记录跳转时使用）
+  useEffect(() => {
+    if (initialImageUrl && images.length === 0) {
+      console.log('[ImageUpload] Auto-loading initial image from URL:', initialImageUrl);
+      handleSelectFromHistory(initialImageUrl);
+    }
+  }, [initialImageUrl]);
 
   // Fetch history when modal opens
   const fetchHistory = async (page: number = 1, append: boolean = false) => {
