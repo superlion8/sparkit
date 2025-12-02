@@ -25,7 +25,7 @@ export default function ImageToImagePage() {
   const [error, setError] = useState("");
   const [errorDetails, setErrorDetails] = useState<any>(null);
   const [fromHistory, setFromHistory] = useState(false);
-  const [historyInputImageUrl, setHistoryInputImageUrl] = useState<string>("");
+  const [historyInputImageUrls, setHistoryInputImageUrls] = useState<string[]>([]);
 
   // 从 localStorage 读取历史编辑数据
   useEffect(() => {
@@ -40,8 +40,9 @@ export default function ImageToImagePage() {
           if (editData.prompt) {
             setPrompt(editData.prompt);
           }
-          if (editData.inputImageUrl) {
-            setHistoryInputImageUrl(editData.inputImageUrl);
+          // 支持多图
+          if (editData.inputImageUrls && editData.inputImageUrls.length > 0) {
+            setHistoryInputImageUrls(editData.inputImageUrls);
           }
           // 根据任务类型设置模型
           if (editData.taskType === 'image_to_image_flux') {
@@ -347,7 +348,7 @@ export default function ImageToImagePage() {
                 maxImages={hotMode || model === "flux" ? 1 : (model === "gemini" ? 4 : 1)}
                 onImagesChange={setUploadedImages}
                 label="上传图片"
-                initialImageUrl={historyInputImageUrl || undefined}
+                initialImageUrls={historyInputImageUrls.length > 0 ? historyInputImageUrls : undefined}
               />
 
               <div>

@@ -14,7 +14,8 @@ interface ImageUploadProps {
   onImagesChange: (images: File[]) => void;
   label?: string;
   previewAspect?: string;
-  initialImageUrl?: string; // 从历史记录自动加载的图片 URL
+  initialImageUrl?: string; // 从历史记录自动加载的单个图片 URL（兼容旧代码）
+  initialImageUrls?: string[]; // 从历史记录自动加载的多个图片 URL
 }
 
 interface HistoryRecord {
@@ -47,7 +48,8 @@ export default function ImageUpload({
   onImagesChange,
   label = "上传图片",
   previewAspect = "aspect-square",
-  initialImageUrl
+  initialImageUrl,
+  initialImageUrls
 }: ImageUploadProps) {
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -109,11 +111,63 @@ export default function ImageUpload({
 
   // 自动加载初始图片 URL（从历史记录跳转时使用）
   useEffect(() => {
-    if (initialImageUrl && images.length === 0) {
-      console.log('[ImageUpload] Auto-loading initial image from URL:', initialImageUrl);
-      handleSelectFromHistory(initialImageUrl);
+    // 合并 initialImageUrl 和 initialImageUrls
+    const urlsToLoad: string[] = [];
+    
+    if (initialImageUrls && initialImageUrls.length > 0) {
+      urlsToLoad.push(...initialImageUrls);
+    } else if (initialImageUrl) {
+      urlsToLoad.push(initialImageUrl);
     }
-  }, [initialImageUrl]);
+    
+    // 只在没有已加载图片时才自动加载
+    if (urlsToLoad.length > 0 && images.length === 0) {
+      console.log('[ImageUpload] Auto-loading initial images from URLs:', urlsToLoad);
+      
+      // 限制加载数量不超过 maxImages
+      const urlsToLoadLimited = urlsToLoad.slice(0, maxImages);
+      
+      // 依次加载所有图片
+      const loadImages = async () => {
+        setDownloadingImage(true);
+        try {
+          const loadedFiles: File[] = [];
+          
+          for (let i = 0; i < urlsToLoadLimited.length; i++) {
+            const url = urlsToLoadLimited[i];
+            try {
+              console.log(`[ImageUpload] Loading image ${i + 1}/${urlsToLoadLimited.length}:`, url);
+              
+              // 使用缓存下载
+              const blob = await downloadAndCacheImage(url);
+              const filename = `history-image-${i + 1}-${Date.now()}.jpg`;
+              const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
+              loadedFiles.push(file);
+              
+              // 保存到内存缓存
+              setImageBlobCache(prev => {
+                const newCache = new Map(prev);
+                newCache.set(url, blob);
+                return newCache;
+              });
+            } catch (error) {
+              console.error(`[ImageUpload] Failed to load image ${i + 1}:`, error);
+            }
+          }
+          
+          if (loadedFiles.length > 0) {
+            console.log(`[ImageUpload] Successfully loaded ${loadedFiles.length} images`);
+            setImages(loadedFiles);
+            onImagesChange(loadedFiles);
+          }
+        } finally {
+          setDownloadingImage(false);
+        }
+      };
+      
+      loadImages();
+    }
+  }, [initialImageUrl, initialImageUrls]);
 
   // Fetch history when modal opens
   const fetchHistory = async (page: number = 1, append: boolean = false) => {

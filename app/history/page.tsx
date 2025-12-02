@@ -337,6 +337,60 @@ export default function HistoryPage() {
     }
   };
 
+  // 解析输入图片 URL（可能是单个 URL 或 JSON 格式的多图）
+  const parseInputImageUrls = (inputImageUrl: string | null): string[] => {
+    if (!inputImageUrl) return [];
+    
+    // 尝试解析 JSON
+    try {
+      const parsed = JSON.parse(inputImageUrl);
+      
+      // 如果是数组，直接返回
+      if (Array.isArray(parsed)) {
+        return parsed.filter((url: any) => typeof url === 'string' && url.startsWith('http'));
+      }
+      
+      // 如果是对象（如 mimic 格式），提取所有图片 URL
+      if (typeof parsed === 'object') {
+        const urls: string[] = [];
+        
+        // reference 图
+        if (parsed.reference && typeof parsed.reference === 'string') {
+          urls.push(parsed.reference);
+        }
+        
+        // character 图（可能是数组或单个）
+        if (parsed.character) {
+          if (Array.isArray(parsed.character)) {
+            urls.push(...parsed.character.filter((url: any) => typeof url === 'string'));
+          } else if (typeof parsed.character === 'string') {
+            urls.push(parsed.character);
+          }
+        }
+        
+        // input 图（通用）
+        if (parsed.input) {
+          if (Array.isArray(parsed.input)) {
+            urls.push(...parsed.input.filter((url: any) => typeof url === 'string'));
+          } else if (typeof parsed.input === 'string') {
+            urls.push(parsed.input);
+          }
+        }
+        
+        return urls;
+      }
+    } catch {
+      // 不是 JSON，当作单个 URL 处理
+    }
+    
+    // 单个 URL
+    if (inputImageUrl.startsWith('http')) {
+      return [inputImageUrl];
+    }
+    
+    return [];
+  };
+
   // 去编辑：跳转到对应页面并预填充数据
   const handleGoToEdit = (task: GenerationTask) => {
     const editPage = TASK_TYPE_TO_EDIT_PAGE[task.task_type];
@@ -345,10 +399,13 @@ export default function HistoryPage() {
       return;
     }
 
+    // 解析输入图片 URL（支持多图）
+    const inputImageUrls = parseInputImageUrls(task.input_image_url);
+
     // 准备要传递的数据
     const editData = {
       prompt: task.prompt || '',
-      inputImageUrl: task.input_image_url || '',
+      inputImageUrls: inputImageUrls, // 改为数组
       backgroundImageUrl: task.background_image_url || '',
       taskType: task.task_type,
       fromHistory: true,

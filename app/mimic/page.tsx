@@ -29,7 +29,7 @@ export default function MimicPage() {
   const [errorDetails, setErrorDetails] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState<string>("");
   const [fromHistory, setFromHistory] = useState(false);
-  const [historyInputImageUrl, setHistoryInputImageUrl] = useState<string>("");
+  const [historyInputImageUrls, setHistoryInputImageUrls] = useState<string[]>([]);
 
   // 从 localStorage 读取历史编辑数据
   useEffect(() => {
@@ -49,9 +49,9 @@ export default function MimicPage() {
             setEditableCaptionPrompt(editData.prompt);
           }
           
-          // 保存输入图片 URL（用于显示提示）
-          if (editData.inputImageUrl) {
-            setHistoryInputImageUrl(editData.inputImageUrl);
+          // 保存输入图片 URLs（支持多图）
+          if (editData.inputImageUrls && editData.inputImageUrls.length > 0) {
+            setHistoryInputImageUrls(editData.inputImageUrls);
           }
           
           // 如果有背景图 URL，设置为 backgroundImage
@@ -396,7 +396,7 @@ export default function MimicPage() {
                 maxImages={1}
                 onImagesChange={setReferenceImage}
                 label="上传参考图"
-                initialImageUrl={historyInputImageUrl || undefined}
+                initialImageUrls={historyInputImageUrls.length > 0 ? [historyInputImageUrls[0]] : undefined}
               />
 
               <ImageUpload
