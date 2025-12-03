@@ -345,7 +345,7 @@ export default function ImageToImagePage() {
 
             <div className="space-y-6">
               <ImageUpload
-                maxImages={hotMode || model === "flux" ? 1 : (model === "gemini" ? 4 : 1)}
+                maxImages={hotMode || model === "flux" ? 1 : undefined}
                 onImagesChange={setUploadedImages}
                 label="上传图片"
                 initialImageUrls={historyInputImageUrls.length > 0 ? historyInputImageUrls : undefined}

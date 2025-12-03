@@ -44,7 +44,7 @@ interface CharacterAsset {
 }
 
 export default function ImageUpload({ 
-  maxImages = 1, 
+  maxImages = Infinity, 
   onImagesChange,
   label = "上传图片",
   previewAspect = "aspect-square",
@@ -657,7 +657,7 @@ export default function ImageUpload({
   return (
     <div className="space-y-4">
       <label className="block text-sm font-medium text-gray-700">
-        {label} {maxImages > 1 && `(最多${maxImages}张)`}
+        {label} {maxImages > 1 && maxImages !== Infinity && `(最多${maxImages}张)`}
       </label>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
