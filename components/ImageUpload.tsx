@@ -56,6 +56,7 @@ export default function ImageUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isConverting, setIsConverting] = useState(false); // HEIC 转换状态
   // Ref to track the current batch being processed to avoid race conditions
   const processingBatchRef = useRef<number>(0);
   
@@ -468,10 +469,81 @@ export default function ImageUpload({
     });
   }, [images]);
 
+  // 检测是否为 HEIC/HEIF 格式
+  const isHeicFile = (file: File): boolean => {
+    const fileName = file.name.toLowerCase();
+    const mimeType = file.type.toLowerCase();
+    return (
+      fileName.endsWith('.heic') ||
+      fileName.endsWith('.heif') ||
+      mimeType === 'image/heic' ||
+      mimeType === 'image/heif'
+    );
+  };
+
+  // 将 HEIC 文件转换为 JPEG
+  const convertHeicToJpeg = async (file: File): Promise<File> => {
+    console.log(`[ImageUpload] Converting HEIC file: ${file.name}`);
+    try {
+      // 动态导入 heic2any 以避免 SSR 问题
+      const heic2any = (await import('heic2any')).default;
+      
+      const convertedBlob = await heic2any({
+        blob: file,
+        toType: 'image/jpeg',
+        quality: 0.9,
+      });
+      
+      // heic2any 可能返回单个 Blob 或 Blob 数组
+      const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+      
+      const newFileName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+      const convertedFile = new File([blob], newFileName, {
+        type: 'image/jpeg',
+        lastModified: Date.now(),
+      });
+      
+      console.log(`[ImageUpload] HEIC converted: ${file.name} → ${newFileName}, size: ${file.size} → ${convertedFile.size}`);
+      return convertedFile;
+    } catch (error) {
+      console.error('[ImageUpload] HEIC conversion failed:', error);
+      throw error;
+    }
+  };
+
   const processFiles = async (files: File[]) => {
+    // 检查是否有 HEIC 文件需要转换
+    const hasHeicFiles = files.some(isHeicFile);
+    if (hasHeicFiles) {
+      setIsConverting(true);
+    }
+
+    // 先处理 HEIC 文件转换
+    const convertedFiles: File[] = [];
+    try {
+      for (const file of files) {
+        if (isHeicFile(file)) {
+          try {
+            const converted = await convertHeicToJpeg(file);
+            convertedFiles.push(converted);
+          } catch (error) {
+            console.error('HEIC conversion failed, skipping file:', file.name);
+            // HEIC 转换失败时跳过该文件，而不是用原文件（因为原文件无法显示）
+            continue;
+          }
+        } else {
+          convertedFiles.push(file);
+        }
+      }
+    } finally {
+      if (hasHeicFiles) {
+        setIsConverting(false);
+      }
+    }
+
     // 压缩图片文件
     const compressedFiles: File[] = [];
-    for (const file of files) {
+    for (const file of convertedFiles) {
       if (file.size > 2 * 1024 * 1024) { // 大于 2MB 就压缩
         try {
           const compressed = await compressImage(file);
@@ -580,9 +652,13 @@ export default function ImageUpload({
     e.stopPropagation();
     setIsDragging(false);
 
-    const files = Array.from(e.dataTransfer.files).filter(file => 
-      file.type.startsWith('image/')
-    );
+    const files = Array.from(e.dataTransfer.files).filter(file => {
+      const fileName = file.name.toLowerCase();
+      // 支持所有图片格式 + HEIC/HEIF
+      return file.type.startsWith('image/') || 
+             fileName.endsWith('.heic') || 
+             fileName.endsWith('.heif');
+    });
     
     if (files.length > 0) {
       await processFiles(files);
@@ -669,9 +745,18 @@ export default function ImageUpload({
             className={`group relative ${previewAspect} bg-gray-100 rounded-lg overflow-hidden cursor-zoom-in`}
           >
             <img
-              src={preview}
+              src={preview || undefined}
               alt={`Upload ${index + 1}`}
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                target.parentElement?.classList.add('flex', 'items-center', 'justify-center');
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'text-gray-400 text-sm text-center';
+                errorDiv.innerHTML = '图片加载失败';
+                target.parentElement?.appendChild(errorDiv);
+              }}
             />
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
               <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -713,7 +798,7 @@ export default function ImageUpload({
               <span className="text-xs text-gray-400 mt-1 block">
                 {isDragging ? "" : "或拖拽图片到这里"}
               </span>
-              <span className="text-xs text-gray-400 mt-1 block">支持 JPG, PNG, WebP</span>
+              <span className="text-xs text-gray-400 mt-1 block">支持 JPG, PNG, WebP, HEIC</span>
             </div>
           </button>
         )}
@@ -722,7 +807,7 @@ export default function ImageUpload({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.heic,.heif"
         multiple={maxImages > 1}
         onChange={(e) => handleFileChange(e.target.files)}
         className="hidden"
@@ -1087,6 +1172,17 @@ export default function ImageUpload({
           <div>
             <div className="text-gray-900 font-medium">加载图片中...</div>
             <div className="text-gray-500 text-sm">首次会从网络下载，之后直接从本地缓存加载</div>
+          </div>
+        </div>
+      )}
+
+      {/* HEIC Converting Toast */}
+      {isConverting && (
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 bg-white rounded-lg shadow-2xl px-6 py-4 flex items-center gap-4 border border-gray-200">
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-orange-500"></div>
+          <div>
+            <div className="text-gray-900 font-medium">转换 HEIC 格式中...</div>
+            <div className="text-gray-500 text-sm">iPhone 图片需要转换格式，请稍候</div>
           </div>
         </div>
       )}
