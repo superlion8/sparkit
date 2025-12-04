@@ -16,11 +16,13 @@ export async function POST(request: NextRequest) {
     const prompt = formData.get("prompt") as string;
     const images = formData.getAll("images") as File[];
     const aspectRatio = formData.get("aspectRatio") as string;
+    const imageSize = formData.get("imageSize") as string; // "1K", "2K", "4K"
 
     console.log("请求参数:", {
       promptLength: prompt?.length || 0,
       imagesCount: images.length,
-      aspectRatio: aspectRatio || "未指定"
+      aspectRatio: aspectRatio || "未指定",
+      imageSize: imageSize || "未指定"
     });
 
     if (!prompt) {
@@ -83,11 +85,18 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
       responseModalities: ["IMAGE"],
     };
 
-    // Add aspect ratio if provided and not default
-    if (aspectRatio && aspectRatio !== "default") {
-      generationConfig.imageConfig = {
-        aspectRatio: aspectRatio,
-      };
+    // Add image config if aspect ratio or image size is provided
+    const hasAspectRatio = aspectRatio && aspectRatio !== "default";
+    const hasImageSize = imageSize && imageSize !== "default";
+    
+    if (hasAspectRatio || hasImageSize) {
+      generationConfig.imageConfig = {};
+      if (hasAspectRatio) {
+        generationConfig.imageConfig.aspectRatio = aspectRatio;
+      }
+      if (hasImageSize) {
+        generationConfig.imageConfig.imageSize = imageSize;
+      }
     }
 
     console.log("Generation config:", JSON.stringify(generationConfig, null, 2));

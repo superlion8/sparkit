@@ -10,6 +10,7 @@ import { ImagePlus, History } from "lucide-react";
 
 type Model = "gemini" | "flux" | "qwen";
 type AspectRatio = "default" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
+type ImageSize = "default" | "1K" | "2K" | "4K";
 
 export default function ImageToImagePage() {
   const { accessToken, isAuthenticated, loading: authLoading, promptLogin } = useAuth();
@@ -18,6 +19,7 @@ export default function ImageToImagePage() {
   const [hotMode, setHotMode] = useState(false);
   const [numImages, setNumImages] = useState(1);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("default");
+  const [imageSize, setImageSize] = useState<ImageSize>("default");
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
@@ -207,6 +209,9 @@ export default function ImageToImagePage() {
         if (model === "gemini") {
           if (aspectRatio !== "default") {
             formData.append("aspectRatio", aspectRatio);
+          }
+          if (imageSize !== "default") {
+            formData.append("imageSize", imageSize);
           }
           uploadedImages.forEach((image) => {
             formData.append("images", image);
@@ -473,6 +478,27 @@ export default function ImageToImagePage() {
                   <option value="3:4">3:4 (标准竖屏)</option>
                 </select>
               </div>
+
+              {model === "gemini" && !hotMode && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    分辨率
+                  </label>
+                  <select
+                    value={imageSize}
+                    onChange={(e) => setImageSize(e.target.value as ImageSize)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="default">默认</option>
+                    <option value="1K">1K (1024px)</option>
+                    <option value="2K">2K (2048px)</option>
+                    <option value="4K">4K (4096px)</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    更高分辨率生成时间更长，但图片更清晰
+                  </p>
+                </div>
+              )}
 
               <button
                 onClick={handleGenerate}
