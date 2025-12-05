@@ -159,7 +159,7 @@ export async function generateImage(
     outfitImageBase64?: string;
     outfitImageMimeType?: string;
     aspectRatio?: string;
-    imageSize?: "1K" | "2K";
+    imageSize?: "1K" | "2K" | "4K";
   }
 ): Promise<string> {
   const client = getVertexAIClient();

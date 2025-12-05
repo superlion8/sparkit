@@ -163,7 +163,7 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
           imageBase64,
           mimeType: image.type,
           aspectRatio: aspectRatio || undefined,
-          imageSize: imageSize || undefined,
+          imageSize: (imageSize as "1K" | "2K" | "4K" | undefined) || undefined,
         }
       )
         .then((generatedImageBase64) => {
