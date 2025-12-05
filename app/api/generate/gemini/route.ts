@@ -80,23 +80,20 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
       },
     ];
 
-    // Build generation config
+    // Build generation config - 注意：imageSize 和 aspectRatio 需要在顶层，不是嵌套在 imageConfig 里
     const generationConfig: any = {
-      responseModalities: ["IMAGE"],
+      responseModalities: ["IMAGE", "TEXT"],  // 包含 TEXT 以便模型在无法生成图片时返回说明
     };
 
-    // Add image config if aspect ratio or image size is provided
+    // Add aspect ratio and image size at top level (not nested in imageConfig)
     const hasAspectRatio = aspectRatio && aspectRatio !== "default";
     const hasImageSize = imageSize && imageSize !== "default";
     
-    if (hasAspectRatio || hasImageSize) {
-      generationConfig.imageConfig = {};
-      if (hasAspectRatio) {
-        generationConfig.imageConfig.aspectRatio = aspectRatio;
-      }
-      if (hasImageSize) {
-        generationConfig.imageConfig.imageSize = imageSize;
-      }
+    if (hasAspectRatio) {
+      generationConfig.aspectRatio = aspectRatio;
+    }
+    if (hasImageSize) {
+      generationConfig.imageSize = imageSize;
     }
 
     console.log("Generation config:", JSON.stringify(generationConfig, null, 2));

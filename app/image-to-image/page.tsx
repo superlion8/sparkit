@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
 import { ImagePlus, History } from "lucide-react";
 
-type Model = "gemini" | "flux" | "qwen";
+type Model = "gemini" | "flash" | "qwen";
 type AspectRatio = "default" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
 type ImageSize = "default" | "1K" | "2K" | "4K";
 
@@ -37,7 +37,7 @@ export default function ImageToImagePage() {
         const editData = JSON.parse(editDataStr);
         localStorage.removeItem('sparkitEditData');
         
-        if (editData.fromHistory && (editData.taskType === 'image_to_image_gemini' || editData.taskType === 'image_to_image_flux')) {
+        if (editData.fromHistory && (editData.taskType === 'image_to_image_gemini' || editData.taskType === 'image_to_image_flash')) {
           setFromHistory(true);
           if (editData.prompt) {
             setPrompt(editData.prompt);
@@ -47,8 +47,8 @@ export default function ImageToImagePage() {
             setHistoryInputImageUrls(editData.inputImageUrls);
           }
           // 根据任务类型设置模型
-          if (editData.taskType === 'image_to_image_flux') {
-            setModel('flux');
+          if (editData.taskType === 'image_to_image_flash') {
+            setModel('flash');
           } else {
             setModel('gemini');
           }
@@ -199,8 +199,8 @@ export default function ImageToImagePage() {
         return;
       }
 
-      // For Flux/Kontext Pro, only generate 1 image per request (API limitation)
-      const actualNumImages = model === "flux" ? 1 : numImages;
+      // For flash (nano), only generate 1 image per request
+      const actualNumImages = model === "flash" ? 1 : numImages;
 
       for (let i = 0; i < actualNumImages; i++) {
         const formData = new FormData();
@@ -216,15 +216,25 @@ export default function ImageToImagePage() {
           uploadedImages.forEach((image) => {
             formData.append("images", image);
           });
+        } else if (model === "flash") {
+          // nano (flash) 使用 gemini-2.5-flash-image，支持宽高比但不支持分辨率
+          if (aspectRatio !== "default") {
+            formData.append("aspectRatio", aspectRatio);
+          }
+          // nano 仅支持单张图片
+          if (uploadedImages.length === 0) {
+            throw new Error("请至少上传一张图片");
+          }
+          formData.append("images", uploadedImages[0]);
         } else {
-          // Flux/Kontext Pro only supports single image
+          // Other models
           if (uploadedImages.length === 0) {
             throw new Error("请至少上传一张图片");
           }
           formData.append("image", uploadedImages[0]);
         }
 
-        const endpoint = model === "gemini" ? "/api/generate/gemini" : "/api/generate/flux";
+        const endpoint = model === "gemini" ? "/api/generate/gemini" : "/api/generate/gemini-flash-image";
         
         console.log(`[Image-to-Image] 准备发送请求 - Model: ${model}, Endpoint: ${endpoint}, Image count: ${uploadedImages.length}, Prompt length: ${prompt.length}, Iteration: ${i + 1}/${actualNumImages}`);
 
@@ -270,11 +280,8 @@ export default function ImageToImagePage() {
         console.log(`[Image-to-Image] 响应数据 - Images count: ${data.images?.length || 0}, Has requestId: ${!!data.requestId}`);
         
         if (data.images && data.images.length > 0) {
-          const taskType = model === "flux" ? "image_to_image_flux" : "image_to_image_gemini";
-          const baseTaskId =
-            model === "flux" && data.requestId
-              ? String(data.requestId)
-              : generateClientTaskId(taskType);
+          const taskType = model === "flash" ? "image_to_image_flash" : "image_to_image_gemini";
+          const baseTaskId = generateClientTaskId(taskType);
           // 使用上传的 URL，如果上传失败则为 null
           const inputImageUrl = uploadedImageUrls[0] && uploadedImageUrls[0].trim() !== "" 
             ? uploadedImageUrls[0] 
@@ -350,7 +357,7 @@ export default function ImageToImagePage() {
 
             <div className="space-y-6">
               <ImageUpload
-                maxImages={hotMode || model === "flux" ? 1 : undefined}
+                maxImages={hotMode || model === "flash" ? 1 : undefined}
                 onImagesChange={setUploadedImages}
                 label="上传图片"
                 initialImageUrls={historyInputImageUrls.length > 0 ? historyInputImageUrls : undefined}
@@ -385,25 +392,25 @@ export default function ImageToImagePage() {
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
-                    Nano Banana
+                    nano pro
                   </button>
                   <button
                     onClick={() => {
-                      setModel("flux");
+                      setModel("flash");
                       setHotMode(false);
                     }}
                     className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                      model === "flux"
+                      model === "flash"
                         ? "bg-primary-600 text-white"
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
-                    Kontext Pro
+                    nano
                   </button>
                 </div>
-                {model === "flux" && uploadedImages.length > 1 && (
+                {model === "flash" && uploadedImages.length > 1 && (
                   <p className="text-xs text-amber-600 mt-2">
-                    注意：Kontext Pro仅支持单张图片，将使用第一张
+                    注意：nano仅支持单张图片，将使用第一张
                   </p>
                 )}
               </div>
@@ -455,9 +462,9 @@ export default function ImageToImagePage() {
                   <p>🔥 Hot Mode 每次生成 1 张图片</p>
                 </div>
               )}
-              {model === "flux" && (
+              {model === "flash" && (
                 <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                  <p>Kontext Pro 每次生成 1 张图片</p>
+                  <p>nano 每次生成 1 张图片，不支持选择分辨率</p>
                 </div>
               )}
 
