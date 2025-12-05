@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
 尽量避免指令过于复杂，导致在一张图片里传达了过多的信息、或者让模特做出过于dramatic的姿势，不要改变光影。
 
-请你严格用英文按照这个格式来写：
+请你严格用英文按照下面这个格式来写，不需要输出其他额外的东西：
 
 - {{Pose1}}:
 
@@ -147,12 +147,10 @@ export async function POST(request: NextRequest) {
       console.log(`启动第 ${index + 1}/${poseDescriptions.length} 张图片的生成任务...`);
       
       // 构建电商版 prompt
-      const finalPrompt = `请为这个模特拍摄一张专业影棚商品棚拍图，保持模特身上的商品不变。
+      const instructPrompt = `Pose: ${poseDesc.pose}\nCamera Position: ${poseDesc.cameraPosition}\nComposition: ${poseDesc.composition}`;
+      const finalPrompt = `请为图中的模特拍摄一张身穿图中展示的商品的专业影棚商品棚拍图。
 
-拍摄指令：
-Pose: ${poseDesc.pose}
-Camera Position: ${poseDesc.cameraPosition}
-Composition: ${poseDesc.composition}
+拍摄指令：${instructPrompt}
 
 negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorted anatomy, fake portrait-mode blur, CGI/illustration look`;
 
