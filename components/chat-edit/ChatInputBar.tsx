@@ -98,118 +98,24 @@ export default function ChatInputBar({
 
   return (
     <div 
-      className={`bg-white border-t border-gray-200 p-4 ${isDragging ? 'ring-2 ring-primary-500 ring-inset' : ''}`}
+      className={`bg-white border-t border-gray-200 px-4 py-3 ${isDragging ? 'ring-2 ring-primary-500 ring-inset' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* 控制栏 - 移到顶部 */}
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        {/* 模型选择 */}
-        <div className="relative">
-          <button
-            onClick={() => setShowModelMenu(!showModelMenu)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium text-gray-700 transition-colors"
-          >
-            <span>{modelConfig.name}</span>
-            <ChevronDown className="w-4 h-4" />
-          </button>
-          {showModelMenu && (
-            <>
-              <div 
-                className="fixed inset-0 z-10" 
-                onClick={() => setShowModelMenu(false)} 
-              />
-              <div className="absolute bottom-full left-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-20 min-w-[140px]">
-                {(Object.keys(MODEL_CONFIG) as ChatModel[]).map((model) => (
-                  <button
-                    key={model}
-                    onClick={() => {
-                      onInputChange({ model });
-                      setShowModelMenu(false);
-                      // 如果切换到不支持多图的模型，只保留第一张图
-                      if (!MODEL_CONFIG[model].supportsMultipleImages && input.inputImages.length > 1) {
-                        input.inputImages.slice(1).forEach(img => onRemoveImage(img.id));
-                      }
-                    }}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 ${
-                      input.model === model ? 'bg-primary-50 text-primary-700' : 'text-gray-700'
-                    }`}
-                  >
-                    {MODEL_CONFIG[model].name}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* 生成数量 */}
-        <select
-          value={input.numImages}
-          onChange={(e) => onInputChange({ numImages: parseInt(e.target.value) })}
-          className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium text-gray-700 border-none cursor-pointer"
-        >
-          {NUM_IMAGES_OPTIONS.map((num) => (
-            <option key={num} value={num}>{num}张</option>
-          ))}
-        </select>
-
-        {/* 宽高比 */}
-        <select
-          value={input.aspectRatio}
-          onChange={(e) => onInputChange({ aspectRatio: e.target.value })}
-          className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium text-gray-700 border-none cursor-pointer"
-        >
-          {ASPECT_RATIOS.map((ratio) => (
-            <option key={ratio.value} value={ratio.value}>{ratio.label}</option>
-          ))}
-        </select>
-
-        {/* 分辨率 - 仅 nano-pro 显示 */}
-        {modelConfig.supportsImageSize && (
-          <select
-            value={input.imageSize}
-            onChange={(e) => onInputChange({ imageSize: e.target.value })}
-            className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium text-gray-700 border-none cursor-pointer"
-          >
-            {IMAGE_SIZES.map((size) => (
-              <option key={size.value} value={size.value}>{size.label}</option>
-            ))}
-          </select>
-        )}
-
-        {/* 任务计数 */}
-        {activeTaskCount > 0 && (
-          <div className="ml-auto text-sm text-gray-500">
-            {activeTaskCount} 个任务进行中
-          </div>
-        )}
-      </div>
-
-      {/* 主输入区 - 图片和输入框在同一行 */}
-      <div className="flex items-end gap-3">
-        {/* 添加图片按钮 */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="flex-shrink-0 p-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-          title="添加图片"
-        >
-          <ImagePlus className="w-5 h-5" />
-        </button>
-
-        {/* 已上传的图片预览 - 和输入框同行 */}
+      <div className="max-w-4xl mx-auto">
+        {/* 已上传的图片预览 - 单独一行显示 */}
         {input.inputImages.length > 0 && (
-          <div className="flex gap-1.5 flex-shrink-0">
+          <div className="flex gap-2 mb-3 flex-wrap items-center">
             {input.inputImages.map((img, index) => (
               <div key={img.id} className="relative group">
                 <img
                   src={img.preview}
                   alt={`Input ${index + 1}`}
-                  className="w-12 h-12 object-cover rounded-lg border border-gray-200"
+                  className="w-14 h-14 object-cover rounded-lg border border-gray-200"
                 />
-                <div className="absolute -top-1 -left-1 bg-primary-600 text-white text-[10px] px-1 py-0.5 rounded font-medium">
-                  {index + 1}
+                <div className="absolute -top-1 -left-1 bg-primary-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
+                  图{index + 1}
                 </div>
                 <button
                   onClick={() => onRemoveImage(img.id)}
@@ -219,36 +125,141 @@ export default function ChatInputBar({
                 </button>
               </div>
             ))}
+            {input.inputImages.length < modelConfig.maxImages && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-14 h-14 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 hover:border-primary-500 hover:text-primary-500 transition-colors"
+              >
+                <ImagePlus className="w-5 h-5" />
+              </button>
+            )}
           </div>
         )}
 
-        {/* Prompt 输入框 */}
-        <div className="flex-1 relative">
-          <textarea
-            value={input.prompt}
-            onChange={(e) => onInputChange({ prompt: e.target.value })}
-            onKeyDown={handleKeyDown}
-            placeholder="描述你想要的效果..."
-            rows={1}
-            className="w-full px-4 py-3 pr-4 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-gray-50 min-h-[48px] max-h-[120px]"
-            style={{ height: 'auto' }}
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement;
-              target.style.height = 'auto';
-              target.style.height = Math.min(target.scrollHeight, 120) + 'px';
-            }}
-          />
+        {/* 主输入区 */}
+        <div className="flex items-end gap-2">
+          {/* 添加图片按钮 - 没有图片时显示 */}
+          {input.inputImages.length === 0 && (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex-shrink-0 p-2.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+              title="添加图片"
+            >
+              <ImagePlus className="w-5 h-5" />
+            </button>
+          )}
+
+          {/* Prompt 输入框 */}
+          <div className="flex-1 relative">
+            <textarea
+              value={input.prompt}
+              onChange={(e) => onInputChange({ prompt: e.target.value })}
+              onKeyDown={handleKeyDown}
+              placeholder="描述你想要的效果..."
+              rows={1}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-gray-50 min-h-[42px] max-h-[100px] text-sm"
+              style={{ height: 'auto' }}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = 'auto';
+                target.style.height = Math.min(target.scrollHeight, 100) + 'px';
+              }}
+            />
+          </div>
+
+          {/* 发送按钮 */}
+          <button
+            onClick={onSubmit}
+            disabled={!canSubmit || isAtMaxTasks}
+            className="flex-shrink-0 p-2.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+            title={isAtMaxTasks ? `最多同时进行 ${MAX_CONCURRENT_TASKS} 个任务` : '发送'}
+          >
+            <ArrowUp className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* 发送按钮 - 始终显示箭头 */}
-        <button
-          onClick={onSubmit}
-          disabled={!canSubmit || isAtMaxTasks}
-          className="flex-shrink-0 p-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-          title={isAtMaxTasks ? `最多同时进行 ${MAX_CONCURRENT_TASKS} 个任务` : '发送'}
-        >
-          <ArrowUp className="w-5 h-5" />
-        </button>
+        {/* 控制栏 */}
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          {/* 模型选择 */}
+          <div className="relative">
+            <button
+              onClick={() => setShowModelMenu(!showModelMenu)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-600 transition-colors"
+            >
+              <span>{modelConfig.name}</span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            {showModelMenu && (
+              <>
+                <div 
+                  className="fixed inset-0 z-10" 
+                  onClick={() => setShowModelMenu(false)} 
+                />
+                <div className="absolute bottom-full left-0 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-20 min-w-[120px]">
+                  {(Object.keys(MODEL_CONFIG) as ChatModel[]).map((model) => (
+                    <button
+                      key={model}
+                      onClick={() => {
+                        onInputChange({ model });
+                        setShowModelMenu(false);
+                        if (!MODEL_CONFIG[model].supportsMultipleImages && input.inputImages.length > 1) {
+                          input.inputImages.slice(1).forEach(img => onRemoveImage(img.id));
+                        }
+                      }}
+                      className={`w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 ${
+                        input.model === model ? 'bg-primary-50 text-primary-700' : 'text-gray-700'
+                      }`}
+                    >
+                      {MODEL_CONFIG[model].name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* 生成数量 */}
+          <select
+            value={input.numImages}
+            onChange={(e) => onInputChange({ numImages: parseInt(e.target.value) })}
+            className="px-2.5 py-1 rounded-md bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-600 border-none cursor-pointer"
+          >
+            {NUM_IMAGES_OPTIONS.map((num) => (
+              <option key={num} value={num}>{num}张</option>
+            ))}
+          </select>
+
+          {/* 宽高比 */}
+          <select
+            value={input.aspectRatio}
+            onChange={(e) => onInputChange({ aspectRatio: e.target.value })}
+            className="px-2.5 py-1 rounded-md bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-600 border-none cursor-pointer"
+          >
+            {ASPECT_RATIOS.map((ratio) => (
+              <option key={ratio.value} value={ratio.value}>{ratio.label}</option>
+            ))}
+          </select>
+
+          {/* 分辨率 - 仅 nano-pro 显示 */}
+          {modelConfig.supportsImageSize && (
+            <select
+              value={input.imageSize}
+              onChange={(e) => onInputChange({ imageSize: e.target.value })}
+              className="px-2.5 py-1 rounded-md bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-600 border-none cursor-pointer"
+            >
+              {IMAGE_SIZES.map((size) => (
+                <option key={size.value} value={size.value}>{size.label}</option>
+              ))}
+            </select>
+          )}
+
+          {/* 任务计数 */}
+          {activeTaskCount > 0 && (
+            <div className="ml-auto text-xs text-gray-500">
+              {activeTaskCount} 个任务进行中
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 隐藏的文件输入 */}
