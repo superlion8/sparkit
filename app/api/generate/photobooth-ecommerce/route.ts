@@ -117,9 +117,9 @@ export async function POST(request: NextRequest) {
 
 - {{Composition5}}:`;
 
-    // 调用 Gemini text 模型生成 pose 描述
+    // 调用 Gemini VLM 模型生成 pose 描述
     const poseResponseText = await generateText(
-      "gemini-2.5-pro-preview-06-05",
+      "gemini-3-pro-preview",
       posePrompt,
       imageBase64,
       image.type
