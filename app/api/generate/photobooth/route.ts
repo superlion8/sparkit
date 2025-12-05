@@ -1418,7 +1418,7 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
         characterImageBase64: characterImageBase64 || undefined,
         characterImageType: characterImageType || undefined,
         aspectRatio: aspectRatio || undefined,
-        imageSize: imageSize || undefined,
+        imageSize: (imageSize as "1K" | "2K" | "4K" | undefined) || undefined,
       }
     );
 
