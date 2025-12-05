@@ -19,7 +19,8 @@ import {
   Check,
   Zap,
   Shield,
-  Globe
+  Globe,
+  MessageSquare
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -41,6 +42,13 @@ export default function Home() {
       href: "/image-to-image",
       icon: ImagePlus,
       color: "from-purple-500 to-pink-500"
+    },
+    {
+      name: "Chat Edit",
+      description: "对话式图像编辑，支持多任务并行生成",
+      href: "/chat-edit",
+      icon: MessageSquare,
+      color: "from-violet-500 to-fuchsia-500"
     },
     {
       name: "Mimic(洗稿)",

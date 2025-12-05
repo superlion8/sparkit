@@ -221,11 +221,10 @@ export default function ImageToImagePage() {
           if (aspectRatio !== "default") {
             formData.append("aspectRatio", aspectRatio);
           }
-          // nano 仅支持单张图片
-          if (uploadedImages.length === 0) {
-            throw new Error("请至少上传一张图片");
-          }
-          formData.append("images", uploadedImages[0]);
+          // nano 支持多张图片
+          uploadedImages.forEach((image) => {
+            formData.append("images", image);
+          });
         } else {
           // Other models
           if (uploadedImages.length === 0) {
@@ -357,7 +356,7 @@ export default function ImageToImagePage() {
 
             <div className="space-y-6">
               <ImageUpload
-                maxImages={hotMode || model === "flash" ? 1 : undefined}
+                maxImages={hotMode ? 1 : undefined}
                 onImagesChange={setUploadedImages}
                 label="上传图片"
                 initialImageUrls={historyInputImageUrls.length > 0 ? historyInputImageUrls : undefined}
@@ -418,11 +417,7 @@ export default function ImageToImagePage() {
                     nano
                   </button>
                 </div>
-                {model === "flash" && uploadedImages.length > 1 && (
-                  <p className="text-xs text-amber-600 mt-2">
-                    注意：nano仅支持单张图片，将使用第一张
-                  </p>
-                )}
+
               </div>
 
               {model === "gemini" && (
