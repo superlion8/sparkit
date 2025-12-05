@@ -81,41 +81,39 @@ export async function POST(request: NextRequest) {
     console.log("Step 1: 生成5个电商pose描述...");
     const step1Start = Date.now();
     
-    const posePrompt = `你现在是一个专门拍摄电商商品棚拍图的职业摄影师，请你分析一下这个模特所展示的商品、模特所在的环境、模特的特征还有她现在在做的动作，让她换5个不同的展示商品的pose，适合作为电商平台或品牌官网展示的模特棚拍图，请你给出这5个pose的指令。
+    const posePrompt = `# Role
 
-尽量避免指令过于复杂，导致在一张图片里传达了过多的信息、或者让模特做出过于dramatic的姿势，不要改变光影。
+You are a professional e-commerce fashion photographer specializing in studio shoots. You have a keen eye for showcasing product details while maintaining visual appeal.
 
-请你严格用英文按照下面这个格式来写，不需要输出其他额外的东西：
+# Task
 
-- {{Pose1}}:
+Analyze the provided image. Based on the model's features, the environment, and the product being displayed:
 
-- {{Camera Position1}}:
+Generate **5 distinct photography directives**. These directives should guide the model to change poses to better showcase the product for an e-commerce platform or brand website.
 
-- {{Composition1}}:
+# Constraints
 
-- {{Pose2}}:
+1. **Consistency:** Keep the lighting and general environment consistent with the original image; only change the pose and camera angle.
 
-- {{Camera Position2}}:
+2. **Simplicity:** Avoid overly dramatic or complex artistic poses. The goal is clear product presentation.
 
-- {{Composition2}}:
+3. **Strict Formatting:** Output **ONLY** a valid JSON list. Do not include any conversational text, markdown backticks, or explanations outside the JSON.
 
-- {{Pose3}}:
+# Output Format (JSON)
 
-- {{Camera Position3}}:
+Provide a JSON array containing exactly 5 objects. Use the following keys:
 
-- {{Composition3}}:
+- "id": (integer, 1-5)
 
-- {{Pose4}}:
+- "pose": (string, precise instruction for the model)
 
-- {{Camera Position4}}:
+- "camera_position": (string, camera angle and distance)
 
-- {{Composition4}}:
+- "composition": (string, framing details)
 
-- {{Pose5}}:
+# Input
 
-- {{Camera Position5}}:
-
-- {{Composition5}}:`;
+[Image Attached]`;
 
     // 调用 Gemini VLM 模型生成 pose 描述
     const poseResponseText = await generateText(
@@ -127,10 +125,10 @@ export async function POST(request: NextRequest) {
 
     const step1Time = ((Date.now() - step1Start) / 1000).toFixed(2);
     console.log(`Step 1 完成，耗时: ${step1Time} 秒`);
-    console.log("Pose 描述原文:", poseResponseText.substring(0, 500) + "...");
+    console.log("Pose 描述原文:", poseResponseText.substring(0, 800) + "...");
 
-    // 解析 pose 描述
-    const poseDescriptions = parsePoseDescriptions(poseResponseText);
+    // 解析 JSON 格式的 pose 描述
+    const poseDescriptions = parseJsonPoseDescriptions(poseResponseText);
     
     if (poseDescriptions.length === 0) {
       throw new Error("未能解析任何pose描述，请重试");
@@ -275,53 +273,80 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
   }
 }
 
-// 解析 pose 描述
-function parsePoseDescriptions(text: string): PoseDescription[] {
+// 解析 JSON 格式的 pose 描述
+function parseJsonPoseDescriptions(text: string): PoseDescription[] {
   const poses: PoseDescription[] = [];
   
-  // 支持多种格式：
-  // - {{Pose1}}: content
-  // - **Pose1**: content
-  // - Pose1: content
-  
-  for (let i = 1; i <= 5; i++) {
-    const poseData: Partial<PoseDescription> = {};
+  try {
+    // 尝试提取 JSON 数组
+    let jsonText = text.trim();
     
-    // 匹配 Pose
-    const poseRegex = new RegExp(`(?:\\{\\{|\\*\\*)?Pose${i}(?:\\}\\}|\\*\\*)?\\s*:\\s*([^\\n]+(?:\\n(?!\\s*[-*]?\\s*(?:\\{\\{|\\*\\*)?(?:Camera|Composition|Pose))[^\\n]*)*)`, 'i');
-    const poseMatch = text.match(poseRegex);
-    if (poseMatch && poseMatch[1]) {
-      poseData.pose = poseMatch[1].trim().replace(/\*\*/g, '').replace(/\{\{|\}\}/g, '').trim();
+    // 移除可能的 markdown 代码块标记
+    if (jsonText.startsWith('```json')) {
+      jsonText = jsonText.slice(7);
+    } else if (jsonText.startsWith('```')) {
+      jsonText = jsonText.slice(3);
+    }
+    if (jsonText.endsWith('```')) {
+      jsonText = jsonText.slice(0, -3);
+    }
+    jsonText = jsonText.trim();
+    
+    // 尝试找到 JSON 数组
+    const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      jsonText = jsonMatch[0];
     }
     
-    // 匹配 Camera Position
-    const cameraRegex = new RegExp(`(?:\\{\\{|\\*\\*)?Camera\\s*Position${i}(?:\\}\\}|\\*\\*)?\\s*:\\s*([^\\n]+(?:\\n(?!\\s*[-*]?\\s*(?:\\{\\{|\\*\\*)?(?:Camera|Composition|Pose))[^\\n]*)*)`, 'i');
-    const cameraMatch = text.match(cameraRegex);
-    if (cameraMatch && cameraMatch[1]) {
-      poseData.cameraPosition = cameraMatch[1].trim().replace(/\*\*/g, '').replace(/\{\{|\}\}/g, '').trim();
+    const parsed = JSON.parse(jsonText);
+    
+    if (Array.isArray(parsed)) {
+      for (const item of parsed) {
+        if (item.pose && item.camera_position && item.composition) {
+          poses.push({
+            pose: item.pose,
+            cameraPosition: item.camera_position,
+            composition: item.composition,
+          });
+          console.log(`成功解析 Pose ${item.id || poses.length}`);
+        }
+      }
     }
     
-    // 匹配 Composition
-    const compositionRegex = new RegExp(`(?:\\{\\{|\\*\\*)?Composition${i}(?:\\}\\}|\\*\\*)?\\s*:\\s*([^\\n]+(?:\\n(?!\\s*[-*]?\\s*(?:\\{\\{|\\*\\*)?(?:Camera|Composition|Pose))[^\\n]*)*)`, 'i');
-    const compositionMatch = text.match(compositionRegex);
-    if (compositionMatch && compositionMatch[1]) {
-      poseData.composition = compositionMatch[1].trim().replace(/\*\*/g, '').replace(/\{\{|\}\}/g, '').trim();
-    }
+    console.log(`JSON 解析成功，共 ${poses.length} 个 pose`);
+  } catch (parseError) {
+    console.error("JSON 解析失败，尝试回退到文本解析:", parseError);
     
-    // 如果三个字段都有，添加到结果
-    if (poseData.pose && poseData.cameraPosition && poseData.composition) {
-      poses.push({
-        pose: poseData.pose,
-        cameraPosition: poseData.cameraPosition,
-        composition: poseData.composition,
-      });
-      console.log(`成功解析 Pose ${i}`);
-    } else {
-      console.warn(`Pose ${i} 缺少字段:`, {
-        hasPose: !!poseData.pose,
-        hasCamera: !!poseData.cameraPosition,
-        hasComposition: !!poseData.composition
-      });
+    // 回退到旧的文本解析方式
+    for (let i = 1; i <= 5; i++) {
+      const poseData: Partial<PoseDescription> = {};
+      
+      const poseRegex = new RegExp(`(?:\\{\\{|\\*\\*)?Pose${i}(?:\\}\\}|\\*\\*)?\\s*:\\s*([^\\n]+)`, 'i');
+      const poseMatch = text.match(poseRegex);
+      if (poseMatch && poseMatch[1]) {
+        poseData.pose = poseMatch[1].trim().replace(/\*\*/g, '').replace(/\{\{|\}\}/g, '').trim();
+      }
+      
+      const cameraRegex = new RegExp(`(?:\\{\\{|\\*\\*)?Camera\\s*Position${i}(?:\\}\\}|\\*\\*)?\\s*:\\s*([^\\n]+)`, 'i');
+      const cameraMatch = text.match(cameraRegex);
+      if (cameraMatch && cameraMatch[1]) {
+        poseData.cameraPosition = cameraMatch[1].trim().replace(/\*\*/g, '').replace(/\{\{|\}\}/g, '').trim();
+      }
+      
+      const compositionRegex = new RegExp(`(?:\\{\\{|\\*\\*)?Composition${i}(?:\\}\\}|\\*\\*)?\\s*:\\s*([^\\n]+)`, 'i');
+      const compositionMatch = text.match(compositionRegex);
+      if (compositionMatch && compositionMatch[1]) {
+        poseData.composition = compositionMatch[1].trim().replace(/\*\*/g, '').replace(/\{\{|\}\}/g, '').trim();
+      }
+      
+      if (poseData.pose && poseData.cameraPosition && poseData.composition) {
+        poses.push({
+          pose: poseData.pose,
+          cameraPosition: poseData.cameraPosition,
+          composition: poseData.composition,
+        });
+        console.log(`回退解析成功 Pose ${i}`);
+      }
     }
   }
   
