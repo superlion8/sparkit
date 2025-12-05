@@ -9,13 +9,18 @@ import {
   getCacheStats 
 } from "@/lib/imageCache";
 
+// 图片角色类型
+export type ImageRole = "主体" | "服装" | "背景" | "参考";
+
 interface ImageUploadProps {
   maxImages?: number;
   onImagesChange: (images: File[]) => void;
+  onRolesChange?: (roles: ImageRole[]) => void; // 新增：角色变化回调
   label?: string;
   previewAspect?: string;
   initialImageUrl?: string; // 从历史记录自动加载的单个图片 URL（兼容旧代码）
   initialImageUrls?: string[]; // 从历史记录自动加载的多个图片 URL
+  showRoles?: boolean; // 是否显示角色选择器，默认 false
 }
 
 interface HistoryRecord {
@@ -46,13 +51,16 @@ interface CharacterAsset {
 export default function ImageUpload({ 
   maxImages = Infinity, 
   onImagesChange,
+  onRolesChange,
   label = "上传图片",
   previewAspect = "aspect-square",
   initialImageUrl,
-  initialImageUrls
+  initialImageUrls,
+  showRoles = false
 }: ImageUploadProps) {
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [imageRoles, setImageRoles] = useState<ImageRole[]>([]); // 每张图片的角色
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -576,6 +584,26 @@ export default function ImageUpload({
       
       return newImages;
     });
+    
+    // 为新上传的图片添加默认角色
+    setImageRoles((prevRoles) => {
+      // 根据已有图片数量自动分配角色
+      const newRoles = [...prevRoles];
+      for (let i = 0; i < compressedFiles.length; i++) {
+        const totalIndex = prevRoles.length + i;
+        // 默认：第一张是主体，第二张是服装，之后都是参考
+        if (totalIndex === 0) {
+          newRoles.push("主体");
+        } else if (totalIndex === 1) {
+          newRoles.push("服装");
+        } else {
+          newRoles.push("参考");
+        }
+      }
+      const finalRoles = newRoles.slice(0, maxImages);
+      onRolesChange?.(finalRoles);
+      return finalRoles;
+    });
   };
 
   // 图片压缩函数
@@ -725,9 +753,20 @@ export default function ImageUpload({
   const removeImage = (index: number) => {
     const newImages = images.filter((_, i) => i !== index);
     const newPreviews = previews.filter((_, i) => i !== index);
+    const newRoles = imageRoles.filter((_, i) => i !== index);
     setImages(newImages);
     setPreviews(newPreviews);
+    setImageRoles(newRoles);
     onImagesChange(newImages);
+    onRolesChange?.(newRoles);
+  };
+
+  // 更新单张图片的角色
+  const updateImageRole = (index: number, role: ImageRole) => {
+    const newRoles = [...imageRoles];
+    newRoles[index] = role;
+    setImageRoles(newRoles);
+    onRolesChange?.(newRoles);
   };
 
   return (
@@ -738,42 +777,63 @@ export default function ImageUpload({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {previews.map((preview, index) => (
-          <button
-            key={index}
-            type="button"
-            onClick={() => setLightboxIndex(index)}
-            className={`group relative ${previewAspect} bg-gray-100 rounded-lg overflow-hidden cursor-zoom-in`}
-          >
-            <img
-              src={preview || undefined}
-              alt={`Upload ${index + 1}`}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                target.parentElement?.classList.add('flex', 'items-center', 'justify-center');
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'text-gray-400 text-sm text-center';
-                errorDiv.innerHTML = '图片加载失败';
-                target.parentElement?.appendChild(errorDiv);
-              }}
-            />
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
-              <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity">
-                点击查看大图
-              </span>
-            </div>
+          <div key={index} className="relative">
             <button
               type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                removeImage(index);
-              }}
-              className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 transition-colors shadow-lg"
+              onClick={() => setLightboxIndex(index)}
+              className={`group relative ${previewAspect} bg-gray-100 rounded-lg overflow-hidden cursor-zoom-in w-full`}
             >
-              <X className="w-5 h-5" />
+              <img
+                src={preview || undefined}
+                alt={`Upload ${index + 1}`}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.parentElement?.classList.add('flex', 'items-center', 'justify-center');
+                  const errorDiv = document.createElement('div');
+                  errorDiv.className = 'text-gray-400 text-sm text-center';
+                  errorDiv.innerHTML = '图片加载失败';
+                  target.parentElement?.appendChild(errorDiv);
+                }}
+              />
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
+                <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                  点击查看大图
+                </span>
+              </div>
+              {/* 位置编号徽章 */}
+              <div className="absolute top-2 left-2 bg-primary-600 text-white px-2 py-1 rounded-md text-sm font-bold shadow-lg">
+                图{index + 1}
+              </div>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  removeImage(index);
+                }}
+                className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 transition-colors shadow-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </button>
-          </button>
+            {/* 角色选择器 */}
+            {showRoles && (
+              <div className="mt-2">
+                <select
+                  value={imageRoles[index] || "参考"}
+                  onChange={(e) => updateImageRole(index, e.target.value as ImageRole)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
+                >
+                  <option value="主体">主体（要编辑的图）</option>
+                  <option value="服装">服装（衣服来源）</option>
+                  <option value="背景">背景（背景来源）</option>
+                  <option value="参考">参考（风格参考）</option>
+                </select>
+              </div>
+            )}
+          </div>
         ))}
 
         {images.length < maxImages && (
