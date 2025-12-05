@@ -80,8 +80,8 @@ export const MODEL_CONFIG: Record<ChatModel, {
     name: 'nano',
     endpoint: '/api/generate/gemini-flash-image',
     supportsImageSize: false,
-    supportsMultipleImages: false,
-    maxImages: 1,
+    supportsMultipleImages: true,
+    maxImages: 10,
   },
   'nano-pro': {
     name: 'nano pro',
