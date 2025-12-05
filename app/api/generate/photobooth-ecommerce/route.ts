@@ -121,10 +121,8 @@ export async function POST(request: NextRequest) {
     const poseResponseText = await generateText(
       "gemini-2.5-pro-preview-06-05",
       posePrompt,
-      {
-        imageBase64,
-        mimeType: image.type,
-      }
+      imageBase64,
+      image.type
     );
 
     const step1Time = ((Date.now() - step1Start) / 1000).toFixed(2);
