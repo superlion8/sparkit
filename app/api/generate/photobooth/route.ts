@@ -24,9 +24,10 @@ export async function POST(request: NextRequest) {
     const image = formData.get("image") as File;
     const characterImage = formData.get("characterImage") as File | null;
     const aspectRatio = formData.get("aspectRatio") as string;
+    const imageSize = formData.get("imageSize") as string;
     const hotMode = formData.get("hotMode") === "true";
 
-    console.log(`=== PhotoBooth Generation Started (Hot Mode: ${hotMode}, Character Image: ${characterImage ? 'Yes' : 'No'}) ===`);
+    console.log(`=== PhotoBooth Generation Started (Hot Mode: ${hotMode}, Character Image: ${characterImage ? 'Yes' : 'No'}, ImageSize: ${imageSize || 'default'}) ===`);
 
     if (!image) {
       return NextResponse.json(
@@ -166,7 +167,7 @@ export async function POST(request: NextRequest) {
         const imageStart = Date.now();
         console.log(`启动第 ${index + 1}/${poseDescriptions.length} 张图片的生成任务...`);
         
-        return generatePoseImage(imageBase64, image.type, poseDesc, aspectRatio, characterImageBase64, characterImageType)
+        return generatePoseImage(imageBase64, image.type, poseDesc, aspectRatio, imageSize, characterImageBase64, characterImageType)
           .then((generatedImage) => {
             const imageTime = ((Date.now() - imageStart) / 1000).toFixed(2);
             console.log(`第 ${index + 1} 张图片生成成功，耗时: ${imageTime} 秒`);
@@ -1354,6 +1355,7 @@ async function generatePoseImage(
   mimeType: string,
   poseDescription: PoseDescription,
   aspectRatio: string | null,
+  imageSize: string | null,
   characterImageBase64?: string | null,
   characterImageType?: string | null
 ): Promise<string> {
@@ -1416,6 +1418,7 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
         characterImageBase64: characterImageBase64 || undefined,
         characterImageType: characterImageType || undefined,
         aspectRatio: aspectRatio || undefined,
+        imageSize: imageSize || undefined,
       }
     );
 

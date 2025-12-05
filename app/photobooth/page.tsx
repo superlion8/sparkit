@@ -5,11 +5,12 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import ImageUpload from "@/components/ImageUpload";
 import { useAuth } from "@/hooks/useAuth";
 import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
-import { Camera, Download, X, Maximize2, Heart } from "lucide-react";
+import { Camera, Download, X, Maximize2, Heart, ShoppingBag } from "lucide-react";
 import { downloadImage } from "@/lib/downloadUtils";
 import FavoriteModal from "@/components/FavoriteModal";
 
 type AspectRatio = "default" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
+type ImageSize = "default" | "1K" | "2K" | "4K";
 
 interface PoseDescription {
   pose: string;
@@ -22,7 +23,11 @@ export default function PhotoBoothPage() {
   const [image, setImage] = useState<File[]>([]);
   const [characterImage, setCharacterImage] = useState<File[]>([]); // 可选的角色面部图
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("default");
+  const [imageSize, setImageSize] = useState<ImageSize>("default");
   const [hotMode, setHotMode] = useState(false);
+  const [ecommerceMode, setEcommerceMode] = useState(false);
+  const [modelDescription, setModelDescription] = useState("");
+  const [productDescription, setProductDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [poseDescriptions, setPoseDescriptions] = useState<PoseDescription[]>([]);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
@@ -67,18 +72,35 @@ export default function PhotoBoothPage() {
     setPoseDescriptions([]);
     setGeneratedImages([]);
     setGeneratedTaskIds([]); // 清空旧的 taskIds
-    setCurrentStep("正在分析图片并生成pose描述...");
+    setCurrentStep(ecommerceMode ? "正在分析图片并生成电商pose描述..." : "正在分析图片并生成pose描述...");
 
     try {
       const formData = new FormData();
       formData.append("image", image[0]);
-      if (characterImage.length > 0) {
-        formData.append("characterImage", characterImage[0]);
+      
+      if (ecommerceMode) {
+        // 电商模式
+        formData.append("modelDescription", modelDescription || "模特");
+        formData.append("productDescription", productDescription || "商品");
+        if (aspectRatio !== "default") {
+          formData.append("aspectRatio", aspectRatio);
+        }
+        if (imageSize !== "default") {
+          formData.append("imageSize", imageSize);
+        }
+      } else {
+        // 普通模式
+        if (characterImage.length > 0) {
+          formData.append("characterImage", characterImage[0]);
+        }
+        if (aspectRatio !== "default") {
+          formData.append("aspectRatio", aspectRatio);
+        }
+        if (imageSize !== "default") {
+          formData.append("imageSize", imageSize);
+        }
+        formData.append("hotMode", hotMode.toString());
       }
-      if (aspectRatio !== "default") {
-        formData.append("aspectRatio", aspectRatio);
-      }
-      formData.append("hotMode", hotMode.toString());
 
       // Cancel previous request if exists
       if (abortControllerRef.current) {
@@ -92,12 +114,16 @@ export default function PhotoBoothPage() {
       const timeoutId = setTimeout(() => {
         console.warn("请求超时，正在取消...");
         controller.abort();
-      }, 360000); // 6 minutes timeout (extended to account for network delays)
+      }, 360000); // 6 minutes timeout
+
+      const apiEndpoint = ecommerceMode 
+        ? "/api/generate/photobooth-ecommerce" 
+        : "/api/generate/photobooth";
 
       let response: Response;
       try {
-        console.log("发起 PhotoBooth 生成请求...");
-        response = await fetch("/api/generate/photobooth", {
+        console.log(`发起 PhotoBooth ${ecommerceMode ? '电商版' : ''} 生成请求...`);
+        response = await fetch(apiEndpoint, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -109,7 +135,6 @@ export default function PhotoBoothPage() {
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
         
-        // Handle different types of fetch errors
         let errorMessage = "请求失败";
         if (fetchError.name === 'AbortError') {
           errorMessage = "请求超时，请稍后重试。生成图片需要较长时间，请耐心等待。";
@@ -157,7 +182,7 @@ export default function PhotoBoothPage() {
         throw new Error(errorData.error || errorData.statusText || `生成失败 (HTTP ${response.status})`);
       }
 
-      setCurrentStep("正在根据pose描述生成图片...");
+      setCurrentStep("正在生成图片...");
 
       let data: any;
       try {
@@ -165,116 +190,10 @@ export default function PhotoBoothPage() {
         if (!responseText) {
           throw new Error("服务器返回空响应");
         }
-        
-        // Log response text length and preview for debugging
-        console.log(`收到响应，长度: ${responseText.length} 字符`);
-        if (responseText.length > 5000) {
-          console.log(`响应文本过长，预览前500字符: ${responseText.substring(0, 500)}...`);
-          console.log(`响应文本预览 (位置4000-4500): ${responseText.substring(4000, 4500)}`);
-          console.log(`响应文本最后500字符: ${responseText.substring(responseText.length - 500)}`);
-        }
-        
-        // Sanitize response text before parsing to handle any remaining issues
-        // This is a defensive measure in case backend sanitization missed something
-        const sanitizeJsonString = (str: string): string => {
-          // Remove or replace problematic characters that could break JSON parsing
-          // Remove Unicode control characters and format characters
-          let sanitized = str
-            .replace(/[\u200B-\u200F\u2028-\u202F\u205F-\u206F\uFEFF]/g, '')
-            .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, '');
-          
-          // Check for unterminated strings - try to fix them
-          // Look for unescaped quotes or incomplete escape sequences
-          // This is a simple heuristic - may not catch all cases
-          const lastQuoteIndex = sanitized.lastIndexOf('"');
-          const lastBraceIndex = sanitized.lastIndexOf('}');
-          const lastBracketIndex = sanitized.lastIndexOf(']');
-          
-          // If we have a quote but the string seems incomplete, try to close it
-          if (lastQuoteIndex > lastBraceIndex && lastQuoteIndex > lastBracketIndex) {
-            // Count quotes - if odd number, we might have an unterminated string
-            const quoteCount = (sanitized.match(/"/g) || []).length;
-            if (quoteCount % 2 !== 0) {
-              console.warn("检测到可能的未终止字符串，尝试修复...");
-              // Try to close the string by finding the last unclosed quote
-              // This is a heuristic - look for quote not followed by proper JSON structure
-              const nearEnd = sanitized.substring(Math.max(0, sanitized.length - 200));
-              if (!nearEnd.match(/"[,\]\}]/)) {
-                // Likely unterminated string, try to close it
-                sanitized = sanitized + '"';
-                console.warn("已添加结束引号以修复未终止字符串");
-              }
-            }
-          }
-          
-          return sanitized;
-        };
-        
-        try {
-          // Try parsing original response first
-          data = JSON.parse(responseText);
-        } catch (parseError: any) {
-          console.error("JSON 解析失败（原始响应）:", parseError);
-          console.error("错误位置:", parseError.message);
-          
-          // Try to find the problematic position
-          let problemPos = -1;
-          if (parseError.message?.includes('position')) {
-            const match = parseError.message.match(/position (\d+)/);
-            if (match) {
-              problemPos = parseInt(match[1]);
-              const start = Math.max(0, problemPos - 200);
-              const end = Math.min(responseText.length, problemPos + 200);
-              console.error(`问题位置附近的文本 (${start}-${end}):`, responseText.substring(start, end));
-              console.error(`问题位置字符码:`, responseText.substring(problemPos - 5, problemPos + 5).split('').map(c => c.charCodeAt(0)));
-            }
-          }
-          
-          // Log full response for debugging
-          console.error("响应文本前2000字符:", responseText.substring(0, 2000));
-          if (responseText.length > 2000) {
-            console.error(`响应文本位置 ${problemPos > 0 ? problemPos - 50 : 2000}-${problemPos > 0 ? problemPos + 50 : 2500}:`, 
-              responseText.substring(problemPos > 0 ? problemPos - 50 : 2000, problemPos > 0 ? problemPos + 50 : 2500));
-          }
-          
-          // Try sanitizing and parsing again
-          console.log("尝试清理响应文本后重新解析...");
-          try {
-            const sanitizedText = sanitizeJsonString(responseText);
-            data = JSON.parse(sanitizedText);
-            console.log("✅ 清理后解析成功");
-          } catch (sanitizeError: any) {
-            console.error("❌ 清理后解析仍然失败:", sanitizeError);
-            
-            // Try to extract partial data if possible
-            // Look for valid JSON structures we can salvage
-            try {
-              // Try to find the last complete JSON object by removing trailing incomplete parts
-              let partialText = responseText;
-              for (let i = 0; i < 100 && partialText.length > 0; i++) {
-                try {
-                  // Try removing last character until we get valid JSON
-                  partialText = partialText.substring(0, partialText.length - 1);
-                  const testParse = JSON.parse(partialText + '}');
-                  console.warn("⚠️ 使用部分响应数据（已截断）");
-                  data = testParse;
-                  break;
-                } catch {
-                  continue;
-                }
-              }
-              
-              if (!data) {
-                throw sanitizeError;
-              }
-            } catch {
-              throw new Error(`响应解析失败: ${parseError instanceof Error ? parseError.message : '未知错误'}`);
-            }
-          }
-        }
+        data = JSON.parse(responseText);
       } catch (parseError: any) {
-        console.error("读取响应失败:", parseError);
-        throw new Error(`读取服务器响应失败: ${parseError.message || '未知错误'}`);
+        console.error("响应解析失败:", parseError);
+        throw new Error(`响应解析失败: ${parseError.message || '未知错误'}`);
       }
 
       if (data.poseDescriptions) {
@@ -288,7 +207,7 @@ export default function PhotoBoothPage() {
       // Log task event - 为每张 pose 图片创建单独的 task
       const taskIds: string[] = [];
       if (accessToken && displayImages.length > 0) {
-        const baseTaskId = generateClientTaskId("photobooth");
+        const baseTaskId = generateClientTaskId(ecommerceMode ? "photobooth-ecom" : "photobooth");
         
         const inputImageUrls = {
           input: data.inputImageUrl || null,
@@ -301,19 +220,19 @@ export default function PhotoBoothPage() {
           
           await logTaskEvent(accessToken, {
             taskId,
-            taskType: "photobooth",
+            taskType: ecommerceMode ? "photobooth-ecommerce" : "photobooth",
             prompt: data.poseDescriptions && data.poseDescriptions[i] 
               ? JSON.stringify(data.poseDescriptions[i])
               : JSON.stringify(data.poseDescriptions),
             inputImageUrl: inputImageUrlJson,
-            outputImageUrl: displayImages[i], // 单张图片 URL
+            outputImageUrl: displayImages[i],
           });
           
           taskIds.push(taskId);
         }
       }
       
-      setGeneratedTaskIds(taskIds); // 保存 taskIds
+      setGeneratedTaskIds(taskIds);
 
       // Show generation stats if available
       if (data.generatedCount !== undefined && data.requestedCount !== undefined) {
@@ -334,7 +253,6 @@ export default function PhotoBoothPage() {
       setCurrentStep("");
     } finally {
       setLoading(false);
-      // Reset flag to allow new requests
       isGeneratingRef.current = false;
       abortControllerRef.current = null;
       console.log("请求完成，重置状态");
@@ -349,7 +267,10 @@ export default function PhotoBoothPage() {
           PhotoBooth (写真组图)
         </h1>
         <p className="text-gray-600 mt-2">
-          上传一张图片，AI 将分析模特的pose和环境，生成6个不同的pose描述，并生成6张Instagram风格的组图。可选上传角色面部图以保持一致的脸部特征。
+          {ecommerceMode 
+            ? "电商版：上传模特图片，AI 将生成5张专业电商棚拍风格的商品展示图。"
+            : "上传一张图片，AI 将分析模特的pose和环境，生成多张Instagram风格的组图。可选上传角色面部图以保持一致的脸部特征。"
+          }
         </p>
         {!authLoading && !isAuthenticated && (
           <div className="mt-4 rounded-lg border border-dashed border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
@@ -365,6 +286,32 @@ export default function PhotoBoothPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-6">控制面板</h2>
 
             <div className="space-y-6">
+              {/* Mode Toggle - 普通版/电商版 */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setEcommerceMode(false)}
+                  className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition-all duration-200 ${
+                    !ecommerceMode
+                      ? 'bg-primary-600 text-white shadow-lg'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <Camera className="w-4 h-4 inline mr-1" />
+                  普通版
+                </button>
+                <button
+                  onClick={() => setEcommerceMode(true)}
+                  className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition-all duration-200 ${
+                    ecommerceMode
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <ShoppingBag className="w-4 h-4 inline mr-1" />
+                  电商版
+                </button>
+              </div>
+
               {/* Image Upload */}
               <ImageUpload
                 maxImages={1}
@@ -372,17 +319,49 @@ export default function PhotoBoothPage() {
                 label="上传起始图片 (最多1张)"
               />
 
-              {/* Character Face Image Upload (Optional) */}
-              <div>
-                <ImageUpload
-                  maxImages={1}
-                  onImagesChange={setCharacterImage}
-                  label="上传角色面部图 (可选，最多1张)"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  提供更清晰的面部特征图，AI 会保持一致的脸部特征
-                </p>
-              </div>
+              {/* 电商版特有：模特描述和商品描述 */}
+              {ecommerceMode && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      模特描述 (可选)
+                    </label>
+                    <input
+                      type="text"
+                      value={modelDescription}
+                      onChange={(e) => setModelDescription(e.target.value)}
+                      placeholder="例如：年轻女性模特、亚洲男性模特"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      商品描述 (可选)
+                    </label>
+                    <input
+                      type="text"
+                      value={productDescription}
+                      onChange={(e) => setProductDescription(e.target.value)}
+                      placeholder="例如：白色连衣裙、黑色西装外套"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* 普通版特有：角色面部图上传 */}
+              {!ecommerceMode && (
+                <div>
+                  <ImageUpload
+                    maxImages={1}
+                    onImagesChange={setCharacterImage}
+                    label="上传角色面部图 (可选，最多1张)"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    提供更清晰的面部特征图，AI 会保持一致的脸部特征
+                  </p>
+                </div>
+              )}
 
               {/* Aspect Ratio */}
               <div>
@@ -403,47 +382,78 @@ export default function PhotoBoothPage() {
                 </select>
               </div>
 
-              {/* Hot Mode Toggle */}
+              {/* Image Size / Resolution */}
               <div>
-                <button
-                  onClick={() => setHotMode(!hotMode)}
-                  className={`w-full py-2.5 px-4 rounded-lg font-medium transition-all duration-200 ${
-                    hotMode
-                      ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/50'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  输出分辨率
+                </label>
+                <select
+                  value={imageSize}
+                  onChange={(e) => setImageSize(e.target.value as ImageSize)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
-                  {hotMode ? '🔥 Hot Mode (已开启)' : 'Hot Mode 🔥'}
-                </button>
-                {hotMode && (
-                  <p className="text-xs text-orange-600 mt-2 text-center">
-                    Hot Mode 使用 Qwen 模型串行生成 3 张图片（约2分钟）
-                  </p>
-                )}
+                  <option value="default">默认</option>
+                  <option value="1K">1K (1024px)</option>
+                  <option value="2K">2K (2048px)</option>
+                  <option value="4K">4K (4096px)</option>
+                </select>
               </div>
+
+              {/* Hot Mode Toggle - 仅普通版显示 */}
+              {!ecommerceMode && (
+                <div>
+                  <button
+                    onClick={() => setHotMode(!hotMode)}
+                    className={`w-full py-2.5 px-4 rounded-lg font-medium transition-all duration-200 ${
+                      hotMode
+                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/50'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {hotMode ? '🔥 Hot Mode (已开启)' : 'Hot Mode 🔥'}
+                  </button>
+                  {hotMode && (
+                    <p className="text-xs text-orange-600 mt-2 text-center">
+                      Hot Mode 使用 Qwen 模型串行生成 3 张图片（约2分钟）
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Workflow Info */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
                 <strong>工作流程：</strong>
-                <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
-                  <li>分析图片并生成{hotMode ? '3' : '6'}个不同的pose描述</li>
-                  <li>根据每个pose描述生成对应的图片{hotMode && '（串行）'}</li>
-                  <li>生成{hotMode ? '3' : '6'}张Instagram风格的组图</li>
-                </ol>
+                {ecommerceMode ? (
+                  <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
+                    <li>分析图片并生成5个电商pose描述</li>
+                    <li>根据每个pose描述生成专业棚拍图</li>
+                    <li>生成5张电商风格的商品展示图</li>
+                  </ol>
+                ) : (
+                  <ol className="list-decimal list-inside mt-2 space-y-1 text-xs">
+                    <li>分析图片并生成{hotMode ? '3' : '6'}个不同的pose描述</li>
+                    <li>根据每个pose描述生成对应的图片{hotMode && '（串行）'}</li>
+                    <li>生成{hotMode ? '3' : '6'}张Instagram风格的组图</li>
+                  </ol>
+                )}
               </div>
 
               {/* Generate Button */}
               <button
                 onClick={handleGenerate}
                 disabled={loading || authLoading || image.length === 0}
-                className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
+                  ecommerceMode
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 disabled:from-gray-300 disabled:to-gray-300'
+                    : 'bg-primary-600 text-white hover:bg-primary-700 disabled:bg-gray-300'
+                } disabled:cursor-not-allowed`}
               >
                 {loading ? (
                   <>生成中...</>
                 ) : (
                   <>
-                    <Camera className="w-5 h-5" />
-                    生成图片
+                    {ecommerceMode ? <ShoppingBag className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
+                    {ecommerceMode ? '生成电商图' : '生成图片'}
                   </>
                 )}
               </button>
@@ -512,15 +522,15 @@ export default function PhotoBoothPage() {
                   <div>
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold text-gray-900">
-                        生成结果 ({generatedImages.length}/{poseDescriptions.length > 0 ? poseDescriptions.length : 6})
+                        生成结果 ({generatedImages.length}/{poseDescriptions.length > 0 ? poseDescriptions.length : (ecommerceMode ? 5 : 6)})
                       </h3>
                       {generatedImages.length > 0 && (
                         <button
                           onClick={() => {
                             generatedImages.forEach((url, index) => {
                               setTimeout(() => {
-                                downloadImage(url, `photobooth-pose-${index + 1}.png`);
-                              }, index * 200); // 延迟下载，避免浏览器阻止多个下载
+                                downloadImage(url, `photobooth-${ecommerceMode ? 'ecom' : 'pose'}-${index + 1}.png`);
+                              }, index * 200);
                             });
                           }}
                           className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
@@ -550,8 +560,8 @@ export default function PhotoBoothPage() {
                                       alt={`Pose ${index + 1}`}
                                       className="w-full h-auto rounded-lg shadow-lg transition-transform group-hover:scale-[1.02]"
                                     />
-                                    <div className="absolute top-3 left-3 bg-black/70 text-white text-xs px-3 py-1.5 rounded-lg font-medium">
-                                      Pose {index + 1}
+                                    <div className={`absolute top-3 left-3 text-white text-xs px-3 py-1.5 rounded-lg font-medium ${ecommerceMode ? 'bg-amber-600/80' : 'bg-black/70'}`}>
+                                      {ecommerceMode ? `电商图 ${index + 1}` : `Pose ${index + 1}`}
                                     </div>
                                     <div className="absolute top-3 right-3 bg-black/70 text-white p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
                                       <Maximize2 className="w-4 h-4" />
@@ -569,7 +579,7 @@ export default function PhotoBoothPage() {
                               <div className="p-8 flex flex-col justify-center">
                                 <div className="mb-4">
                                   <h4 className="text-lg font-semibold text-gray-900 mb-2">
-                                    Pose {index + 1} 描述
+                                    {ecommerceMode ? `电商图 ${index + 1} 描述` : `Pose ${index + 1} 描述`}
                                   </h4>
                                   {!hasImage && (
                                     <span className="inline-block text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
@@ -609,7 +619,7 @@ export default function PhotoBoothPage() {
                                       收藏图片
                                     </button>
                                     <button
-                                      onClick={() => downloadImage(imageUrl, `photobooth-pose-${index + 1}.png`)}
+                                      onClick={() => downloadImage(imageUrl, `photobooth-${ecommerceMode ? 'ecom' : 'pose'}-${index + 1}.png`)}
                                       className="inline-flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700 font-medium"
                                     >
                                       <Download className="w-4 h-4" />
@@ -629,8 +639,17 @@ export default function PhotoBoothPage() {
                 {!poseDescriptions.length && !generatedImages.length && (
                   <div className="flex items-center justify-center h-64 text-gray-400">
                     <div className="text-center">
-                      <Camera className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                      <p>上传图片并点击"生成图片"按钮开始创作</p>
+                      {ecommerceMode ? (
+                        <>
+                          <ShoppingBag className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                          <p>上传模特图片并点击"生成电商图"按钮开始创作</p>
+                        </>
+                      ) : (
+                        <>
+                          <Camera className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                          <p>上传图片并点击"生成图片"按钮开始创作</p>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
@@ -660,7 +679,7 @@ export default function PhotoBoothPage() {
               className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
             />
             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-lg text-sm">
-              Pose {selectedImageIndex + 1} / {generatedImages.length}
+              {ecommerceMode ? `电商图 ${selectedImageIndex + 1}` : `Pose ${selectedImageIndex + 1}`} / {generatedImages.length}
             </div>
           </div>
         </div>
@@ -685,4 +704,3 @@ export default function PhotoBoothPage() {
     </div>
   );
 }
-
