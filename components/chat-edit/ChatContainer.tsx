@@ -414,10 +414,10 @@ export default function ChatContainer() {
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      {/* 消息列表 - 限制最大高度，让输入区更靠上 */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-8" style={{ maxHeight: 'calc(100% - 180px)' }}>
+      {/* 消息列表 */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
         {state.messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center min-h-[200px] text-gray-400">
+          <div className="flex flex-col items-center justify-center py-12 text-gray-400">
             <MessageSquarePlus className="w-16 h-16 mb-4 opacity-50" />
             <p className="text-lg font-medium">开始创作</p>
             <p className="text-sm mt-1">上传图片或输入描述，让 AI 帮你生成</p>
@@ -437,17 +437,17 @@ export default function ChatContainer() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 输入栏 - 固定在底部但不会太低 */}
-      <div className="mt-auto">
+      {/* 输入栏 - 固定高度 */}
+      <div className="flex-shrink-0">
         <ChatInputBar
-        input={state.input}
-        onInputChange={(payload) => dispatch({ type: 'SET_INPUT', payload })}
-        onAddImage={(image) => dispatch({ type: 'ADD_INPUT_IMAGE', payload: image })}
-        onRemoveImage={(id) => dispatch({ type: 'REMOVE_INPUT_IMAGE', id })}
-        onSubmit={handleSubmit}
-        isGenerating={state.activeTaskCount > 0}
-        activeTaskCount={state.activeTaskCount}
-      />
+          input={state.input}
+          onInputChange={(payload) => dispatch({ type: 'SET_INPUT', payload })}
+          onAddImage={(image) => dispatch({ type: 'ADD_INPUT_IMAGE', payload: image })}
+          onRemoveImage={(id) => dispatch({ type: 'REMOVE_INPUT_IMAGE', id })}
+          onSubmit={handleSubmit}
+          isGenerating={state.activeTaskCount > 0}
+          activeTaskCount={state.activeTaskCount}
+        />
       </div>
     </div>
   );
