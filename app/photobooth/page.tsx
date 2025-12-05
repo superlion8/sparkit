@@ -26,8 +26,6 @@ export default function PhotoBoothPage() {
   const [imageSize, setImageSize] = useState<ImageSize>("default");
   const [hotMode, setHotMode] = useState(false);
   const [ecommerceMode, setEcommerceMode] = useState(false);
-  const [modelDescription, setModelDescription] = useState("");
-  const [productDescription, setProductDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [poseDescriptions, setPoseDescriptions] = useState<PoseDescription[]>([]);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
@@ -78,26 +76,20 @@ export default function PhotoBoothPage() {
       const formData = new FormData();
       formData.append("image", image[0]);
       
+      // 通用参数
+      if (aspectRatio !== "default") {
+        formData.append("aspectRatio", aspectRatio);
+      }
+      if (imageSize !== "default") {
+        formData.append("imageSize", imageSize);
+      }
+      
       if (ecommerceMode) {
-        // 电商模式
-        formData.append("modelDescription", modelDescription || "模特");
-        formData.append("productDescription", productDescription || "商品");
-        if (aspectRatio !== "default") {
-          formData.append("aspectRatio", aspectRatio);
-        }
-        if (imageSize !== "default") {
-          formData.append("imageSize", imageSize);
-        }
+        // 电商模式 - 无额外参数
       } else {
         // 普通模式
         if (characterImage.length > 0) {
           formData.append("characterImage", characterImage[0]);
-        }
-        if (aspectRatio !== "default") {
-          formData.append("aspectRatio", aspectRatio);
-        }
-        if (imageSize !== "default") {
-          formData.append("imageSize", imageSize);
         }
         formData.append("hotMode", hotMode.toString());
       }
@@ -318,36 +310,6 @@ export default function PhotoBoothPage() {
                 onImagesChange={setImage}
                 label="上传起始图片 (最多1张)"
               />
-
-              {/* 电商版特有：模特描述和商品描述 */}
-              {ecommerceMode && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      模特描述 (可选)
-                    </label>
-                    <input
-                      type="text"
-                      value={modelDescription}
-                      onChange={(e) => setModelDescription(e.target.value)}
-                      placeholder="例如：年轻女性模特、亚洲男性模特"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      商品描述 (可选)
-                    </label>
-                    <input
-                      type="text"
-                      value={productDescription}
-                      onChange={(e) => setProductDescription(e.target.value)}
-                      placeholder="例如：白色连衣裙、黑色西装外套"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    />
-                  </div>
-                </>
-              )}
 
               {/* 普通版特有：角色面部图上传 */}
               {!ecommerceMode && (

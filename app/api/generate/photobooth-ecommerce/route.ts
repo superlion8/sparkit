@@ -22,13 +22,10 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const image = formData.get("image") as File;
-    const modelDescription = formData.get("modelDescription") as string || "模特";
-    const productDescription = formData.get("productDescription") as string || "商品";
     const aspectRatio = formData.get("aspectRatio") as string;
     const imageSize = formData.get("imageSize") as string;
 
     console.log(`=== PhotoBooth E-commerce Generation Started ===`);
-    console.log(`Model: ${modelDescription}, Product: ${productDescription}`);
 
     if (!image) {
       return NextResponse.json(
@@ -152,7 +149,7 @@ export async function POST(request: NextRequest) {
       console.log(`启动第 ${index + 1}/${poseDescriptions.length} 张图片的生成任务...`);
       
       // 构建电商版 prompt
-      const finalPrompt = `请为${modelDescription}这个模特拍摄一张身穿${productDescription}商品的专业影棚商品棚拍图。
+      const finalPrompt = `请为这个模特拍摄一张专业影棚商品棚拍图，保持模特身上的商品不变。
 
 拍摄指令：
 Pose: ${poseDesc.pose}
