@@ -114,14 +114,14 @@ export default function ChatMessageCard({
             <span>{formatTime(message.timestamp)}</span>
           </div>
 
-          {/* 再次生成按钮 */}
-          {hoveredInput && !isGenerating && (
+          {/* 引用按钮 */}
+          {hoveredInput && (
             <button
               onClick={() => onRegenerate(message)}
               className="absolute bottom-4 right-4 flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-all"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              再次生成
+              引用
             </button>
           )}
         </div>
