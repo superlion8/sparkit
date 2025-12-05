@@ -20,7 +20,8 @@ import {
   ChevronDown,
   ChevronUp,
   Wand2,
-  Users
+  Users,
+  MessageSquare
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +29,7 @@ import { useAuth } from "@/hooks/useAuth";
 const imageTools = [
   { name: "文生图", href: "/text-to-image", icon: Image },
   { name: "图像编辑", href: "/image-to-image", icon: ImagePlus },
+  { name: "Chat Edit", href: "/chat-edit", icon: MessageSquare },
   { name: "Mimic(洗稿)", href: "/mimic", icon: User },
   { name: "Control Panel", href: "/control-panel", icon: Settings },
   { name: "Pose Control", href: "/pose-control", icon: Wand2 },
