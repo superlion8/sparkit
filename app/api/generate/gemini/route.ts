@@ -17,7 +17,6 @@ export async function POST(request: NextRequest) {
     const images = formData.getAll("images") as File[];
     const aspectRatio = formData.get("aspectRatio") as string;
     const imageSize = formData.get("imageSize") as string; // "1K", "2K", "4K"
-    const imageRolesHint = formData.get("imageRolesHint") as string | null; // 图片角色提示
 
     console.log("请求参数:", {
       promptLength: prompt?.length || 0,
@@ -66,18 +65,8 @@ export async function POST(request: NextRequest) {
     );
     console.log(`成功转换 ${imageParts.length} 张图片`);
 
-    // Add image roles hint and negatives to prompt
-    let finalPrompt = prompt;
-    
-    // 如果有图片角色说明，添加到提示词前面
-    if (imageRolesHint && images.length > 1) {
-      finalPrompt = `[图片说明: ${imageRolesHint}]
-
-${prompt}`;
-      console.log("Added image roles hint:", imageRolesHint);
-    }
-    
-    const promptWithNegatives = `${finalPrompt}
+    // Add negatives to prompt
+    const promptWithNegatives = `${prompt}
 
 negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorted anatomy, fake portrait-mode blur, CGI/illustration look`;
 

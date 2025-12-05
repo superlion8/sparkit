@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import ImageGrid from "@/components/ImageGrid";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import ImageUpload, { ImageRole } from "@/components/ImageUpload";
+import ImageUpload from "@/components/ImageUpload";
 import { useAuth } from "@/hooks/useAuth";
 import { logTaskEvent, generateClientTaskId } from "@/lib/clientTasks";
 import { ImagePlus, History } from "lucide-react";
@@ -21,7 +21,6 @@ export default function ImageToImagePage() {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("default");
   const [imageSize, setImageSize] = useState<ImageSize>("default");
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
-  const [imageRoles, setImageRoles] = useState<ImageRole[]>([]);
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [generatedTaskIds, setGeneratedTaskIds] = useState<string[]>([]); // 保存每张图片对应的 taskId
@@ -214,13 +213,6 @@ export default function ImageToImagePage() {
           if (imageSize !== "default") {
             formData.append("imageSize", imageSize);
           }
-          // 如果有多张图片且设置了角色，在提示词前添加图片角色说明
-          if (uploadedImages.length > 1 && imageRoles.length > 0) {
-            const rolesDescription = imageRoles
-              .map((role, idx) => `图${idx + 1}: ${role}`)
-              .join(", ");
-            formData.append("imageRolesHint", rolesDescription);
-          }
           uploadedImages.forEach((image) => {
             formData.append("images", image);
           });
@@ -367,10 +359,8 @@ export default function ImageToImagePage() {
               <ImageUpload
                 maxImages={hotMode || model === "flash" ? 1 : undefined}
                 onImagesChange={setUploadedImages}
-                onRolesChange={setImageRoles}
                 label="上传图片"
                 initialImageUrls={historyInputImageUrls.length > 0 ? historyInputImageUrls : undefined}
-                showRoles={!hotMode && model !== "flash" && uploadedImages.length > 1}
               />
               
               {/* 多图时的提示 */}
@@ -378,8 +368,7 @@ export default function ImageToImagePage() {
                 <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-sm text-blue-700">
                     <span className="font-medium">💡 提示：</span>
-                    已上传 {uploadedImages.length} 张图片，您可以在描述中通过"图1"、"图2"来指定图片，
-                    例如："把图2的衣服穿到图1的人物上"
+                    您可以在描述中通过"图1"、"图2"来指定图片
                   </p>
                 </div>
               )}
