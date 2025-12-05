@@ -68,8 +68,8 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
       ...imageParts,
     ];
 
-    // 使用 gemini-2.5-flash-preview-image 模型
-    const modelId = "gemini-2.5-flash-preview-image";
+    // 使用 gemini-2.5-flash-image 模型
+    const modelId = "gemini-2.5-flash-image";
 
     // Get Vertex AI client
     const client = getVertexAIClient();
