@@ -21,7 +21,8 @@ import {
   ChevronUp,
   Wand2,
   Users,
-  MessageSquare
+  MessageSquare,
+  Shield
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -246,6 +247,22 @@ export default function Sidebar() {
           >
             <Settings className="w-5 h-5" />
             <span>管理后台</span>
+          </Link>
+          
+          <Link
+            href="/admin/users"
+            onClick={() => setMobileMenuOpen(false)}
+            className={`
+              flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+              ${
+                pathname === "/admin/users"
+                  ? "bg-red-100 text-red-700 font-medium"
+                  : "text-gray-700 hover:bg-red-50"
+              }
+            `}
+          >
+            <Shield className="w-5 h-5" />
+            <span>用户管理</span>
           </Link>
         </>
       )}
