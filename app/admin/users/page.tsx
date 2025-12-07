@@ -9,6 +9,7 @@ interface UserInfo {
   email: string;
   username: string;
   taskCount: number;
+  imageCount: number;
   lastActiveAt: string;
   isBanned: boolean;
 }
@@ -248,6 +249,9 @@ export default function AdminUsersPage() {
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">
                   任务数
                 </th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">
+                  图片数
+                </th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
                   最后活跃
                 </th>
@@ -262,7 +266,7 @@ export default function AdminUsersPage() {
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                     <div className="flex items-center justify-center gap-2">
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
                       加载中...
@@ -271,7 +275,7 @@ export default function AdminUsersPage() {
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                     {searchTerm ? "未找到匹配的用户" : "暂无用户数据"}
                   </td>
                 </tr>
@@ -295,6 +299,11 @@ export default function AdminUsersPage() {
                     <td className="px-6 py-4 text-center">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
                         {user.taskCount}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                        {user.imageCount}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-gray-600 text-sm">

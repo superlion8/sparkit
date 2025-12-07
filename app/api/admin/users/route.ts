@@ -32,14 +32,14 @@ export async function GET(request: NextRequest) {
     
     // 方案：使用分页获取所有任务数据
     const PAGE_SIZE = 1000;
-    let allTasks: Array<{ email: string; username: string | null; created_at: string }> = [];
+    let allTasks: Array<{ email: string; username: string | null; created_at: string; output_image_url: string | null }> = [];
     let page = 0;
     let hasMore = true;
 
     while (hasMore) {
       const { data: tasks, error: tasksError } = await supabaseAdminClient
         .from("generation_tasks")
-        .select("email, username, created_at")
+        .select("email, username, created_at, output_image_url")
         .not("email", "is", null)
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
         .order("created_at", { ascending: false });
@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
       email: string;
       username: string;
       taskCount: number;
+      imageCount: number;
       lastActiveAt: string;
     }> = {};
 
@@ -75,11 +76,17 @@ export async function GET(request: NextRequest) {
           email: task.email,
           username: task.username || task.email.split('@')[0],
           taskCount: 0,
+          imageCount: 0,
           lastActiveAt: task.created_at,
         };
       }
       
       userStats[task.email].taskCount += 1;
+      
+      // 统计有输出图片的任务
+      if (task.output_image_url) {
+        userStats[task.email].imageCount += 1;
+      }
       
       // 更新最后活跃时间
       if (task.created_at > userStats[task.email].lastActiveAt) {
