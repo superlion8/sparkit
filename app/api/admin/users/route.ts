@@ -27,15 +27,37 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // 获取所有任务，按用户分组统计
-    const { data: tasks, error: tasksError } = await supabaseAdminClient
-      .from("generation_tasks")
-      .select("email, username, created_at")
-      .not("email", "is", null);
+    // 使用 RPC 函数或原生 SQL 进行聚合查询
+    // 由于 Supabase JS SDK 不直接支持 GROUP BY，我们用 rpc 或分页获取所有数据
+    
+    // 方案：使用分页获取所有任务数据
+    const PAGE_SIZE = 1000;
+    let allTasks: Array<{ email: string; username: string | null; created_at: string }> = [];
+    let page = 0;
+    let hasMore = true;
 
-    if (tasksError) {
-      throw tasksError;
+    while (hasMore) {
+      const { data: tasks, error: tasksError } = await supabaseAdminClient
+        .from("generation_tasks")
+        .select("email, username, created_at")
+        .not("email", "is", null)
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+        .order("created_at", { ascending: false });
+
+      if (tasksError) {
+        throw tasksError;
+      }
+
+      if (tasks && tasks.length > 0) {
+        allTasks = allTasks.concat(tasks);
+        page++;
+        hasMore = tasks.length === PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
     }
+
+    console.log(`获取到 ${allTasks.length} 条任务记录`);
 
     // 按 email 分组统计
     const userStats: Record<string, {
@@ -45,7 +67,7 @@ export async function GET(request: NextRequest) {
       lastActiveAt: string;
     }> = {};
 
-    for (const task of tasks || []) {
+    for (const task of allTasks) {
       if (!task.email) continue;
       
       if (!userStats[task.email]) {
