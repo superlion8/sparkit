@@ -141,9 +141,7 @@ async function generateImage(
 
     // Only add aspectRatio if it's not "default"
     if (aspectRatio && aspectRatio !== 'default') {
-      generationConfig.imageConfig = {
-        aspectRatio,
-      };
+      generationConfig.aspectRatio = aspectRatio;
     }
 
     console.log('[Pose Control - Generate Image] Calling Vertex AI SDK with:');

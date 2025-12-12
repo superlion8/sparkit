@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateRequestAuth } from "@/lib/auth";
+import { getVertexAIClient } from "@/lib/vertexai";
+import { HarmCategory, HarmBlockThreshold } from "@google/genai";
 
 // Set max duration to 5 minutes for Vercel Serverless Functions
 export const maxDuration = 300;
@@ -35,10 +37,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    // 验证 Vertex AI 配置
+    try {
+      getVertexAIClient();
+    } catch (error: any) {
       return NextResponse.json(
-        { error: "Gemini API key not configured" },
+        { error: error.message || "Vertex AI 配置错误" },
         { status: 500 }
       );
     }
@@ -85,8 +89,7 @@ export async function POST(request: NextRequest) {
     const step1Start = Date.now();
     const snapshotPrompts = await generateSnapshotPrompts(
       imageBase64,
-      image.type,
-      apiKey
+      image.type
     );
     const step1Time = ((Date.now() - step1Start) / 1000).toFixed(2);
     console.log(`Step 1 完成，耗时: ${step1Time} 秒`);
@@ -113,8 +116,7 @@ export async function POST(request: NextRequest) {
         imageBase64,
         image.type,
         snapshotPrompt.background,
-        aspectRatio,
-        apiKey
+        aspectRatio
       )
         .then((backgroundImage) => {
           const bgTime = ((Date.now() - bgStart) / 1000).toFixed(2);
@@ -176,8 +178,7 @@ export async function POST(request: NextRequest) {
         image.type,
         bgItem.image,
         snapshotPrompt.snapshotPrompt,
-        aspectRatio,
-        apiKey
+        aspectRatio
       )
         .then((finalImage) => {
           const finalTime = ((Date.now() - finalStart) / 1000).toFixed(2);
@@ -420,8 +421,7 @@ export async function POST(request: NextRequest) {
 // Step 1: 生成5个snapshot prompt（使用 gemini-3-pro-preview 文本模型）
 async function generateSnapshotPrompts(
   imageBase64: string,
-  mimeType: string,
-  apiKey: string
+  mimeType: string
 ): Promise<SnapshotPrompt[]> {
   const prompt = `请基于你对这个模特的理解,给出5个适合instagram有生活感的随手拍prompt,不需要拘泥于当前照片的背景和穿着. 5张照片需要是under在不同的故事下的. 为了提升真实感和生活感，scene可以适当带一些城市名字。
 请你按照以下的格式，用英文来输出5张照片的prompt:
@@ -433,76 +433,54 @@ async function generateSnapshotPrompts(
 - {{camera position1}}：xxxx
 以此类推。不要输出图片，只输出文字。`;
 
-  const contents = [
+  const parts: any[] = [
     {
-      parts: [
-        {
-          inlineData: {
-            mimeType: mimeType,
-            data: imageBase64,
-          },
-        },
-        { text: prompt },
-      ],
+      inlineData: {
+        mimeType: mimeType,
+        data: imageBase64,
+      },
     },
+    { text: prompt },
   ];
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents,
-        generationConfig: {
-          temperature: 0.7,
-          topP: 0.8,
-          topK: 40,
-          maxOutputTokens: 8000,
+  const client = getVertexAIClient();
+  const modelId = "gemini-3-pro-preview";
+
+  const response = await client.models.generateContent({
+    model: modelId,
+    contents: [{ role: "user", parts }],
+    config: {
+      temperature: 0.7,
+      topP: 0.8,
+      topK: 40,
+      maxOutputTokens: 8000,
+      safetySettings: [
+        {
+          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
         },
-        safetySettings: [
-          {
-            category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_ONLY_HIGH"
-          },
-          {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_ONLY_HIGH"
-          },
-          {
-            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            threshold: "BLOCK_ONLY_HIGH"
-          },
-          {
-            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_ONLY_HIGH"
-          }
-        ],
-      }),
-    }
-  );
+        {
+          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+      ],
+    },
+  });
 
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("Gemini API error (generate snapshot prompts):", error);
-    throw new Error("生成snapshot prompts失败");
-  }
-
-  const data = await response.json();
-
-  if (data.error) {
-    console.error("Gemini API 返回错误:", data.error);
-    throw new Error(`Gemini API 错误: ${data.error.message || '未知错误'}`);
-  }
-
-  if (!data.candidates || data.candidates.length === 0) {
+  if (!response.candidates || response.candidates.length === 0) {
     throw new Error("API 未返回候选结果，请稍后重试");
   }
 
   let text = "";
-  const candidate = data.candidates[0];
+  const candidate = response.candidates[0];
   
   if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
     throw new Error("内容被安全过滤阻止，请尝试其他图片");
@@ -510,8 +488,8 @@ async function generateSnapshotPrompts(
 
   if (candidate.content && candidate.content.parts) {
     for (const part of candidate.content.parts) {
-      if (part.text) {
-        text += part.text;
+      if ((part as any).text) {
+        text += (part as any).text;
       }
     }
   }
@@ -599,90 +577,85 @@ async function generateBackgroundImage(
   imageBase64: string,
   mimeType: string,
   backgroundDescription: string,
-  aspectRatio: string | null,
-  apiKey: string
+  aspectRatio: string | null
 ): Promise<string> {
   const prompt = `Generate a background image based on this description: ${backgroundDescription}. The image should be suitable as a background for a portrait photo.`;
 
-  const contents = [
+  const parts: any[] = [
     {
-      parts: [
-        {
-          inlineData: {
-            mimeType: mimeType,
-            data: imageBase64,
-          },
-        },
-        { text: prompt },
-      ],
+      inlineData: {
+        mimeType: mimeType,
+        data: imageBase64,
+      },
     },
+    { text: prompt },
   ];
 
-  const generationConfig: any = {
+  const client = getVertexAIClient();
+  const modelId = "gemini-3-pro-image-preview";
+
+  const config: any = {
     responseModalities: ["IMAGE"],
+    safetySettings: [
+      {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+      },
+    ],
   };
 
   if (aspectRatio && aspectRatio !== "default") {
-    generationConfig.imageConfig = {
-      aspectRatio: aspectRatio,
-    };
+    config.aspectRatio = aspectRatio;
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents,
-        generationConfig,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("Gemini API error (generate background image):", error);
-    throw new Error("生成背景图失败");
-  }
-
-  const data = await response.json();
-
-  if (data.error) {
-    console.error("Gemini API 返回错误:", data.error);
-    throw new Error(`Gemini API 错误: ${data.error.message || '未知错误'}`);
-  }
+  const response = await client.models.generateContent({
+    model: modelId,
+    contents: [{ role: "user", parts }],
+    config: config,
+  });
 
   // Check promptFeedback FIRST
-  if (data.promptFeedback) {
-    const blockReason = data.promptFeedback.blockReason;
-    console.error("Prompt被阻止 (generate background):", {
-      blockReason,
-      blockReasonMessage: data.promptFeedback.blockReasonMessage
-    });
-    
-    if (blockReason === "IMAGE_SAFETY" || blockReason === "PROHIBITED_CONTENT") {
-      throw new Error(`内容被安全过滤阻止: ${blockReason}`);
-    } else if (blockReason) {
-      throw new Error(`请求被阻止: ${data.promptFeedback.blockReasonMessage || blockReason}`);
+  if (response.promptFeedback) {
+    const blockReason = (response.promptFeedback as any).blockReason;
+    if (blockReason) {
+      console.error("Prompt被阻止 (generate background):", {
+        blockReason,
+        blockReasonMessage: (response.promptFeedback as any).blockReasonMessage
+      });
+      
+      if (blockReason === "IMAGE_SAFETY" || blockReason === "PROHIBITED_CONTENT") {
+        throw new Error(`内容被安全过滤阻止: ${blockReason}`);
+      } else {
+        throw new Error(`请求被阻止: ${(response.promptFeedback as any).blockReasonMessage || blockReason}`);
+      }
     }
   }
 
-  if (!data.candidates || data.candidates.length === 0) {
+  if (!response.candidates || response.candidates.length === 0) {
     throw new Error("API 未返回候选结果，请稍后重试");
   }
 
-  for (const candidate of data.candidates) {
+  for (const candidate of response.candidates) {
     if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
       throw new Error("内容被安全过滤阻止，请尝试其他图片");
     }
 
     if (candidate.content && candidate.content.parts) {
       for (const part of candidate.content.parts) {
-        if (part.inlineData) {
-          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        if ((part as any).inlineData) {
+          return `data:${(part as any).inlineData.mimeType};base64,${(part as any).inlineData.data}`;
         }
       }
     }
@@ -697,17 +670,16 @@ async function generateFinalSnapshotImage(
   mimeType: string,
   backgroundImage: string,
   snapshotPrompt: string,
-  aspectRatio: string | null,
-  apiKey: string
+  aspectRatio: string | null
 ): Promise<string> {
   // Convert background image (data URL) back to base64 if needed
   let backgroundBase64 = backgroundImage;
   let backgroundMimeType = "image/png";
 
   if (backgroundImage.startsWith("data:")) {
-    const parts = backgroundImage.split(",");
-    const metadata = parts[0];
-    backgroundBase64 = parts[1];
+    const dataParts = backgroundImage.split(",");
+    const metadata = dataParts[0];
+    backgroundBase64 = dataParts[1];
     const mimeMatch = metadata.match(/data:(.*?);base64/);
     if (mimeMatch) {
       backgroundMimeType = mimeMatch[1];
@@ -719,91 +691,87 @@ setup：${snapshotPrompt}
 
 negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorted anatomy, fake portrait-mode blur, CGI/illustration look`;
 
-  const contents = [
+  const parts: any[] = [
     {
-      parts: [
-        {
-          inlineData: {
-            mimeType: mimeType,
-            data: imageBase64,
-          },
-        },
-        {
-          inlineData: {
-            mimeType: backgroundMimeType,
-            data: backgroundBase64,
-          },
-        },
-        { text: finalPrompt },
-      ],
+      inlineData: {
+        mimeType: mimeType,
+        data: imageBase64,
+      },
     },
+    {
+      inlineData: {
+        mimeType: backgroundMimeType,
+        data: backgroundBase64,
+      },
+    },
+    { text: finalPrompt },
   ];
 
-  const generationConfig: any = {
+  const client = getVertexAIClient();
+  const modelId = "gemini-3-pro-image-preview";
+
+  const config: any = {
     responseModalities: ["IMAGE"],
+    safetySettings: [
+      {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+      },
+    ],
   };
 
   if (aspectRatio && aspectRatio !== "default") {
-    generationConfig.imageConfig = {
-      aspectRatio: aspectRatio,
-    };
+    config.aspectRatio = aspectRatio;
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents,
-        generationConfig,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("Gemini API error (generate final snapshot image):", error);
-    throw new Error("生成最终图片失败");
-  }
-
-  const data = await response.json();
-
-  if (data.error) {
-    console.error("Gemini API 返回错误:", data.error);
-    throw new Error(`Gemini API 错误: ${data.error.message || '未知错误'}`);
-  }
+  const response = await client.models.generateContent({
+    model: modelId,
+    contents: [{ role: "user", parts }],
+    config: config,
+  });
 
   // Check promptFeedback FIRST
-  if (data.promptFeedback) {
-    const blockReason = data.promptFeedback.blockReason;
-    console.error("Prompt被阻止 (generate final snapshot):", {
-      blockReason,
-      blockReasonMessage: data.promptFeedback.blockReasonMessage
-    });
-    
-    if (blockReason === "IMAGE_SAFETY" || blockReason === "PROHIBITED_CONTENT") {
-      throw new Error(`内容被安全过滤阻止: ${blockReason}`);
-    } else if (blockReason) {
-      throw new Error(`请求被阻止: ${data.promptFeedback.blockReasonMessage || blockReason}`);
+  if (response.promptFeedback) {
+    const blockReason = (response.promptFeedback as any).blockReason;
+    if (blockReason) {
+      console.error("Prompt被阻止 (generate final snapshot):", {
+        blockReason,
+        blockReasonMessage: (response.promptFeedback as any).blockReasonMessage
+      });
+      
+      if (blockReason === "IMAGE_SAFETY" || blockReason === "PROHIBITED_CONTENT") {
+        throw new Error(`内容被安全过滤阻止: ${blockReason}`);
+      } else {
+        throw new Error(`请求被阻止: ${(response.promptFeedback as any).blockReasonMessage || blockReason}`);
+      }
     }
   }
 
-  if (!data.candidates || data.candidates.length === 0) {
+  if (!response.candidates || response.candidates.length === 0) {
     throw new Error("API 未返回候选结果，请稍后重试");
   }
 
-  for (const candidate of data.candidates) {
+  for (const candidate of response.candidates) {
     if (candidate.finishReason === "SAFETY" || candidate.finishReason === "RECITATION") {
       throw new Error("内容被安全过滤阻止，请尝试其他图片");
     }
 
     if (candidate.content && candidate.content.parts) {
       for (const part of candidate.content.parts) {
-        if (part.inlineData) {
-          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        if ((part as any).inlineData) {
+          return `data:${(part as any).inlineData.mimeType};base64,${(part as any).inlineData.data}`;
         }
       }
     }
