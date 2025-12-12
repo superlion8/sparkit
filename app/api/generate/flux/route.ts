@@ -107,39 +107,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upload result to Aimovely
-    const aimovelyEmail = process.env.AIMOVELY_EMAIL;
-    const aimovelyVcode = process.env.AIMOVELY_VCODE;
+    // 下载图片并上传（优先 Aimovely，失败回退 Supabase Storage）
+    const { getAimovelyCredentials, uploadImageWithFallback } = await import("@/lib/upload");
+    const credentials = await getAimovelyCredentials();
 
-    if (!aimovelyEmail || !aimovelyVcode) {
-      console.error("Aimovely credentials missing, returning original URL");
-      return NextResponse.json({ 
-        images: [result.sample],
-        requestId 
-      });
-    }
-
-    const aimovelyToken = await fetchAimovelyToken(aimovelyEmail, aimovelyVcode);
-    if (!aimovelyToken) {
-      console.error("Failed to get Aimovely token, returning original URL");
-      return NextResponse.json({ 
-        images: [result.sample],
-        requestId 
-      });
-    }
-
-    // Download and upload to Aimovely
     try {
-      const uploadedUrl = await uploadImageToAimovely(result.sample, aimovelyToken);
-      if (uploadedUrl) {
-        console.log("Flux image uploaded to Aimovely:", uploadedUrl);
+      // Download image from BFL URL
+      const imageResponse = await fetch(result.sample);
+      if (!imageResponse.ok) {
+        console.error("Failed to download image from BFL");
         return NextResponse.json({ 
-          images: [uploadedUrl],
+          images: [result.sample],
+          requestId 
+        });
+      }
+
+      const imageBlob = await imageResponse.blob();
+      const buffer = Buffer.from(await imageBlob.arrayBuffer());
+      const base64 = buffer.toString("base64");
+      const mimeType = imageBlob.type || "image/png";
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+
+      // Upload with fallback
+      const uploadResult = await uploadImageWithFallback(
+        dataUrl,
+        credentials?.token || null,
+        "flux-image"
+      );
+
+      if (uploadResult?.url) {
+        console.log("Flux image uploaded:", uploadResult.url, `(${uploadResult.source})`);
+        return NextResponse.json({ 
+          images: [uploadResult.url],
           requestId 
         });
       }
     } catch (uploadError) {
-      console.error("Failed to upload to Aimovely:", uploadError);
+      console.error("Failed to upload Flux image:", uploadError);
     }
 
     // Fallback to original URL
@@ -156,77 +160,4 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function fetchAimovelyToken(email: string, vcode: string): Promise<string | null> {
-  try {
-    const response = await fetch(`${AIMOVELY_API_URL}/v1/user/verifyvcode`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        vcode,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error("Aimovely token request failed:", response.status);
-      return null;
-    }
-
-    const data = await response.json();
-    if (data.code !== 0 || !data.data?.access_token) {
-      console.error("Aimovely token response invalid:", data);
-      return null;
-    }
-
-    return data.data.access_token as string;
-  } catch (error) {
-    console.error("Error fetching Aimovely token:", error);
-    return null;
-  }
-}
-
-async function uploadImageToAimovely(imageUrl: string, token: string): Promise<string | null> {
-  try {
-    // Download image from BFL URL
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-      console.error("Failed to download image from BFL");
-      return null;
-    }
-
-    const imageBlob = await imageResponse.blob();
-    const fileName = `flux-image-${Date.now()}.png`;
-    const file = new File([imageBlob], fileName, { type: imageBlob.type || "image/png" });
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("biz", "external_tool");
-    formData.append("template_id", "1");
-
-    const response = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
-      method: "POST",
-      headers: {
-        Authorization: token,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      console.error("Aimovely upload failed:", response.status);
-      return null;
-    }
-
-    const result = await response.json();
-    if (result.code !== 0) {
-      console.error("Aimovely upload API error:", result);
-      return null;
-    }
-
-    return result.data?.url;
-  } catch (error) {
-    console.error("Error uploading to Aimovely:", error);
-    return null;
-  }
-}
+// 上传函数已移至 @/lib/upload

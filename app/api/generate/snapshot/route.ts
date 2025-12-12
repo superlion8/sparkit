@@ -54,34 +54,22 @@ export async function POST(request: NextRequest) {
     console.log("=== Snapshot Generation Started ===");
     const startTime = Date.now();
 
-    // Upload input image to Aimovely first
-    const aimovelyEmail = process.env.AIMOVELY_EMAIL;
-    const aimovelyVcode = process.env.AIMOVELY_VCODE;
-    let aimovelyToken: string | null = null;
+    // 上传输入图片（优先 Aimovely，失败回退 Supabase Storage）
+    const { getAimovelyCredentials, uploadImageWithFallback } = await import("@/lib/upload");
+    const credentials = await getAimovelyCredentials();
+    const aimovelyToken = credentials?.token || null;
     let uploadedImageUrl: string | null = null;
 
-    if (aimovelyEmail && aimovelyVcode) {
-      try {
-        aimovelyToken = await fetchAimovelyToken(aimovelyEmail, aimovelyVcode);
-        if (aimovelyToken) {
-          console.log("开始上传输入图片到 Aimovely...");
-          
-          const imageDataUrl = `data:${image.type};base64,${imageBase64}`;
-          const uploadResult = await uploadImageToAimovely(
-            imageDataUrl,
-            aimovelyToken,
-            "snapshot-input",
-            aimovelyEmail,
-            aimovelyVcode
-          );
-          if (uploadResult?.url) {
-            uploadedImageUrl = uploadResult.url;
-            console.log("输入图片上传成功:", uploadedImageUrl);
-          }
-        }
-      } catch (uploadError) {
-        console.error("上传输入图片到 Aimovely 失败:", uploadError);
-      }
+    console.log("开始上传输入图片...");
+    const imageDataUrl = `data:${image.type};base64,${imageBase64}`;
+    const uploadResult = await uploadImageWithFallback(
+      imageDataUrl,
+      aimovelyToken,
+      "snapshot-input"
+    );
+    if (uploadResult?.url) {
+      uploadedImageUrl = uploadResult.url;
+      console.log("输入图片上传成功:", uploadedImageUrl, `(${uploadResult.source})`);
     }
 
     // Step 1: 生成5个snapshot prompt（使用 gemini-3-pro-preview 文本模型）
@@ -225,82 +213,39 @@ export async function POST(request: NextRequest) {
       throw new Error("所有最终图片生成失败，请重试");
     }
 
-    // Upload generated images to Aimovely (parallel upload)
-    console.log("开始并行上传生成的图片到 Aimovely...");
+    // 上传生成的图片（优先 Aimovely，失败回退 Supabase Storage）
+    console.log("开始上传生成的图片...");
     const uploadStart = Date.now();
     const uploadedFinalImageUrls: Array<{ originalIndex: number; url: string }> = [];
     const uploadErrors: string[] = [];
 
-    if (aimovelyToken && aimovelyEmail && aimovelyVcode) {
-      try {
-        const uploadPromises = finalImages.map((imageItem) => {
-          const index = imageItem.index;
-          const imageData = imageItem.image;
-          const uploadImageStart = Date.now();
-          console.log(`启动第 ${index + 1}/${finalImages.length} 张图片的上传任务...`);
-          
-          return uploadImageToAimovely(
-            imageData,
-            aimovelyToken!,
-            `snapshot-${index}`,
-            aimovelyEmail,
-            aimovelyVcode
-          )
-            .then((uploadResult) => {
-              const uploadImageTime = ((Date.now() - uploadImageStart) / 1000).toFixed(2);
-              if (uploadResult?.url) {
-                console.log(`图片 ${index + 1} 上传成功（耗时: ${uploadImageTime} 秒）`);
-                return {
-                  originalIndex: index,
-                  success: true,
-                  url: uploadResult.url,
-                  time: uploadImageTime,
-                };
-              } else {
-                return {
-                  originalIndex: index,
-                  success: false,
-                  error: "无法获取 URL",
-                  time: uploadImageTime,
-                };
-              }
-            })
-            .catch((uploadError: any) => {
-              const uploadImageTime = ((Date.now() - uploadImageStart) / 1000).toFixed(2);
-              console.error(`上传图片 ${index + 1} 失败（耗时: ${uploadImageTime} 秒）:`, uploadError);
-              return {
-                originalIndex: index,
-                success: false,
-                error: uploadError.message || "未知错误",
-                time: uploadImageTime,
-              };
-            });
-        });
+    // 并行上传所有图片（带回退）
+    const { uploadImagesWithFallback } = await import("@/lib/upload");
+    const imagesToUpload = finalImages.map(item => item.image);
+    const uploadResults = await uploadImagesWithFallback(
+      imagesToUpload,
+      aimovelyToken,
+      "snapshot"
+    );
 
-        const uploadResults = await Promise.all(uploadPromises);
-
-        uploadResults.forEach((result) => {
-          if (result.success && 'url' in result && result.url) {
-            uploadedFinalImageUrls.push({ originalIndex: result.originalIndex, url: result.url });
-          } else if (!result.success && 'error' in result) {
-            uploadErrors.push(`图片 ${result.originalIndex + 1} 上传失败：${result.error}`);
-          }
-        });
-        
-        uploadedFinalImageUrls.sort((a, b) => a.originalIndex - b.originalIndex);
-        
-        const uploadTime = ((Date.now() - uploadStart) / 1000).toFixed(2);
-        console.log(`图片上传完成，总耗时: ${uploadTime} 秒（并行上传 ${finalImages.length} 张图片）`);
-        console.log(`成功: ${uploadedFinalImageUrls.length} 张，失败: ${uploadErrors.length} 张`);
-        
-        if (uploadErrors.length > 0) {
-          console.warn(`部分图片上传失败: ${uploadErrors.length}/${finalImages.length}`);
-        }
-      } catch (uploadError: any) {
-        const uploadTime = ((Date.now() - uploadStart) / 1000).toFixed(2);
-        console.error(`上传生成的图片到 Aimovely 时发生异常（总耗时: ${uploadTime} 秒）:`, uploadError);
-        uploadErrors.push(`上传过程异常：${uploadError.message || "未知错误"}`);
+    // 处理上传结果
+    uploadResults.forEach((result, idx) => {
+      const originalIndex = finalImages[idx].index;
+      if (result?.url) {
+        uploadedFinalImageUrls.push({ originalIndex, url: result.url });
+      } else {
+        uploadErrors.push(`图片 ${originalIndex + 1} 上传失败`);
       }
+    });
+    
+    uploadedFinalImageUrls.sort((a, b) => a.originalIndex - b.originalIndex);
+    
+    const uploadTime = ((Date.now() - uploadStart) / 1000).toFixed(2);
+    console.log(`图片上传完成，总耗时: ${uploadTime} 秒`);
+    console.log(`成功: ${uploadedFinalImageUrls.length} 张，失败: ${uploadErrors.length} 张`);
+    
+    if (uploadErrors.length > 0) {
+      console.warn(`部分图片上传失败: ${uploadErrors.length}/${finalImages.length}`);
     }
 
     // Helper function to sanitize strings for JSON serialization
@@ -784,120 +729,4 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
   throw new Error("未找到生成的最终图片");
 }
 
-// Helper functions for Aimovely integration
-async function fetchAimovelyToken(email: string, vcode: string): Promise<string | null> {
-  try {
-    const response = await fetch(`${AIMOVELY_API_URL}/v1/user/verifyvcode`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        vcode,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error("Aimovely token request failed:", response.status, await response.text());
-      return null;
-    }
-
-    const data = await response.json();
-    if (data.code !== 0 || !data.data?.access_token) {
-      console.error("Aimovely token response invalid:", data);
-      return null;
-    }
-
-    return data.data.access_token as string;
-  } catch (error) {
-    console.error("Error fetching Aimovely token:", error);
-    return null;
-  }
-}
-
-interface UploadResult {
-  url?: string;
-  error?: string;
-}
-
-async function uploadImageToAimovely(
-  imageDataUrl: string,
-  token: string,
-  filename: string,
-  email?: string,
-  vcode?: string
-): Promise<UploadResult | null> {
-  try {
-    if (!imageDataUrl.startsWith("data:")) {
-      console.warn("Unsupported image format, expected data URL");
-      return { error: "Invalid image format" };
-    }
-
-    // Parse data URL
-    const [metadata, base64Data] = imageDataUrl.split(",");
-    const mimeMatch = metadata.match(/data:(.*?);base64/);
-    if (!mimeMatch) {
-      console.warn("Failed to parse data URL metadata");
-      return { error: "Failed to parse image data" };
-    }
-
-    const mimeType = mimeMatch[1] || "image/png";
-    const buffer = Buffer.from(base64Data, "base64");
-    const fileName = `snapshot-${filename}-${Date.now()}.${mimeType.split("/")[1] ?? "png"}`;
-
-    const file = new File([buffer], fileName, { type: mimeType });
-
-    // Create FormData
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("biz", "external_tool");
-    formData.append("template_id", "1");
-
-    // Upload to Aimovely
-    let uploadResponse = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
-      method: "POST",
-      headers: {
-        Authorization: token, // Use token directly, not Bearer token
-      },
-      body: formData,
-    });
-
-    // If 401, try to refresh token and retry once
-    if (uploadResponse.status === 401 && email && vcode) {
-      console.warn("Aimovely token expired (401), refreshing token and retrying...");
-      const newToken = await fetchAimovelyToken(email, vcode);
-      if (newToken) {
-        // Retry with new token
-        uploadResponse = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
-          method: "POST",
-          headers: {
-            Authorization: newToken,
-          },
-          body: formData,
-        });
-      } else {
-        console.error("Failed to refresh Aimovely token");
-        const errorText = await uploadResponse.text();
-        return { error: `Token refresh failed: ${errorText}` };
-      }
-    }
-
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      console.error("Aimovely upload failed:", uploadResponse.status, errorText);
-      return { error: errorText };
-    }
-
-    const uploadData = await uploadResponse.json();
-    if (uploadData.code !== 0 || !uploadData.data?.url) {
-      console.error("Aimovely upload response invalid:", uploadData);
-      return { error: "Invalid response from Aimovely" };
-    }
-
-    return { url: uploadData.data.url };
-  } catch (error) {
-    console.error("Error uploading image to Aimovely:", error);
-    return { error: error instanceof Error ? error.message : "Unknown error" };
-  }
-}
+// 上传函数已移至 @/lib/upload

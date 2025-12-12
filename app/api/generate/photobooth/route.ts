@@ -60,34 +60,22 @@ export async function POST(request: NextRequest) {
 
     const startTime = Date.now();
 
-    // Upload input image to Aimovely first
-    const aimovelyEmail = process.env.AIMOVELY_EMAIL;
-    const aimovelyVcode = process.env.AIMOVELY_VCODE;
-    let aimovelyToken: string | null = null;
+    // 上传输入图片（优先 Aimovely，失败回退 Supabase Storage）
+    const { getAimovelyCredentials, uploadImageWithFallback } = await import("@/lib/upload");
+    const credentials = await getAimovelyCredentials();
+    const aimovelyToken = credentials?.token || null;
     let uploadedImageUrl: string | null = null;
 
-    if (aimovelyEmail && aimovelyVcode) {
-      try {
-        aimovelyToken = await fetchAimovelyToken(aimovelyEmail, aimovelyVcode);
-        if (aimovelyToken) {
-          console.log("开始上传输入图片到 Aimovely...");
-          
-          // Upload input image
-          const imageDataUrl = `data:${image.type};base64,${imageBase64}`;
-          const uploadResult = await uploadImageToAimovely(
-            imageDataUrl,
-            aimovelyToken,
-            "photobooth-input"
-          );
-          if (uploadResult?.url) {
-            uploadedImageUrl = uploadResult.url;
-            console.log("输入图片上传成功:", uploadedImageUrl);
-          }
-        }
-      } catch (uploadError) {
-        console.error("上传输入图片到 Aimovely 失败:", uploadError);
-        // Continue with generation even if upload fails
-      }
+    console.log("开始上传输入图片...");
+    const imageDataUrl = `data:${image.type};base64,${imageBase64}`;
+    const uploadResult = await uploadImageWithFallback(
+      imageDataUrl,
+      aimovelyToken,
+      "photobooth-input"
+    );
+    if (uploadResult?.url) {
+      uploadedImageUrl = uploadResult.url;
+      console.log("输入图片上传成功:", uploadedImageUrl, `(${uploadResult.source})`);
     }
 
     // Step 1: 生成pose描述（使用 gemini-3-pro-preview 文本模型）
@@ -274,109 +262,45 @@ export async function POST(request: NextRequest) {
 
     console.log("=== PhotoBooth Generation Completed ===");
 
-    // Upload generated images to Aimovely (parallel upload)
-    console.log("开始并行上传生成的图片到 Aimovely...");
+    // 上传生成的图片（优先 Aimovely，失败回退 Supabase Storage）
+    console.log("开始上传生成的图片...");
     const uploadStart = Date.now();
     const uploadedImageUrls: Array<{ originalIndex: number; url: string }> = [];
     const uploadErrors: string[] = [];
 
-    if (aimovelyToken) {
-      try {
-        // 并行上传所有图片，保持原始索引
-        const uploadPromises = generatedImages.map((imageItem) => {
-          const index = imageItem.index;
-          const imageData = imageItem.image;
-          const uploadImageStart = Date.now();
-          console.log(`启动第 ${index + 1}/${generatedImages.length} 张图片的上传任务...`);
-          
-          return uploadImageToAimovely(
-            imageData,
-            aimovelyToken,
-            `photobooth-${index}`
-          )
-            .then((uploadResult) => {
-              const uploadImageTime = ((Date.now() - uploadImageStart) / 1000).toFixed(2);
-              if (uploadResult?.url) {
-                console.log(`图片 ${index + 1} (原始索引: ${index}) 上传成功（耗时: ${uploadImageTime} 秒）`);
-                return {
-                  originalIndex: index,
-                  success: true,
-                  url: uploadResult.url,
-                  time: uploadImageTime,
-                };
-              } else {
-                return {
-                  originalIndex: index,
-                  success: false,
-                  error: "无法获取 URL",
-                  time: uploadImageTime,
-                };
-              }
-            })
-            .catch((uploadError: any) => {
-              const uploadImageTime = ((Date.now() - uploadImageStart) / 1000).toFixed(2);
-              console.error(`上传图片 ${index + 1} (原始索引: ${index}) 失败（耗时: ${uploadImageTime} 秒）:`, uploadError);
-              return {
-                originalIndex: index,
-                success: false,
-                error: uploadError.message || "未知错误",
-                time: uploadImageTime,
-              };
-            });
-        });
+    // 并行上传所有图片（带回退）
+    const { uploadImagesWithFallback } = await import("@/lib/upload");
+    const imagesToUpload = generatedImages.map(item => item.image);
+    const uploadResults = await uploadImagesWithFallback(
+      imagesToUpload,
+      aimovelyToken,
+      "photobooth"
+    );
 
-        // 等待所有上传完成（并行）
-        console.log(`等待 ${uploadPromises.length} 个图片上传任务完成（并行执行）...`);
-        const uploadResults = await Promise.all(uploadPromises);
-
-        // 处理上传结果：按照原始索引收集URL
-        uploadResults.forEach((result) => {
-          if (result.success && 'url' in result && result.url) {
-            uploadedImageUrls.push({ originalIndex: result.originalIndex, url: result.url });
-          } else if (!result.success && 'error' in result) {
-            // Sanitize error message immediately when collecting (sanitizeString defined above)
-            const sanitizedError = sanitizeString(result.error);
-            uploadErrors.push(`图片 ${result.originalIndex + 1} 上传失败：${sanitizedError}`);
-          }
-        });
-        
-        // 按原始索引排序
-        uploadedImageUrls.sort((a, b) => a.originalIndex - b.originalIndex);
-        
-        const uploadTime = ((Date.now() - uploadStart) / 1000).toFixed(2);
-        console.log(`图片上传完成，总耗时: ${uploadTime} 秒（并行上传 ${generatedImages.length} 张图片）`);
-        console.log(`成功: ${uploadedImageUrls.length} 张，失败: ${uploadErrors.length} 张`);
-        
-        // Check if all uploads failed - but don't throw, just log warning
-        if (uploadedImageUrls.length === 0 && generatedImages.length > 0) {
-          console.error("所有图片上传都失败，但继续处理已生成的图片");
-          // Don't throw error, allow the process to continue with base64 images if needed
-          // But we'll still return an error in the response data
-        }
-        
-        // Warn if some uploads failed
-        if (uploadErrors.length > 0) {
-          console.warn(`部分图片上传失败: ${uploadErrors.length}/${generatedImages.length}`);
-        }
-      } catch (uploadError: any) {
-        const uploadTime = ((Date.now() - uploadStart) / 1000).toFixed(2);
-        console.error(`上传生成的图片到 Aimovely 时发生异常（总耗时: ${uploadTime} 秒）:`, uploadError);
-        // Don't throw error, log it and continue with what we have
-        // The uploadedImageUrls array may already contain some successful uploads
-        console.warn("上传过程出现异常，但继续处理已成功上传的图片");
-        // Sanitize error message immediately (sanitizeString defined above)
-        const sanitizedError = sanitizeString(uploadError.message || "未知错误");
-        uploadErrors.push(`上传过程异常：${sanitizedError}`);
+    // 处理上传结果：按照原始索引收集URL
+    uploadResults.forEach((result, idx) => {
+      const originalIndex = generatedImages[idx].index;
+      if (result?.url) {
+        uploadedImageUrls.push({ originalIndex, url: result.url });
+      } else {
+        const sanitizedError = sanitizeString("上传失败");
+        uploadErrors.push(`图片 ${originalIndex + 1} 上传失败：${sanitizedError}`);
       }
-    } else {
-      // No Aimovely token - this is a configuration issue, but don't fail the whole request
-      console.error("未配置 Aimovely token，无法上传图片");
-      // Don't throw error, just log and continue
-      // The response will indicate that uploads failed
+    });
+    
+    // 按原始索引排序
+    uploadedImageUrls.sort((a, b) => a.originalIndex - b.originalIndex);
+    
+    const uploadTime = ((Date.now() - uploadStart) / 1000).toFixed(2);
+    console.log(`图片上传完成，总耗时: ${uploadTime} 秒`);
+    console.log(`成功: ${uploadedImageUrls.length} 张，失败: ${uploadErrors.length} 张`);
+    
+    // Warn if some uploads failed
+    if (uploadErrors.length > 0) {
+      console.warn(`部分图片上传失败: ${uploadErrors.length}/${generatedImages.length}`);
     }
     
     // If we have generated images but no uploaded URLs, we need to handle this gracefully
-    // For now, we'll continue and let the response indicate the issue
     if (generatedImages.length > 0 && uploadedImageUrls.length === 0) {
       console.warn("有生成的图片但上传失败，响应中将不包含图片URL");
     }
@@ -384,36 +308,55 @@ export async function POST(request: NextRequest) {
     // Combine generation errors and upload errors
     const allErrors = [...generatedImageErrors, ...uploadErrors];
 
-    // Prepare response data - only include necessary fields, remove undefined
-    // IMPORTANT: Do NOT include base64 image data in response, only URLs
-    // Only include pose descriptions that have successfully generated and uploaded images
+    // Prepare response data - include all generated images
+    // If upload succeeded, use URL; if upload failed, use base64 data URL
+    // This ensures users can see results even if upload fails
     // Note: sanitizeString is already defined above
-    const successfulPoseDescriptions: PoseDescription[] = [];
-    const successfulImageUrls: string[] = [];
+    const responsePoseDescriptions: PoseDescription[] = [];
+    const responseImageUrls: string[] = [];
 
+    // Create a map of uploaded URLs by index
+    const uploadedUrlMap = new Map<number, string>();
     uploadedImageUrls.forEach((item) => {
-      // item.originalIndex 对应 poseDescriptions 的索引
-      if (poseDescriptions[item.originalIndex] && item.url) {
-        // Ensure pose description is valid (no undefined or null values)
-        const poseDesc = poseDescriptions[item.originalIndex];
-        if (poseDesc && poseDesc.pose && poseDesc.cameraPosition && poseDesc.composition) {
-          // Sanitize pose description strings to prevent JSON serialization issues
-          const sanitizedPoseDesc: PoseDescription = {
-            pose: sanitizeString(poseDesc.pose),
-            cameraPosition: sanitizeString(poseDesc.cameraPosition),
-            composition: sanitizeString(poseDesc.composition),
-          };
-          successfulPoseDescriptions.push(sanitizedPoseDesc);
-          successfulImageUrls.push(item.url);
+      uploadedUrlMap.set(item.originalIndex, item.url);
+    });
+
+    // Process all generated images (sorted by index)
+    generatedImages.forEach((imageItem) => {
+      const index = imageItem.index;
+      const poseDesc = poseDescriptions[index];
+      
+      // Ensure pose description is valid
+      if (poseDesc && poseDesc.pose && poseDesc.cameraPosition && poseDesc.composition) {
+        // Sanitize pose description strings to prevent JSON serialization issues
+        const sanitizedPoseDesc: PoseDescription = {
+          pose: sanitizeString(poseDesc.pose),
+          cameraPosition: sanitizeString(poseDesc.cameraPosition),
+          composition: sanitizeString(poseDesc.composition),
+        };
+        responsePoseDescriptions.push(sanitizedPoseDesc);
+        
+        // Use uploaded URL if available, otherwise use base64 data URL
+        const uploadedUrl = uploadedUrlMap.get(index);
+        if (uploadedUrl) {
+          // Upload succeeded, use URL
+          responseImageUrls.push(uploadedUrl);
+          console.log(`图片 ${index + 1} 使用上传的 URL`);
         } else {
-          console.warn(`Pose ${item.originalIndex + 1} 描述不完整，跳过`);
+          // Upload failed, use base64 data URL as fallback
+          responseImageUrls.push(imageItem.image);
+          console.log(`图片 ${index + 1} 上传失败，使用 base64 数据 URL`);
         }
+      } else {
+        console.warn(`Pose ${index + 1} 描述不完整，跳过`);
       }
     });
     
-    // Ensure we have at least some successful results
-    if (successfulImageUrls.length === 0 && generatedImages.length > 0) {
-      console.warn("⚠️ 所有图片上传失败，但图片已生成。响应中将不包含图片URL。");
+    // Log summary
+    const uploadedCount = uploadedUrlMap.size;
+    const fallbackCount = generatedImages.length - uploadedCount;
+    if (fallbackCount > 0) {
+      console.warn(`⚠️ ${fallbackCount} 张图片上传失败，使用 base64 数据 URL 作为后备方案`);
       console.warn("建议：检查 Aimovely 配置或网络连接");
     }
     
@@ -421,9 +364,9 @@ export async function POST(request: NextRequest) {
     // Clean and validate all string fields
     const responseData: any = {
       inputImageUrl: uploadedImageUrl || null,
-      poseDescriptions: successfulPoseDescriptions, // Only poses with successful images (already sanitized)
-      generatedImageUrls: successfulImageUrls, // Only URLs, no base64 data
-      generatedCount: successfulImageUrls.length,
+      poseDescriptions: responsePoseDescriptions, // All poses with generated images
+      generatedImageUrls: responseImageUrls, // URLs or base64 data URLs
+      generatedCount: responseImageUrls.length,
       requestedCount: poseDescriptions.length,
     };
     
@@ -443,33 +386,45 @@ export async function POST(request: NextRequest) {
       // Verify response does not contain base64 image data
       const responseJsonString = JSON.stringify(responseData);
       
-      // Check if response accidentally contains base64 data URLs
-      if (responseJsonString.includes('data:image/') || responseJsonString.includes('iVBORw0KGgo')) {
-        console.error("⚠️ 警告：响应中检测到base64图片数据！这会导致响应过大！");
-        console.error("请检查 responseData 是否意外包含了 generatedImages 数组");
+      // Check if response contains base64 data URLs (this is expected if upload failed)
+      const hasBase64Data = responseJsonString.includes('data:image/') || responseJsonString.includes('iVBORw0KGgo');
+      if (hasBase64Data) {
+        console.warn("⚠️ 响应中包含 base64 图片数据（上传失败时的后备方案）");
+        console.warn("这会导致响应较大，但确保用户能看到生成结果");
       }
       
       responseSizeKB = (responseJsonString.length / 1024).toFixed(2);
       
-      console.log(`生成的图片数量: ${successfulImageUrls.length}`);
-      console.log(`Pose 描述数量: ${successfulPoseDescriptions.length} (成功) / ${poseDescriptions.length} (请求)`);
+      console.log(`生成的图片数量: ${responseImageUrls.length}`);
+      console.log(`Pose 描述数量: ${responsePoseDescriptions.length} / ${poseDescriptions.length} (请求)`);
       console.log(`输入图片 URL: ${uploadedImageUrl || 'null'}`);
+      console.log(`上传成功: ${uploadedUrlMap.size} 张，使用 base64: ${fallbackCount} 张`);
       
       // Log first few URLs for debugging (only first 50 chars to avoid long URLs)
-      if (successfulImageUrls.length > 0) {
-        const urlPreview = successfulImageUrls.slice(0, 3).map(url => 
-          url.length > 50 ? url.substring(0, 50) + '...' : url
-        );
+      if (responseImageUrls.length > 0) {
+        const urlPreview = responseImageUrls.slice(0, 3).map(url => {
+          if (url.startsWith('data:')) {
+            return 'data:image/... (base64)';
+          }
+          return url.length > 50 ? url.substring(0, 50) + '...' : url;
+        });
         console.log(`生成的图片 URLs (前3个):`, urlPreview);
       }
       
       // Check if response is too large (Vercel may have issues with > 4MB uncompressed)
       const responseSizeMB = parseFloat(responseSizeKB) / 1024;
       if (responseSizeMB > 4) {
-        console.error(`⚠️ 响应体过大: ${responseSizeMB.toFixed(2)} MB (> 4 MB)`);
-        console.error("这可能导致响应传输失败，请检查是否意外包含了base64图片数据");
+        console.warn(`⚠️ 响应体较大: ${responseSizeMB.toFixed(2)} MB (> 4 MB)`);
+        if (hasBase64Data) {
+          console.warn("包含 base64 图片数据（上传失败时的后备方案），响应会较大");
+        } else {
+          console.warn("响应体可能过大，请检查数据");
+        }
       } else if (responseSizeMB > 1) {
         console.warn(`⚠️ 响应体较大: ${responseSizeMB.toFixed(2)} MB，可能影响传输速度`);
+        if (hasBase64Data) {
+          console.warn("包含 base64 图片数据（上传失败时的后备方案）");
+        }
       } else {
         console.log(`✅ 响应体大小正常: ${responseSizeMB.toFixed(2)} MB`);
       }
@@ -494,8 +449,8 @@ export async function POST(request: NextRequest) {
       }
       
       // Check if URLs array is reasonable
-      if (successfulImageUrls.length > 10) {
-        console.warn(`生成的图片数量较多: ${successfulImageUrls.length}`);
+      if (responseImageUrls.length > 10) {
+        console.warn(`生成的图片数量较多: ${responseImageUrls.length}`);
       }
       
       // Verify response data structure is valid (already serialized above)
@@ -622,10 +577,10 @@ export async function POST(request: NextRequest) {
         // Try to include at least the successfully generated images if possible
         // But sanitize everything very carefully
         try {
-          if (successfulImageUrls.length > 0) {
+          if (responseImageUrls.length > 0) {
             // Try to include successfully generated images with very careful sanitization
             const safeUrls: string[] = [];
-            for (const url of successfulImageUrls) {
+            for (const url of responseImageUrls) {
               try {
                 const sanitizedUrl = sanitizeString(url);
                 // Test if this URL can be serialized
@@ -668,7 +623,10 @@ export async function POST(request: NextRequest) {
       
       // Warn if response is still large after optimization
       if (finalResponseSizeMB > 1.5) {
-        console.warn(`⚠️ 响应体仍然较大 (${finalResponseSizeMB.toFixed(2)} MB)，可能影响传输`);
+        console.warn(`⚠️ 响应体较大 (${finalResponseSizeMB.toFixed(2)} MB)，可能影响传输`);
+        if (responseImageUrls.some(url => url.startsWith('data:'))) {
+          console.warn("包含 base64 图片数据（上传失败时的后备方案）");
+        }
       }
       
       // Parse the pre-serialized JSON back to object for NextResponse.json()
@@ -687,7 +645,7 @@ export async function POST(request: NextRequest) {
           'X-Response-Time': `${totalTime}s`,
           'X-Content-Size': `${finalResponseSizeKB}KB`,
           'X-Execution-Time': `${totalTime}s`,
-          'X-Generated-Count': successfulImageUrls.length.toString(),
+          'X-Generated-Count': responseImageUrls.length.toString(),
           'X-Requested-Count': poseDescriptions.length.toString(),
         },
       });
@@ -703,7 +661,7 @@ export async function POST(request: NextRequest) {
       // Log a final checkpoint before returning
       console.log(`[${new Date().toISOString()}] 开始返回响应...`);
       console.log(`响应体大小: ${finalResponseSizeKB} KB (${finalResponseSizeMB.toFixed(2)} MB)`);
-      console.log(`生成的图片数量: ${successfulImageUrls.length}, Pose 描述数量: ${successfulPoseDescriptions.length}`);
+      console.log(`生成的图片数量: ${responseImageUrls.length}, Pose 描述数量: ${responsePoseDescriptions.length}`);
       
       return response;
     } catch (responseError) {
@@ -716,7 +674,7 @@ export async function POST(request: NextRequest) {
         name: responseError instanceof Error ? responseError.name : undefined,
         responseDataSize: responseDataSize + ' KB',
         poseDescriptionsCount: poseDescriptions.length,
-        generatedImageUrlsCount: successfulImageUrls.length,
+        generatedImageUrlsCount: responseImageUrls.length,
       });
       throw new Error(`创建响应失败: ${responseError instanceof Error ? responseError.message : '未知错误'}`);
     }
@@ -1431,91 +1389,7 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
   }
 }
 
-// Helper functions for Aimovely integration
-async function fetchAimovelyToken(email: string, vcode: string): Promise<string | null> {
-  try {
-    const response = await fetch(`${AIMOVELY_API_URL}/v1/user/verifyvcode`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        vcode,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error("Aimovely token request failed:", response.status, await response.text());
-      return null;
-    }
-
-    const data = await response.json();
-    if (data.code !== 0 || !data.data?.access_token) {
-      console.error("Aimovely token response invalid:", data);
-      return null;
-    }
-
-    return data.data.access_token as string;
-  } catch (error) {
-    console.error("Error fetching Aimovely token:", error);
-    return null;
-  }
-}
-
-interface UploadResult {
-  url: string;
-  resource_id: string;
-}
-
-async function uploadImageToAimovely(dataUrl: string, token: string, prefix: string): Promise<UploadResult | null> {
-  if (!dataUrl.startsWith("data:")) {
-    console.warn("Unsupported image format, expected data URL");
-    return null;
-  }
-
-  const [metadata, base64Data] = dataUrl.split(",");
-  const mimeMatch = metadata.match(/data:(.*?);base64/);
-  if (!mimeMatch) {
-    console.warn("Failed to parse data URL metadata");
-    return null;
-  }
-
-  const mimeType = mimeMatch[1] || "image/png";
-  const buffer = Buffer.from(base64Data, "base64");
-  const fileName = `photobooth-${prefix}-${Date.now()}.${mimeType.split("/")[1] ?? "png"}`;
-
-  const file = new File([buffer], fileName, { type: mimeType });
-
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("biz", "external_tool");
-  formData.append("template_id", "1");
-
-  const response = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
-    method: "POST",
-    headers: {
-      Authorization: token,
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    console.error("Aimovely upload failed:", response.status, await response.text());
-    return null;
-  }
-
-  const result = await response.json();
-  if (result.code !== 0) {
-    console.error("Aimovely upload API error:", result);
-    return null;
-  }
-
-  return {
-    url: result.data?.url,
-    resource_id: result.data?.resource_id,
-  };
-}
+// 上传函数已移至 @/lib/upload
 
 // Generate pose image using Qwen API (Hot Mode)
 async function generatePoseImageWithQwen(

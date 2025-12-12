@@ -159,44 +159,26 @@ export async function POST(request: NextRequest) {
     // Prepare base64 images for return
     const base64Images: string[] = [...generatedImages];
 
-    // Try to upload to Aimovely if credentials are available
-    const aimovelyEmail = process.env.AIMOVELY_EMAIL;
-    const aimovelyVcode = process.env.AIMOVELY_VCODE;
-
+    // 上传图片（优先 Aimovely，失败回退 Supabase Storage）
+    const { getAimovelyCredentials, uploadImagesWithFallback } = await import("@/lib/upload");
+    
     let uploadedUrls: string[] = [];
-
-    if (aimovelyEmail && aimovelyVcode) {
-      try {
-        const aimovelyToken = await fetchAimovelyToken(aimovelyEmail, aimovelyVcode);
-        if (aimovelyToken) {
-          // Upload images to Aimovely
-          for (let index = 0; index < generatedImages.length; index++) {
-            const dataUrl = generatedImages[index];
-
-            try {
-              const result = await uploadImageToAimovely(dataUrl, aimovelyToken, index);
-              if (result?.url) {
-                uploadedUrls.push(result.url);
-              } else {
-                console.warn("Upload result missing URL, keeping base64 fallback");
-                uploadedUrls.push(dataUrl);
-              }
-            } catch (uploadError) {
-              console.error("上传生成图片失败:", uploadError);
-              uploadedUrls.push(dataUrl);
-            }
-          }
-        } else {
-          console.warn("Failed to acquire Aimovely token, using base64 images");
-          uploadedUrls = [...generatedImages];
-        }
-      } catch (uploadError) {
-        console.error("Aimovely upload error:", uploadError);
-        uploadedUrls = [...generatedImages];
+    const credentials = await getAimovelyCredentials();
+    const uploadResults = await uploadImagesWithFallback(
+      generatedImages,
+      credentials?.token || null,
+      "gemini-3-pro-image"
+    );
+    
+    // 处理上传结果
+    for (let i = 0; i < generatedImages.length; i++) {
+      const result = uploadResults[i];
+      if (result?.url) {
+        uploadedUrls.push(result.url);
+      } else {
+        console.warn(`图片 ${i + 1} 上传失败，使用 base64`);
+        uploadedUrls.push(generatedImages[i]);
       }
-    } else {
-      console.warn("Aimovely credentials not configured, using base64 images");
-      uploadedUrls = [...generatedImages];
     }
 
     return NextResponse.json({
@@ -216,88 +198,5 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function fetchAimovelyToken(email: string, vcode: string): Promise<string | null> {
-  try {
-    const response = await fetch(`${AIMOVELY_API_URL}/v1/user/verifyvcode`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        vcode,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error("Aimovely token request failed:", response.status, await response.text());
-      return null;
-    }
-
-    const data = await response.json();
-    if (data.code !== 0 || !data.data?.access_token) {
-      console.error("Aimovely token response invalid:", data);
-      return null;
-    }
-
-    return data.data.access_token as string;
-  } catch (error) {
-    console.error("Error fetching Aimovely token:", error);
-    return null;
-  }
-}
-
-interface UploadResult {
-  url: string;
-  resource_id: string;
-}
-
-async function uploadImageToAimovely(dataUrl: string, token: string, index: number): Promise<UploadResult | null> {
-  if (!dataUrl.startsWith("data:")) {
-    console.warn("Unsupported image format, expected data URL");
-    return null;
-  }
-
-  const [metadata, base64Data] = dataUrl.split(",");
-  const mimeMatch = metadata.match(/data:(.*?);base64/);
-  if (!mimeMatch) {
-    console.warn("Failed to parse data URL metadata");
-    return null;
-  }
-
-  const mimeType = mimeMatch[1] || "image/png";
-  const buffer = Buffer.from(base64Data, "base64");
-  const fileName = `gemini-3-pro-image-${Date.now()}-${index}.${mimeType.split("/")[1] ?? "png"}`;
-
-  const file = new File([buffer], fileName, { type: mimeType });
-
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("biz", "external_tool");
-  formData.append("template_id", "1");
-
-  const response = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
-    method: "POST",
-    headers: {
-      Authorization: token,
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    console.error("Aimovely upload failed:", response.status, await response.text());
-    return null;
-  }
-
-  const result = await response.json();
-  if (result.code !== 0) {
-    console.error("Aimovely upload API error:", result);
-    return null;
-  }
-
-  return {
-    url: result.data?.url,
-    resource_id: result.data?.resource_id,
-  };
-}
+// 上传函数已移至 @/lib/upload
 

@@ -214,48 +214,38 @@ export async function POST(request: NextRequest) {
       console.log("[Mimic API] outfitImage provided:", outfitImage.name, "outfitId:", outfitId);
     }
 
-    // Upload input images to Aimovely first
-    const aimovelyEmail = process.env.AIMOVELY_EMAIL;
-    const aimovelyVcode = process.env.AIMOVELY_VCODE;
-    let aimovelyToken: string | null = null;
+    // 上传输入图片（优先 Aimovely，失败回退 Supabase Storage）
+    const { getAimovelyCredentials, uploadImageWithFallback } = await import("@/lib/upload");
+    const credentials = await getAimovelyCredentials();
+    const aimovelyToken = credentials?.token || null;
     let uploadedCharacterImageUrl: string | null = null;
 
-    if (aimovelyEmail && aimovelyVcode) {
-      try {
-        aimovelyToken = await fetchAimovelyToken(aimovelyEmail, aimovelyVcode);
-        if (aimovelyToken) {
-          console.log("开始上传输入图片到 Aimovely...");
-          
-          // Upload reference image (only if not using custom prompt)
-          if (referenceImage && !customCaptionPrompt) {
-            const referenceDataUrl = `data:${referenceImage.type};base64,${referenceBase64}`;
-            const referenceUploadResult = await uploadImageToAimovely(
-              referenceDataUrl,
-              aimovelyToken,
-              "reference"
-            );
-            if (referenceUploadResult?.url) {
-              uploadedReferenceImageUrl = referenceUploadResult.url;
-              console.log("参考图上传成功:", uploadedReferenceImageUrl);
-            }
-          }
-
-          // Upload character image
-          const characterDataUrl = `data:${characterImage.type};base64,${characterBase64}`;
-          const characterUploadResult = await uploadImageToAimovely(
-            characterDataUrl,
-            aimovelyToken,
-            "character"
-          );
-          if (characterUploadResult?.url) {
-            uploadedCharacterImageUrl = characterUploadResult.url;
-            console.log("角色图上传成功:", uploadedCharacterImageUrl);
-          }
-        }
-      } catch (uploadError) {
-        console.error("上传输入图片到 Aimovely 失败:", uploadError);
-        // Continue with generation even if upload fails
+    console.log("开始上传输入图片...");
+    
+    // Upload reference image (only if not using custom prompt)
+    if (referenceImage && !customCaptionPrompt) {
+      const referenceDataUrl = `data:${referenceImage.type};base64,${referenceBase64}`;
+      const referenceUploadResult = await uploadImageWithFallback(
+        referenceDataUrl,
+        aimovelyToken,
+        "mimic-reference"
+      );
+      if (referenceUploadResult?.url) {
+        uploadedReferenceImageUrl = referenceUploadResult.url;
+        console.log("参考图上传成功:", uploadedReferenceImageUrl, `(${referenceUploadResult.source})`);
       }
+    }
+
+    // Upload character image
+    const characterDataUrl = `data:${characterImage.type};base64,${characterBase64}`;
+    const characterUploadResult = await uploadImageWithFallback(
+      characterDataUrl,
+      aimovelyToken,
+      "mimic-character"
+    );
+    if (characterUploadResult?.url) {
+      uploadedCharacterImageUrl = characterUploadResult.url;
+      console.log("角色图上传成功:", uploadedCharacterImageUrl, `(${characterUploadResult.source})`);
     }
 
     // Step 1 & 2: 如果提供了自定义 captionPrompt，跳过反推和背景图生成
@@ -354,20 +344,17 @@ export async function POST(request: NextRequest) {
         backgroundImageBase64 = backgroundImage;
       }
       
-      // Upload background image to Aimovely
-      if (aimovelyToken && backgroundImageBase64) {
-        try {
-          const backgroundUploadResult = await uploadImageToAimovely(
-            backgroundImage.startsWith("data:") ? backgroundImage : `data:image/png;base64,${backgroundImage}`,
-            aimovelyToken,
-            "background"
-          );
-          if (backgroundUploadResult?.url) {
-            uploadedBackgroundImageUrl = backgroundUploadResult.url;
-            console.log("背景图上传成功:", uploadedBackgroundImageUrl);
-          }
-        } catch (uploadError) {
-          console.error("上传背景图到 Aimovely 失败:", uploadError);
+      // Upload background image (with fallback)
+      if (backgroundImageBase64) {
+        const bgDataUrl = backgroundImage.startsWith("data:") ? backgroundImage : `data:image/png;base64,${backgroundImage}`;
+        const backgroundUploadResult = await uploadImageWithFallback(
+          bgDataUrl,
+          aimovelyToken,
+          "mimic-background"
+        );
+        if (backgroundUploadResult?.url) {
+          uploadedBackgroundImageUrl = backgroundUploadResult.url;
+          console.log("背景图上传成功:", uploadedBackgroundImageUrl, `(${backgroundUploadResult.source})`);
         }
       }
     }
@@ -442,58 +429,35 @@ export async function POST(request: NextRequest) {
 
     console.log("=== Mimic Generation Completed ===");
 
-    // Upload generated images to Aimovely
+    // Upload generated images (with fallback to Supabase Storage)
     const uploadedFinalImageUrls: (string | null)[] = [];
 
-    if (aimovelyToken) {
-      try {
-        console.log("开始上传生成的图片到 Aimovely...");
-        
-        // Upload background image (only if not already uploaded and exists)
-        if (backgroundImage && !uploadedBackgroundImageUrl) {
-          const bgUploadResult = await uploadImageToAimovely(
-            backgroundImage,
-            aimovelyToken,
-            "background"
-          );
-          if (bgUploadResult?.url) {
-            uploadedBackgroundImageUrl = bgUploadResult.url;
-            console.log("背景图上传成功:", uploadedBackgroundImageUrl);
-          }
-        }
-
-        // 并行上传所有最终图片（节省时间）
-        console.log(`并行上传 ${finalImages.length} 张最终图片...`);
-        const uploadPromises = finalImages.map((image, i) => {
-          return (async () => {
-            try {
-              const finalUploadResult = await uploadImageToAimovely(
-                image,
-                aimovelyToken,
-                `final-${i}`
-              );
-              if (finalUploadResult?.url) {
-                console.log(`最终图片 ${i + 1} 上传成功:`, finalUploadResult.url);
-                return finalUploadResult.url;
-              } else {
-                console.warn(`最终图片 ${i + 1} 上传失败`);
-                return null;
-              }
-            } catch (uploadError) {
-              console.error(`上传最终图片 ${i + 1} 失败:`, uploadError);
-              return null;
-            }
-          })();
-        });
-        
-        const uploadResults = await Promise.all(uploadPromises);
-        uploadedFinalImageUrls.push(...uploadResults);
-      } catch (uploadError) {
-        console.error("上传生成的图片到 Aimovely 失败:", uploadError);
-        // 全部失败，数组保持为空
+    console.log(`上传 ${finalImages.length} 张最终图片...`);
+    
+    // Upload background image (only if not already uploaded and exists)
+    if (backgroundImage && !uploadedBackgroundImageUrl) {
+      const bgUploadResult = await uploadImageWithFallback(
+        backgroundImage,
+        aimovelyToken,
+        "mimic-background"
+      );
+      if (bgUploadResult?.url) {
+        uploadedBackgroundImageUrl = bgUploadResult.url;
+        console.log("背景图上传成功:", uploadedBackgroundImageUrl, `(${bgUploadResult.source})`);
       }
     }
-    // 如果没有Aimovely token，uploadedFinalImageUrls保持为空数组
+
+    // 并行上传所有最终图片（带回退）
+    const { uploadImagesWithFallback } = await import("@/lib/upload");
+    const finalUploadResults = await uploadImagesWithFallback(
+      finalImages,
+      aimovelyToken,
+      "mimic-final"
+    );
+    
+    for (const result of finalUploadResults) {
+      uploadedFinalImageUrls.push(result?.url || null);
+    }
 
     // 如果提供了 characterId，更新任务状态或保存到角色资源
     if (characterId && user) {
@@ -863,95 +827,7 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
   }
 }
 
-// Helper functions for Aimovely integration
-async function fetchAimovelyToken(email: string, vcode: string): Promise<string | null> {
-  try {
-    const response = await fetch(`${AIMOVELY_API_URL}/v1/user/verifyvcode`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        vcode,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error("Aimovely token request failed:", response.status, await response.text());
-      return null;
-    }
-
-    const data = await response.json();
-    if (data.code !== 0 || !data.data?.access_token) {
-      console.error("Aimovely token response invalid:", data);
-      return null;
-    }
-
-    return data.data.access_token as string;
-  } catch (error) {
-    console.error("Error fetching Aimovely token:", error);
-    return null;
-  }
-}
-
-interface UploadResult {
-  url: string;
-  resource_id: string;
-}
-
-async function uploadImageToAimovely(
-  dataUrl: string,
-  token: string,
-  prefix: string
-): Promise<UploadResult | null> {
-  if (!dataUrl.startsWith("data:")) {
-    console.warn("Unsupported image format, expected data URL");
-    return null;
-  }
-
-  const [metadata, base64Data] = dataUrl.split(",");
-  const mimeMatch = metadata.match(/data:(.*?);base64/);
-  if (!mimeMatch) {
-    console.warn("Failed to parse data URL metadata");
-    return null;
-  }
-
-  const mimeType = mimeMatch[1] || "image/png";
-  const buffer = Buffer.from(base64Data, "base64");
-  const fileName = `mimic-${prefix}-${Date.now()}.${mimeType.split("/")[1] ?? "png"}`;
-
-  const file = new File([buffer], fileName, { type: mimeType });
-
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("biz", "external_tool");
-  formData.append("template_id", "1");
-
-  const response = await fetch(`${AIMOVELY_API_URL}/v1/resource/upload`, {
-    method: "POST",
-    headers: {
-      Authorization: token,
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    console.error("Aimovely upload failed:", response.status, await response.text());
-    return null;
-  }
-
-  const result = await response.json();
-  if (result.code !== 0) {
-    console.error("Aimovely upload API error:", result);
-    return null;
-  }
-
-  return {
-    url: result.data?.url,
-    resource_id: result.data?.resource_id,
-  };
-}
+// 上传函数已移至 @/lib/upload
 
 // Generate final image using Qwen API (Hot Mode)
 async function generateFinalImageWithQwen(
