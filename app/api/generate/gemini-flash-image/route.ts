@@ -100,9 +100,11 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
       ],
     };
 
-    // Add aspect ratio if specified
+    // Add aspect ratio if specified (in imageConfig object per SDK interface)
     if (aspectRatio && aspectRatio !== "default") {
-      config.aspectRatio = aspectRatio;
+      config.imageConfig = {
+        aspectRatio: aspectRatio
+      };
     }
 
     console.log("Generation config:", JSON.stringify(config, null, 2));

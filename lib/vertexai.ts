@@ -71,13 +71,23 @@ export async function callVertexAI(
 ): Promise<any> {
   const client = getVertexAIClient();
 
+  // 构建最终配置，确保 aspectRatio 和 imageSize 被正确传递
+  const finalConfig: any = {
+    ...generationConfig,
+    safetySettings: safetySettings,
+  };
+  
+  // 调试日志：检查 imageConfig 是否在配置中
+  if (generationConfig.imageConfig) {
+    console.log("[callVertexAI] Generation config 包含图片参数:", {
+      imageConfig: generationConfig.imageConfig,
+    });
+  }
+  
   const response = await client.models.generateContent({
     model: modelId,
     contents: contents,
-    config: {
-      ...generationConfig,
-      safetySettings: safetySettings,
-    },
+    config: finalConfig,
   });
 
   // 构造兼容的响应格式
@@ -215,13 +225,27 @@ export async function generateImage(
     safetySettings: safetySettings,
   };
 
-  // 图片配置
-  if (options?.imageSize) {
-    config.imageSize = options.imageSize;
+  // 图片配置 - 需要在 imageConfig 对象中
+  const hasImageSize = !!options?.imageSize;
+  const hasAspectRatio = options?.aspectRatio && options.aspectRatio !== "default";
+  
+  if (hasImageSize || hasAspectRatio) {
+    config.imageConfig = {};
+    if (hasImageSize) {
+      config.imageConfig.imageSize = options.imageSize;
+      console.log("[generateImage] 设置 imageSize:", options.imageSize);
+    }
+    if (hasAspectRatio) {
+      config.imageConfig.aspectRatio = options.aspectRatio;
+      console.log("[generateImage] 设置 aspectRatio:", options.aspectRatio);
+    }
   }
-  if (options?.aspectRatio && options.aspectRatio !== "default") {
-    config.aspectRatio = options.aspectRatio;
-  }
+
+  // 调试日志：检查最终配置
+  console.log("[generateImage] 最终配置:", {
+    hasImageConfig: !!config.imageConfig,
+    imageConfig: config.imageConfig,
+  });
 
   const response = await client.models.generateContent({
     model: modelId,

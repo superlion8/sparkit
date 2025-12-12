@@ -617,7 +617,9 @@ async function generateBackgroundImage(
   };
 
   if (aspectRatio && aspectRatio !== "default") {
-    config.aspectRatio = aspectRatio;
+    config.imageConfig = {
+      aspectRatio: aspectRatio
+    };
   }
 
   const response = await client.models.generateContent({
@@ -733,7 +735,9 @@ negatives: beauty-filter/airbrushed skin; poreless look, exaggerated or distorte
   };
 
   if (aspectRatio && aspectRatio !== "default") {
-    config.aspectRatio = aspectRatio;
+    config.imageConfig = {
+      aspectRatio: aspectRatio
+    };
   }
 
   const response = await client.models.generateContent({
